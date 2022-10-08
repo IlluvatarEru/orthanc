@@ -11,8 +11,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 SCRAPING_TIMEOUT = 30
-URL_FILE_PATH = 'C:/dev/re_kz/bi_urls.txt'
-
 logging.getLogger('WDM').setLevel(logging.NOTSET)
 
 
@@ -28,18 +26,24 @@ def get_selenium_scraping_options():
     return options
 
 
-class SeleniumScrapper:
+class OrthancScrapper:
     """
-    Very often the pattern when scrapping a RE website is:
-    - we have a main url
-    - from which we can get several urls for different flats
-    - for each flat (ie url) we want to get some info
+    Base class used to scrap different RE websites
     """
 
-    def __init__(self, main_url, base_flat_url, file_name, flat_characteristics_df):
+    def __init__(self, main_url, base_flat_url, country, file_name, flat_characteristics_df):
+        """
+
+        :param main_url: str, url from which we want to scrap all the individual flats
+        :param base_flat_url: str, base url for each flat usually there is just an id to add
+        :param country: str
+        :param file_name: str, name of the file
+        :param flat_characteristics_df: pd.Df, empty df representing the format of data we need
+        """
         self.driver = None
         self.flat_urls = []
-        self.data_path = 'C:/dev/data/re/'
+        self.country = country
+        self.data_path = 'C:/dev/data/re/' + country + '/'
         self.flats_characteristics = flat_characteristics_df
         self.main_url = main_url
         self.base_flat_url = base_flat_url
@@ -49,12 +53,18 @@ class SeleniumScrapper:
     def init_webdriver(self):
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
                                   options=get_selenium_scraping_options())
-        user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 Safari/537.36'
+        user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 ' \
+                     'Safari/537.36 '
         driver.execute_cdp_cmd('Network.setUserAgentOverride', {'userAgent': user_agent})
 
         self.driver = driver
 
     def get_by_path(self, element_to_look_for):
+        """
+        Given a htnl element to look for (class etc) try to find it
+        :param element_to_look_for: str, eg: //div[contains(text(),'Подъезд')]//following::div[1]
+        :return:
+        """
         return WebDriverWait(self.driver, SCRAPING_TIMEOUT).until(
             EC.presence_of_element_located(
                 (By.XPATH, element_to_look_for)
@@ -62,17 +72,35 @@ class SeleniumScrapper:
         )
 
     def click_button(self, button_class_to_find):
-        # button = driver.find_element_by_xpath(button_class_to_find)
+        """
+        Given the html code of a button, finds it and clicks on it
+        :param button_class_to_find:
+        :return:
+        """
         button = self.get_by_path(button_class_to_find)
         self.driver.execute_script("arguments[0].click();", button)
 
     def find_all_flats_urls_on_main_page(self):
+        """
+        To implement by the child class
+        :return:
+        """
         raise Exception('find_all_flats_urls_on_main_page not implemented')
 
     def find_flat_characteristics(self, flat_url):
+        """
+        To implement by the child class
+
+        :param flat_url:
+        :return:
+        """
         raise Exception('find_flat_characteristics not implemented')
 
     def find_flats_characteristics(self):
+        """
+        Given the saved urls of all flats, find all the required characteristics and save them to the class + on disk
+        :return:
+        """
         flats_characteristics = self.flats_characteristics
         for url in self.flat_urls:
             flat_characteristics = self.find_flat_characteristics(url)
