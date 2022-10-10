@@ -112,3 +112,12 @@ class OrthancScrapper:
     def save_flats_to_file(self):
         today = datetime.datetime.today().strftime('%Y-%m-%d')
         self.flats_characteristics.to_csv(self.data_path + today + '_' + self.file_name + '.csv')
+
+    def count_by_building(self):
+        return self.flats_characteristics.groupby(['Entrance']).size().reset_index(name='counts')
+
+    def get_flats_between_floors(self, floor_from, floor_to):
+        filtered_flats = self.flats_characteristics.copy()
+        filtered_flats = filtered_flats.loc[(filtered_flats['Floor'] >= floor_from) &
+                                            (filtered_flats['Floor'] <= floor_to)]
+        return filtered_flats
