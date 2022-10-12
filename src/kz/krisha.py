@@ -6,7 +6,7 @@ KRISHA_BASE_URL = 'https://krisha.kz/prodazha/kvartiry/'
 KRISHA_BASE_FLAT_URL = 'https://krisha.kz/a/show/'
 
 
-def scrap_krisha(city='astana',  jk_name='Nexpo', number_of_rooms=1):
+def scrap_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
     krisha_scrapper = KrishaScrapper(city, jk_name, number_of_rooms)
     krisha_scrapper.find_all_flats_urls_on_main_page()
     return krisha_scrapper.find_flats_characteristics()
@@ -69,9 +69,13 @@ class KrishaScrapper(OrthancScrapper):
 
             element_floor = self.get_by_path("//div[starts-with(@data-name,'flat.floor')]//following::div[3]")
             floor = element_floor.text
-            floor, max_floor = floor.split(' из ')
+            if 'из' in floor:
+                floor, max_floor = floor.split('из')
+                max_floor = int(max_floor)
+            else:
+                floor = floor
+                max_floor = 'na'
             floor = int(floor)
-            max_floor = int(max_floor)
 
             element_surface = self.get_by_path("//div[starts-with(@data-name,'live.square')]//following::div[3]")
             surface = element_surface.text.split("м²")[0]
