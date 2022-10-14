@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 
 import pandas as pd
 from selenium import webdriver
@@ -9,6 +10,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
+
+from src.utils import root_folder
+from src.utils.constants import PATH_TO_DATA
 
 SCRAPING_TIMEOUT = 30
 logging.getLogger('WDM').setLevel(logging.NOTSET)
@@ -24,6 +28,13 @@ def get_selenium_scraping_options():
     options.add_experimental_option('excludeSwitches', ['enable-automation'])
     options.add_experimental_option('useAutomationExtension', False)
     return options
+
+
+def determine_root_folder():
+    if os.name == 'nt':
+        root_folder.ROOT_FOLDER = 'C:/dev/'
+    else:
+        root_folder.ROOT_FOLDER = '/home/mev/'
 
 
 class OrthancScrapper:
@@ -43,7 +54,8 @@ class OrthancScrapper:
         self.driver = None
         self.flat_urls = []
         self.country = country
-        self.data_path = 'C:/dev/data/re/' + country + '/'
+        determine_root_folder()
+        self.data_path = root_folder.ROOT_FOLDER + PATH_TO_DATA + country + '/'
         self.flats_characteristics = flat_characteristics_df
         self.main_url = main_url
         self.base_flat_url = base_flat_url
