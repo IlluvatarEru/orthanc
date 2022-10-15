@@ -4,6 +4,10 @@ from src.orthanc_scrapper import OrthancScrapper
 
 BI_BASE_FLAT_URL = 'https://bi.group/ru/flats?placementUUID='
 
+from src.utils.logger import scrapper_logger, logger_init
+
+logger = scrapper_logger('BI_Group')
+
 
 def get_bi_flats():
     main_url = 'https://bi.group/ru/filter?propertyTypes=%5B%225990a172-812a-4fee-b4f5-c860cca824d7%22%2C%22b6e20785' \
@@ -26,9 +30,11 @@ class KzBIGroup(OrthancScrapper):
     """
 
     def __int__(self, main_url, file_name, flat_characteristics_df):
+        logger_init(logger)
         OrthancScrapper.__init__(self, main_url, BI_BASE_FLAT_URL, 'kz', file_name, flat_characteristics_df)
 
     def find_all_flats_urls_on_main_page(self):
+        logger.info('Starting to find all flats urls')
         driver = self.driver
         driver.get(self.main_url)
 
@@ -43,13 +49,14 @@ class KzBIGroup(OrthancScrapper):
             try:
                 self.load_more()
             except Exception as e:
-                print(e)
+                logger.error('Failed to load more.\nError:' + str(e))
             self.find_flat_ids_from_img_urls()
             n_ids_prev = n_ids
             n_ids = len(self.flat_urls)
         return self.flat_urls
 
     def find_flat_ids_from_img_urls(self):
+        logger.info('Starting to find all flats ids from urls')
         element_urls = self.driver.find_elements_by_xpath("//img[starts-with(@class,'MRE-jss')]")
         for element_url in element_urls:
             uid = element_url.get_attribute("src").split("/")[-2]
@@ -57,11 +64,11 @@ class KzBIGroup(OrthancScrapper):
         self.flat_urls = list(set(self.flat_urls))
 
     def find_flat_characteristics(self, flat_url):
+        logger.info('Starting to find all flats characteristics')
         self.init_webdriver()
         driver = self.driver
         driver.get(flat_url)
         try:
-
             element_price = self.get_by_path("//div[contains(text(),'Стоимость')]//following::div[1]")
             price = int(element_price.text.replace(' ₸', '').replace(",", ""))
 
@@ -81,8 +88,8 @@ class KzBIGroup(OrthancScrapper):
             return pd.DataFrame([[floor, max_floor, surface, price, entrance, flat_url]],
                                 columns=['Floor', 'Number Of Floors', 'Surface', 'Price', 'Entrance', 'Link'])
         except Exception as e:
-            print(flat_url)
-            print(e)
+            logger.error('Failed to find flats characteristics for url:' + flat_url +
+                         '\nReceived the following error' + str(e))
             return pd.DataFrame(columns=['Floor', 'Number Of Floors', 'Surface', 'Price', 'Entrance', 'Link'])
 
     def load_more(self):
@@ -90,6 +97,7 @@ class KzBIGroup(OrthancScrapper):
         Clicks on load more button
         :return:
         """
+        logger.info('Loading more flats on the page...')
         button_class_to_find = "//button[starts-with(@class, 'MRE-MuiButtonBase-root MRE-MuiButton-root " \
                                "MRE-MuiButton-contained MRE-jss')]//span[text()='Показать еще'] "
         self.click_button(button_class_to_find)
