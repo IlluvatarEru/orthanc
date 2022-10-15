@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 
 import pandas as pd
 from selenium import webdriver
@@ -12,10 +11,15 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from src.utils import root_folder
+
+root_folder.determine_root_folder()
 from src.utils.constants import PATH_TO_DATA
+from src.utils.logger import scrapper_logger, logger_init
 
 SCRAPING_TIMEOUT = 30
 logging.getLogger('WDM').setLevel(logging.NOTSET)
+
+logger = scrapper_logger('Orthanc')
 
 
 def get_selenium_scraping_options():
@@ -30,11 +34,9 @@ def get_selenium_scraping_options():
     return options
 
 
-def determine_root_folder():
-    if os.name == 'nt':
-        root_folder.ROOT_FOLDER = 'C:/dev/'
-    else:
-        root_folder.ROOT_FOLDER = '/home/mev/'
+def get_user_agent():
+    return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 ' \
+           'Safari/537.36 '
 
 
 class OrthancScrapper:
@@ -51,25 +53,31 @@ class OrthancScrapper:
         :param file_name: str, name of the file
         :param flat_characteristics_df: pd.Df, empty df representing the format of data we need
         """
+        logger_init(logger)
         self.driver = None
         self.flat_urls = []
         self.country = country
-        determine_root_folder()
-        self.data_path = root_folder.ROOT_FOLDER + PATH_TO_DATA + country + '/'
+        self.data_path = PATH_TO_DATA + country + '/'
         self.flats_characteristics = flat_characteristics_df
         self.main_url = main_url
         self.base_flat_url = base_flat_url
         self.init_webdriver()
         self.file_name = file_name
 
-    def init_webdriver(self):
-        driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
-                                  options=get_selenium_scraping_options())
-        user_agent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.50 ' \
-                     'Safari/537.36 '
-        driver.execute_cdp_cmd('Network.setUserAgentOverride', {'userAgent': user_agent})
-
-        self.driver = driver
+    def init_webdriver(self, trials=5):
+        if trials > 0:
+            logger.info('Initializing ' + logger.name + "'s driver")
+            try:
+                driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()),
+                                          options=get_selenium_scraping_options())
+                user_agent = get_user_agent()
+                driver.execute_cdp_cmd('Network.setUserAgentOverride', {'userAgent': user_agent})
+                self.driver = driver
+            except:
+                logger.error('Failed to init driver. Trying again.')
+                self.init_webdriver(trials - 1)
+        else:
+            logger.error('Failed to init driver despite multiple trials.')
 
     def get_by_path(self, element_to_look_for):
         """
@@ -77,11 +85,17 @@ class OrthancScrapper:
         :param element_to_look_for: str, eg: //div[contains(text(),'Подъезд')]//following::div[1]
         :return:
         """
-        return WebDriverWait(self.driver, SCRAPING_TIMEOUT).until(
-            EC.presence_of_element_located(
-                (By.XPATH, element_to_look_for)
+
+        logger.info('Looking for:' + element_to_look_for)
+        try:
+            result = WebDriverWait(self.driver, SCRAPING_TIMEOUT).until(
+                EC.presence_of_element_located(
+                    (By.XPATH, element_to_look_for)
+                )
             )
-        )
+            return result
+        except Exception as e:
+            logger.error('Failed to find element at url: ' + self.driver.current_url + '\nError is:' + str(e))
 
     def click_button(self, button_class_to_find):
         """
@@ -89,6 +103,7 @@ class OrthancScrapper:
         :param button_class_to_find:
         :return:
         """
+        logger.info('Clicking the following button:' + button_class_to_find)
         button = self.get_by_path(button_class_to_find)
         self.driver.execute_script("arguments[0].click();", button)
 
@@ -113,6 +128,7 @@ class OrthancScrapper:
         Given the saved urls of all flats, find all the required characteristics and save them to the class + on disk
         :return:
         """
+        logger.info('Starting to find flats characteristics')
         flats_characteristics = self.flats_characteristics
         for url in self.flat_urls:
             flat_characteristics = self.find_flat_characteristics(url)
@@ -122,13 +138,16 @@ class OrthancScrapper:
         return flats_characteristics
 
     def save_flats_to_file(self):
+        logger.info('Saving flats characteristics')
         today = datetime.datetime.today().strftime('%Y-%m-%d')
         self.flats_characteristics.to_csv(self.data_path + today + '_' + self.file_name + '.csv')
 
     def count_by_building(self):
+        logger.info('Counting flats by buildings/entrances')
         return self.flats_characteristics.groupby(['Entrance']).size().reset_index(name='counts')
 
     def get_flats_between_floors(self, floor_from, floor_to):
+        logger.info('Filtering flats between min floor=' + str(floor_from) + 'and max floor=' + str(floor_to))
         filtered_flats = self.flats_characteristics.copy()
         filtered_flats = filtered_flats.loc[(filtered_flats['Floor'] >= floor_from) &
                                             (filtered_flats['Floor'] <= floor_to)]
