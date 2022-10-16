@@ -79,7 +79,7 @@ class OrthancScrapper:
         else:
             logger.error('Failed to init driver despite multiple trials.')
 
-    def get_by_path(self, element_to_look_for):
+    def get_element_by_path(self, element_to_look_for):
         """
         Given a htnl element to look for (class etc) try to find it
         :param element_to_look_for: str, eg: //div[contains(text(),'Подъезд')]//following::div[1]
@@ -97,6 +97,24 @@ class OrthancScrapper:
         except Exception as e:
             logger.error('Failed to find element at url: ' + self.driver.current_url + '\nError is:' + str(e))
 
+    def get_elements_by_path(self, elements_to_look_for):
+        """
+        Given a htnl element to look for (class etc) try to find it
+        :param elements_to_look_for: list of str
+        :return:
+        """
+
+        logger.info('Looking for:' + elements_to_look_for)
+        try:
+            result = WebDriverWait(self.driver, SCRAPING_TIMEOUT).until(
+                EC.presence_of_all_elements_located(
+                    (By.XPATH, elements_to_look_for)
+                )
+            )
+            return result
+        except Exception as e:
+            logger.error('Failed to find element at url: ' + self.driver.current_url + '\nError is:' + str(e))
+
     def click_button(self, button_class_to_find):
         """
         Given the html code of a button, finds it and clicks on it
@@ -104,7 +122,7 @@ class OrthancScrapper:
         :return:
         """
         logger.info('Clicking the following button:' + button_class_to_find)
-        button = self.get_by_path(button_class_to_find)
+        button = self.get_element_by_path(button_class_to_find)
         self.driver.execute_script("arguments[0].click();", button)
 
     def find_all_flats_urls_on_main_page(self):
@@ -133,6 +151,7 @@ class OrthancScrapper:
         for url in self.flat_urls:
             flat_characteristics = self.find_flat_characteristics(url)
             flats_characteristics = pd.concat([flats_characteristics, flat_characteristics])
+        flats_characteristics = flats_characteristics.sort_values(by=['Entrance', 'Number Of Floors'])
         self.flats_characteristics = flats_characteristics.reset_index(drop=True)
         self.save_flats_to_file()
         return flats_characteristics

@@ -1,19 +1,28 @@
 import pandas as pd
 
+from src.kz.read import read_jk_ids_krisha
 from src.orthanc_scrapper import OrthancScrapper
+from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
 
+PLATFORM = 'Krisha'
 KRISHA_BASE_URL = 'https://krisha.kz/prodazha/kvartiry/'
 KRISHA_BASE_FLAT_URL = 'https://krisha.kz/a/show/'
-
 from src.utils.logger import scrapper_logger, logger_init
 
-logger = scrapper_logger('Krisha')
+logger = scrapper_logger(PLATFORM)
 
 
 def scrap_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
     krisha_scrapper = KrishaScrapper(city, jk_name, number_of_rooms)
     krisha_scrapper.find_all_flats_urls_on_main_page()
     return krisha_scrapper.find_flats_characteristics()
+
+
+def send_email_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
+    krisha_flats = scrap_krisha(city=city, jk_name=jk_name, number_of_rooms=number_of_rooms)
+    email_object = get_email_object(PLATFORM, city, jk_name)
+    text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
+    send_dataframe_by_email(krisha_flats, ['arthurimbagourdov@gmail.com'], email_object, text)
 
 
 def build_main_url_krisha(city, number_of_rooms=0, jk_id=0):
@@ -23,11 +32,6 @@ def build_main_url_krisha(city, number_of_rooms=0, jk_id=0):
     if jk_id > 0:
         main_url += '&das[map.complex]=' + str(jk_id)
     return main_url
-
-
-def read_jk_ids_krisha():
-    jk_ids = pd.read_csv('c:/dev/orthanc/src/kz/resources//krisha_jk_ids.csv')
-    return dict(jk_ids.values)
 
 
 def get_jk_id_krisha(jk_name):
@@ -45,18 +49,18 @@ class KrishaScrapper(OrthancScrapper):
                  jk_name,
                  number_of_rooms=1,
                  flat_characteristics_df=pd.DataFrame(
-                     columns=['Floor', 'Number Of Floors', 'Surface', 'Price', 'Entrance', 'Link'])
+                     columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
                  ):
         logger_init(logger)
         main_url = build_main_url_krisha(city, number_of_rooms, get_jk_id_krisha(jk_name))
-        file_name = 'krisha_' + jk_name
+        file_name = build_platform_jk_file_name(PLATFORM, jk_name)
         OrthancScrapper.__init__(self, main_url, KRISHA_BASE_FLAT_URL, 'kz', file_name, flat_characteristics_df)
 
     def find_all_flats_urls_on_main_page(self):
         logger.info('Starting to find all flats urls')
         driver = self.driver
         driver.get(self.main_url)
-        elements = driver.find_elements_by_xpath(
+        elements = self.get_elements_by_path(
             "//div[starts-with(@class,'a-card a-storage-live ddl_product ddl_product_link not-colored is-visibl')]")
         for element in elements:
             uid = element.get_attribute("data-id")
@@ -70,10 +74,10 @@ class KrishaScrapper(OrthancScrapper):
         driver = self.driver
         driver.get(flat_url)
         try:
-            element_price = self.get_by_path("//div[starts-with(@class,'offer__price')]")
+            element_price = self.get_element_by_path("//div[starts-with(@class,'offer__price')]")
             price = int(element_price.text.replace(' \n〒', '').replace(",", "").replace(" ", ""))
 
-            element_floor = self.get_by_path("//div[starts-with(@data-name,'flat.floor')]//following::div[3]")
+            element_floor = self.get_element_by_path("//div[starts-with(@data-name,'flat.floor')]//following::div[3]")
             floor = element_floor.text
             if 'из' in floor:
                 floor, max_floor = floor.split('из')
@@ -83,15 +87,15 @@ class KrishaScrapper(OrthancScrapper):
                 max_floor = 'na'
             floor = int(floor)
 
-            element_surface = self.get_by_path("//div[starts-with(@data-name,'live.square')]//following::div[3]")
+            element_surface = self.get_element_by_path("//div[starts-with(@data-name,'live.square')]//following::div[3]")
             surface = element_surface.text.split("м²")[0]
             surface = float(surface.replace('м²', '').replace(' ', ''))
 
             entrance = "na"
 
             return pd.DataFrame([[floor, max_floor, surface, price, entrance, flat_url]],
-                                columns=['Floor', 'Number Of Floors', 'Surface', 'Price', 'Entrance', 'Link'])
+                                columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +
                          '\nReceived the following error' + str(e))
-            return pd.DataFrame(columns=['Floor', 'Number Of Floors', 'Surface', 'Price', 'Entrance', 'Link'])
+            return pd.DataFrame(columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
