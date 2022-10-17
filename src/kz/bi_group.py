@@ -3,6 +3,7 @@ import pandas as pd
 from src.kz.read import read_bi_jk_ids
 from src.orthanc_scrapper import OrthancScrapper
 from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
+from src.utils.formatting import format_price_to_million_tenge, format_prices_to_million_tenge
 
 BI_BASE_FLAT_URL = 'https://bi.group/ru/flats?placementUUID='
 BI_BASE_URL = 'https://bi.group/ru/filter?'
@@ -36,6 +37,7 @@ def send_email_bi(city='astana', jk_name='Aqua', number_of_rooms=1):
     bi_flats = scrap_bi(city=city, jk_name=jk_name, number_of_rooms=number_of_rooms)
     email_object = get_email_object(PLATFORM, city, jk_name)
     text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
+    bi_flats['Price'] = format_prices_to_million_tenge(bi_flats['Price'])
     send_dataframe_by_email(bi_flats, ['arthurimbagourdov@gmail.com'], email_object, text)
 
 
@@ -90,7 +92,7 @@ class KzBIGroup(OrthancScrapper):
         driver.get(flat_url)
         try:
             element_price = self.get_element_by_path("//div[contains(text(),'Стоимость')]//following::div[1]")
-            price = int(element_price.text.replace(' ₸', '').replace(",", ""))
+            price = float(element_price.text.replace(' ₸', '').replace(",", ""))
 
             element_floor = self.get_element_by_path("//div[contains(text(),'Этаж')]//following::div[1]")
             floor = element_floor.text
@@ -105,7 +107,7 @@ class KzBIGroup(OrthancScrapper):
             element_entrance = self.get_element_by_path("//div[contains(text(),'Подъезд')]//following::div[1]")
             entrance = element_entrance.text
 
-            return pd.DataFrame([[floor, max_floor, surface, price, entrance, flat_url]],
+            return pd.DataFrame([[entrance, max_floor, floor, surface, price, flat_url]],
                                 columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +
