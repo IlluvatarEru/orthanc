@@ -3,6 +3,7 @@ import pandas as pd
 from src.kz.read import read_jk_ids_krisha
 from src.orthanc_scrapper import OrthancScrapper
 from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
+from src.utils.formatting import format_price_to_million_tenge, format_prices_to_million_tenge
 
 PLATFORM = 'Krisha'
 KRISHA_BASE_URL = 'https://krisha.kz/prodazha/kvartiry/'
@@ -22,6 +23,7 @@ def send_email_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
     krisha_flats = scrap_krisha(city=city, jk_name=jk_name, number_of_rooms=number_of_rooms)
     email_object = get_email_object(PLATFORM, city, jk_name)
     text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
+    krisha_flats['Price'] = format_prices_to_million_tenge(krisha_flats['Price'])
     send_dataframe_by_email(krisha_flats, ['arthurimbagourdov@gmail.com'], email_object, text)
 
 
@@ -75,7 +77,7 @@ class KrishaScrapper(OrthancScrapper):
         driver.get(flat_url)
         try:
             element_price = self.get_element_by_path("//div[starts-with(@class,'offer__price')]")
-            price = int(element_price.text.replace(' \n〒', '').replace(",", "").replace(" ", ""))
+            price = float(element_price.text.replace(' \n〒', '').replace(",", "").replace(" ", ""))
 
             element_floor = self.get_element_by_path("//div[starts-with(@data-name,'flat.floor')]//following::div[3]")
             floor = element_floor.text
@@ -87,13 +89,14 @@ class KrishaScrapper(OrthancScrapper):
                 max_floor = 'na'
             floor = int(floor)
 
-            element_surface = self.get_element_by_path("//div[starts-with(@data-name,'live.square')]//following::div[3]")
+            element_surface = self.get_element_by_path(
+                "//div[starts-with(@data-name,'live.square')]//following::div[3]")
             surface = element_surface.text.split("м²")[0]
             surface = float(surface.replace('м²', '').replace(' ', ''))
 
             entrance = "na"
 
-            return pd.DataFrame([[floor, max_floor, surface, price, entrance, flat_url]],
+            return pd.DataFrame([[entrance, max_floor, floor, surface, price, flat_url]],
                                 columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +

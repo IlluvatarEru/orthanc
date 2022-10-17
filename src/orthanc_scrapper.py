@@ -159,7 +159,8 @@ class OrthancScrapper:
     def save_flats_to_file(self):
         logger.info('Saving flats characteristics')
         today = datetime.datetime.today().strftime('%Y-%m-%d')
-        self.flats_characteristics.to_csv(self.data_path + today + '_' + self.file_name + '.csv')
+        flats = self.flats_characteristics.copy()
+        flats.to_csv(self.data_path + today + '_' + self.file_name + '.csv')
 
     def count_by_building(self):
         logger.info('Counting flats by buildings/entrances')
