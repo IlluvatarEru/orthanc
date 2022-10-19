@@ -2,6 +2,7 @@ import pandas as pd
 
 from src.kz.read import read_jk_ids_krisha
 from src.orthanc_scrapper import OrthancScrapper
+from src.utils.constants import STANDARD_DF
 from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
 from src.utils.formatting import format_price_to_million_tenge, format_prices_to_million_tenge
 
@@ -50,8 +51,7 @@ class KrishaScrapper(OrthancScrapper):
                  city,
                  jk_name,
                  number_of_rooms=1,
-                 flat_characteristics_df=pd.DataFrame(
-                     columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+                 flat_characteristics_df=STANDARD_DF.copy()
                  ):
         logger_init(logger)
         main_url = build_main_url_krisha(city, number_of_rooms, get_jk_id_krisha(jk_name))
@@ -76,6 +76,7 @@ class KrishaScrapper(OrthancScrapper):
         driver = self.driver
         driver.get(flat_url)
         try:
+            flat_id = flat_url.split('/')[-1]
             element_price = self.get_element_by_path("//div[starts-with(@class,'offer__price')]")
             price = float(element_price.text.replace(' \n〒', '').replace(",", "").replace(" ", ""))
 
@@ -96,9 +97,9 @@ class KrishaScrapper(OrthancScrapper):
 
             entrance = "na"
 
-            return pd.DataFrame([[entrance, max_floor, floor, surface, price, flat_url]],
-                                columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+            return pd.DataFrame([[flat_id, entrance, max_floor, floor, surface, price, flat_url]],
+                                columns=['Id','Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +
                          '\nReceived the following error' + str(e))
-            return pd.DataFrame(columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+            return STANDARD_DF.copy()

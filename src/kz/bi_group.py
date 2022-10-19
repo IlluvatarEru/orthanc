@@ -2,6 +2,7 @@ import pandas as pd
 
 from src.kz.read import read_bi_jk_ids
 from src.orthanc_scrapper import OrthancScrapper
+from src.utils.constants import STANDARD_DF
 from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
 from src.utils.formatting import format_price_to_million_tenge, format_prices_to_million_tenge
 
@@ -46,10 +47,7 @@ class KzBIGroup(OrthancScrapper):
     BI Group is the leader of the RE market in Astana, we want to scrap new projects
     """
 
-    def __init__(self, city, jk_name, number_of_rooms,
-                 flat_characteristics_df=pd.DataFrame(
-                     columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
-                 ):
+    def __init__(self, city, jk_name, number_of_rooms, flat_characteristics_df=STANDARD_DF.copy()):
         logger_init(logger)
         main_url = build_main_url_bi(city, jk_name, number_of_rooms)
         file_name = build_platform_jk_file_name(PLATFORM, jk_name)
@@ -91,6 +89,7 @@ class KzBIGroup(OrthancScrapper):
         driver = self.driver
         driver.get(flat_url)
         try:
+            flat_id = flat_url.split('=')[-1]
             element_price = self.get_element_by_path("//div[contains(text(),'Стоимость')]//following::div[1]")
             price = float(element_price.text.replace(' ₸', '').replace(",", ""))
 
@@ -107,12 +106,12 @@ class KzBIGroup(OrthancScrapper):
             element_entrance = self.get_element_by_path("//div[contains(text(),'Подъезд')]//following::div[1]")
             entrance = element_entrance.text
 
-            return pd.DataFrame([[entrance, max_floor, floor, surface, price, flat_url]],
-                                columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+            return pd.DataFrame([[flat_id, entrance, max_floor, floor, surface, price, flat_url]],
+                                columns=['Id','Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +
                          '\nReceived the following error' + str(e))
-            return pd.DataFrame(columns=['Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+            return STANDARD_DF.copy()
 
     def load_more(self):
         """
