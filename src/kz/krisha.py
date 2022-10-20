@@ -1,10 +1,11 @@
+import numpy as np
 import pandas as pd
 
 from src.kz.read import read_jk_ids_krisha
 from src.orthanc_scrapper import OrthancScrapper
-from src.utils.constants import STANDARD_DF
+from src.utils.constants import STANDARD_FLAT_CHARACTERISTICS
 from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
-from src.utils.formatting import format_price_to_million_tenge, format_prices_to_million_tenge
+from src.utils.formatting import format_prices_to_million_tenge
 
 PLATFORM = 'Krisha'
 KRISHA_BASE_URL = 'https://krisha.kz/prodazha/kvartiry/'
@@ -17,7 +18,8 @@ logger = scrapper_logger(PLATFORM)
 def scrap_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
     krisha_scrapper = KrishaScrapper(city, jk_name, number_of_rooms)
     krisha_scrapper.find_all_flats_urls_on_main_page()
-    return krisha_scrapper.find_flats_characteristics()
+    krisha_scrapper.find_flats_characteristics()
+    return krisha_scrapper.weekly_comparison()
 
 
 def send_email_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
@@ -51,7 +53,7 @@ class KrishaScrapper(OrthancScrapper):
                  city,
                  jk_name,
                  number_of_rooms=1,
-                 flat_characteristics_df=STANDARD_DF.copy()
+                 flat_characteristics_df=STANDARD_FLAT_CHARACTERISTICS.copy()
                  ):
         logger_init(logger)
         main_url = build_main_url_krisha(city, number_of_rooms, get_jk_id_krisha(jk_name))
@@ -87,7 +89,7 @@ class KrishaScrapper(OrthancScrapper):
                 max_floor = int(max_floor)
             else:
                 floor = floor
-                max_floor = 'na'
+                max_floor = 0
             floor = int(floor)
 
             element_surface = self.get_element_by_path(
@@ -97,9 +99,9 @@ class KrishaScrapper(OrthancScrapper):
 
             entrance = "na"
 
-            return pd.DataFrame([[flat_id, entrance, max_floor, floor, surface, price, flat_url]],
-                                columns=['Id','Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+            return self.package_flat_characteristics(flat_id, entrance, max_floor, floor, surface, price, flat_url)
+
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +
                          '\nReceived the following error' + str(e))
-            return STANDARD_DF.copy()
+            return STANDARD_FLAT_CHARACTERISTICS.copy()

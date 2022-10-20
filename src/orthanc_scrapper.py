@@ -11,6 +11,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from webdriver_manager.chrome import ChromeDriverManager
 
 from src.utils import root_folder
+from src.utils.dates import get_last_tuesday_of_last_month, get_tuesday_of_last_week
+from src.utils.formatting import format_price_to_million_tenge
 
 root_folder.determine_root_folder()
 from src.utils.constants import PATH_TO_DATA
@@ -59,10 +61,11 @@ class OrthancScrapper:
         self.country = country
         self.data_path = PATH_TO_DATA + country + '/'
         self.flats_characteristics = flat_characteristics_df
+        self.file_name = file_name
         self.main_url = main_url
         self.base_flat_url = base_flat_url
         self.init_webdriver()
-        self.file_name = file_name
+        self.last_week_flats = self.read_last_week()
 
     def init_webdriver(self, trials=5):
         if trials > 0:
@@ -156,11 +159,30 @@ class OrthancScrapper:
         self.save_flats_to_file()
         return flats_characteristics
 
+    def package_flat_characteristics(self, flat_id, entrance, max_floor, floor, surface, price, flat_url):
+        last_week_flats = self.last_week_flats.copy()
+        similar_flats_last_week = last_week_flats.loc[
+            (last_week_flats['Surface'] == surface) &
+            (last_week_flats['Floor'] == floor) &
+            (last_week_flats['Number Of Floors'] == max_floor)
+            ]
+        # check if flat was already here last week but the add was removed and put back
+        # so it has a different flat_id but all the same characteristics
+        if len(similar_flats_last_week) > 0:
+            flat_id = similar_flats_last_week['Id'].values[0]
+            # if more than one similar flat, filter on price
+            if len(similar_flats_last_week) > 1:
+                similar_flats_last_week = similar_flats_last_week.loc[(last_week_flats['Price'] == price)]
+                if len(similar_flats_last_week) > 0:
+                    flat_id = similar_flats_last_week['Id'].values[0]
+        return pd.DataFrame([[flat_id, entrance, max_floor, floor, surface, price, flat_url]],
+                            columns=['Id', 'Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+
     def save_flats_to_file(self):
         logger.info('Saving flats characteristics')
         today = datetime.datetime.today().strftime('%Y-%m-%d')
         flats = self.flats_characteristics.copy()
-        flats.to_csv(self.data_path + today + '_' + self.file_name + '.csv')
+        flats.to_csv(self.data_path + today + '_' + self.file_name + '.csv', index=False)
 
     def count_by_building(self):
         logger.info('Counting flats by buildings/entrances')
@@ -172,3 +194,52 @@ class OrthancScrapper:
         filtered_flats = filtered_flats.loc[(filtered_flats['Floor'] >= floor_from) &
                                             (filtered_flats['Floor'] <= floor_to)]
         return filtered_flats
+
+    def weekly_comparison(self):
+        last_week_flats = self.last_week_flats.copy()
+        this_week_flats = self.flats_characteristics.copy()
+        ids_last_week = last_week_flats['Id'].unique().tolist()
+        ids_this_week = this_week_flats['Id'].unique().tolist()
+        all_ids = set(ids_this_week + ids_last_week)
+        # get status of flats (New, Sold, NA)
+        status = {}
+        for flat_id in all_ids:
+            flat_status = 'NA'
+            last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Status'] = 'NA'
+            if (flat_id in ids_last_week) & (flat_id not in ids_this_week):
+                flat_status = 'sold'
+                last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Status'] = 'Sold'
+            if (flat_id in ids_this_week) & (flat_id not in ids_last_week):
+                flat_status = 'new'
+                this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Status'] = 'New'
+            status[flat_id] = flat_status
+
+        # Add sold flats to current flats
+        this_week_flats = pd.concat([this_week_flats, last_week_flats.loc[last_week_flats['Status'] == 'Sold']])
+
+        for flat_id in all_ids:
+            if status[flat_id] == 'NA':
+                price_last_week = last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Price'].values[0]
+                price_this_week = this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price'].values[0]
+                delta = price_this_week - price_last_week
+                change = delta / price_last_week
+                this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price Delta'] = \
+                    '-' if delta == 0 else format_price_to_million_tenge(delta)
+                this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price Change'] = \
+                    '-' if change == 0 else str(round(change * 100, 2)) + '%'
+        this_week_flats = this_week_flats.sort_values('Status', ascending=False, na_position='last')
+        this_week_flats = this_week_flats.fillna('-')
+        this_week_flats = this_week_flats.reset_index(drop=True)
+        return this_week_flats
+
+    def read_last_month(self):
+        last_month = get_last_tuesday_of_last_month().strftime('%Y-%m-%d')
+        return pd.read_csv(self.data_path + last_month + '_' + self.file_name + '.csv')
+
+    def read_last_week(self):
+        last_week = get_tuesday_of_last_week().strftime('%Y-%m-%d')
+        last_week_flats = pd.read_csv(self.data_path + last_week + '_' + self.file_name + '.csv')
+        last_week_flats['Id'] = last_week_flats['Id'].astype(str)
+        last_week_flats['Number Of Floors'] = last_week_flats['Number Of Floors'].astype(int)
+        last_week_flats['Floor'] = last_week_flats['Floor'].astype(int)
+        return last_week_flats

@@ -2,9 +2,9 @@ import pandas as pd
 
 from src.kz.read import read_bi_jk_ids
 from src.orthanc_scrapper import OrthancScrapper
-from src.utils.constants import STANDARD_DF
+from src.utils.constants import STANDARD_FLAT_CHARACTERISTICS
 from src.utils.emails import send_dataframe_by_email, get_email_text, get_email_object, build_platform_jk_file_name
-from src.utils.formatting import format_price_to_million_tenge, format_prices_to_million_tenge
+from src.utils.formatting import format_prices_to_million_tenge
 
 BI_BASE_FLAT_URL = 'https://bi.group/ru/flats?placementUUID='
 BI_BASE_URL = 'https://bi.group/ru/filter?'
@@ -31,7 +31,8 @@ def build_main_url_bi(city, jk_name='Nexpo', number_of_rooms=0):
 def scrap_bi(city='astana', jk_name='Aqua', number_of_rooms=1):
     bi = KzBIGroup(city, jk_name, number_of_rooms)
     bi.find_all_flats_urls_on_main_page()
-    return bi.find_flats_characteristics()
+    bi.find_flats_characteristics()
+    return bi.weekly_comparison()
 
 
 def send_email_bi(city='astana', jk_name='Aqua', number_of_rooms=1):
@@ -47,7 +48,7 @@ class KzBIGroup(OrthancScrapper):
     BI Group is the leader of the RE market in Astana, we want to scrap new projects
     """
 
-    def __init__(self, city, jk_name, number_of_rooms, flat_characteristics_df=STANDARD_DF.copy()):
+    def __init__(self, city, jk_name, number_of_rooms, flat_characteristics_df=STANDARD_FLAT_CHARACTERISTICS.copy()):
         logger_init(logger)
         main_url = build_main_url_bi(city, jk_name, number_of_rooms)
         file_name = build_platform_jk_file_name(PLATFORM, jk_name)
@@ -106,12 +107,12 @@ class KzBIGroup(OrthancScrapper):
             element_entrance = self.get_element_by_path("//div[contains(text(),'Подъезд')]//following::div[1]")
             entrance = element_entrance.text
 
-            return pd.DataFrame([[flat_id, entrance, max_floor, floor, surface, price, flat_url]],
-                                columns=['Id','Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
+            return self.package_flat_characteristics(flat_id, entrance, max_floor, floor, surface, price, flat_url)
+
         except Exception as e:
             logger.error('Failed to find flats characteristics for url:' + flat_url +
                          '\nReceived the following error' + str(e))
-            return STANDARD_DF.copy()
+            return STANDARD_FLAT_CHARACTERISTICS.copy()
 
     def load_more(self):
         """
