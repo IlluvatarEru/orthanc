@@ -96,7 +96,7 @@ def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None):
 
 
 def build_platform_jk_file_name(platform, jk_name):
-    return platform + '_' + jk_name
+    return platform.lower() + '_' + jk_name.lower()
 
 
 def get_email_text(platform, city, jk_name, number_of_rooms):
