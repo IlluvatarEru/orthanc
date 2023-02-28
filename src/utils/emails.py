@@ -87,6 +87,7 @@ def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None, ema
     :param plot_to_send: a plot object, a plot to attach to the email
     :return:
     """
+    df = df.drop('Id', axis=1)
     if email_in_ru:
         text, df, subject = translate_email_in_ru(text, df, subject)
         receivers = receivers.append("shatrova.lyudmila@gmail.com")
