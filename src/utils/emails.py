@@ -100,12 +100,15 @@ def build_platform_jk_file_name(platform, jk_name):
 
 
 def get_email_text(platform, city, jk_name, number_of_rooms):
-    text = 'Weekly ' + platform + ' summary for :\n' + \
-           '    - City: ' + city.title() + \
-           '    - JK: ' + jk_name.title() + \
-           '    - Number of rooms: ' + str(number_of_rooms)
+    text = 'Weekly ' + platform + ' summary for :<br>' + \
+           '    - City: ' + city.title() + '<br>' + \
+           '    - JK: ' + jk_name.title() + '<br>' + \
+           '    - Number of rooms: ' + str(number_of_rooms) + '<br>'
     return text
 
 
-def get_email_object(platform, city, jk_name):
-    return 'Weekly ' + platform + ' Summary - ' + city.title() + ' - ' + jk_name.title()
+def get_email_object(platform, city, jk_name, environment='PROD'):
+    obj = f'Weekly {platform} Summary - {city.title()}  - {jk_name.title()}'
+    if environment == 'DEV':
+        obj = 'DEV - ' + obj
+    return obj

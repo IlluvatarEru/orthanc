@@ -13,9 +13,10 @@ try:
     city = sys.argv[1]
     jk = sys.argv[2]
     room_number = int(sys.argv[3])
-    logger.info(logger.name + ' - Arguments: \n    city: ' + city + '\n    jk: ' + jk +
-                '\n    room_number: ' + str(room_number))
-    send_email_bi(city=city, jk_name=jk, number_of_rooms=room_number)
+    environment = sys.argv[4]
+    logger.info(
+        f'{logger.name} in {environment}- Arguments: \n    city: {city}\n    jk: {jk}\n    room_number: {room_number}')
+    send_email_bi(city=city, jk_name=jk, number_of_rooms=room_number, environment=environment)
     logger.info(logger.name + ' -  Finished')
 except Exception as e:
     logger.error(logger.name + ' -  Error {}'.format(e), exc_info=True)

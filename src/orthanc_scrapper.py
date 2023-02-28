@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 
 import pandas as pd
 from selenium import webdriver
@@ -82,7 +83,7 @@ class OrthancScrapper:
         else:
             logger.error('Failed to init driver despite multiple trials.')
 
-    def get_element_by_path(self, element_to_look_for):
+    def get_element_by_path(self, element_to_look_for, default=None, return_element=False):
         """
         Given a htnl element to look for (class etc) try to find it
         :param element_to_look_for: str, eg: //div[contains(text(),'Подъезд')]//following::div[1]
@@ -96,11 +97,15 @@ class OrthancScrapper:
                     (By.XPATH, element_to_look_for)
                 )
             )
-            return result
+            if return_element:
+                return result
+            else:
+                return result.text
         except Exception as e:
-            logger.error('Failed to find element at url: ' + self.driver.current_url + '\nError is:' + str(e))
+            logger.error('Failed to find element at url: ' + self.driver.current_url)  # + '\nError is:' + str(e))
+            return default
 
-    def get_elements_by_path(self, elements_to_look_for):
+    def get_elements_by_path(self, elements_to_look_for, default=[]):
         """
         Given a htnl element to look for (class etc) try to find it
         :param elements_to_look_for: list of str
@@ -117,6 +122,7 @@ class OrthancScrapper:
             return result
         except Exception as e:
             logger.error('Failed to find element at url: ' + self.driver.current_url + '\nError is:' + str(e))
+            return default
 
     def click_button(self, button_class_to_find):
         """
@@ -124,9 +130,13 @@ class OrthancScrapper:
         :param button_class_to_find:
         :return:
         """
-        logger.info('Clicking the following button:' + button_class_to_find)
-        button = self.get_element_by_path(button_class_to_find)
-        self.driver.execute_script("arguments[0].click();", button)
+        logger.info('Trying to click the following button:' + button_class_to_find)
+        button = self.get_element_by_path(button_class_to_find, None, return_element=True)
+        if button is not None:
+            logger.info('Button found,clikcing it.')
+            self.driver.execute_script("arguments[0].click();", button)
+        else:
+            logger.info('Button not found.')
 
     def find_all_flats_urls_on_main_page(self):
         """
@@ -161,11 +171,14 @@ class OrthancScrapper:
 
     def package_flat_characteristics(self, flat_id, entrance, max_floor, floor, surface, price, flat_url):
         last_week_flats = self.last_week_flats.copy()
-        similar_flats_last_week = last_week_flats.loc[
-            (last_week_flats['Surface'] == surface) &
-            (last_week_flats['Floor'] == floor) &
-            (last_week_flats['Number Of Floors'] == max_floor)
-            ]
+        if len(last_week_flats) > 0:
+            similar_flats_last_week = last_week_flats.loc[
+                (last_week_flats['Surface'] == surface) &
+                (last_week_flats['Floor'] == floor) &
+                (last_week_flats['Number Of Floors'] == max_floor)
+                ]
+        else:
+            similar_flats_last_week = pd.DataFrame(columns=last_week_flats.columns)
         # check if flat was already here last week but the add was removed and put back
         # so it has a different flat_id but all the same characteristics
         if len(similar_flats_last_week) > 0:
@@ -203,33 +216,34 @@ class OrthancScrapper:
         all_ids = set(ids_this_week + ids_last_week)
         # get status of flats (New, Sold, NA)
         status = {}
-        for flat_id in all_ids:
-            flat_status = 'NA'
-            last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Status'] = 'NA'
-            if (flat_id in ids_last_week) & (flat_id not in ids_this_week):
-                flat_status = 'sold'
-                last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Status'] = 'Sold'
-            if (flat_id in ids_this_week) & (flat_id not in ids_last_week):
-                flat_status = 'new'
-                this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Status'] = 'New'
-            status[flat_id] = flat_status
+        if len(last_week_flats) > 0:
+            for flat_id in all_ids:
+                flat_status = 'NA'
+                last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Status'] = 'NA'
+                if (flat_id in ids_last_week) & (flat_id not in ids_this_week):
+                    flat_status = 'sold'
+                    last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Status'] = 'Sold'
+                if (flat_id in ids_this_week) & (flat_id not in ids_last_week):
+                    flat_status = 'new'
+                    this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Status'] = 'New'
+                status[flat_id] = flat_status
 
-        # Add sold flats to current flats
-        this_week_flats = pd.concat([this_week_flats, last_week_flats.loc[last_week_flats['Status'] == 'Sold']])
+            # Add sold flats to current flats
+            this_week_flats = pd.concat([this_week_flats, last_week_flats.loc[last_week_flats['Status'] == 'Sold']])
 
-        for flat_id in all_ids:
-            if status[flat_id] == 'NA':
-                price_last_week = last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Price'].values[0]
-                price_this_week = this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price'].values[0]
-                delta = price_this_week - price_last_week
-                change = delta / price_last_week
-                this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price Delta'] = \
-                    '-' if delta == 0 else format_price_to_million_tenge(delta)
-                this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price Change'] = \
-                    '-' if change == 0 else str(round(change * 100, 2)) + '%'
-        this_week_flats = this_week_flats.sort_values('Status', ascending=False, na_position='last')
-        this_week_flats = this_week_flats.fillna('-')
-        this_week_flats = this_week_flats.reset_index(drop=True)
+            for flat_id in all_ids:
+                if status[flat_id] == 'NA':
+                    price_last_week = last_week_flats.loc[last_week_flats['Id'] == flat_id, 'Price'].values[0]
+                    price_this_week = this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price'].values[0]
+                    delta = price_this_week - price_last_week
+                    change = delta / price_last_week
+                    this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price Delta'] = \
+                        '-' if delta == 0 else format_price_to_million_tenge(delta)
+                    this_week_flats.loc[this_week_flats['Id'] == flat_id, 'Price Change'] = \
+                        '-' if change == 0 else str(round(change * 100, 2)) + '%'
+            this_week_flats = this_week_flats.sort_values('Status', ascending=False, na_position='last')
+            this_week_flats = this_week_flats.fillna('-')
+            this_week_flats = this_week_flats.reset_index(drop=True)
         return this_week_flats
 
     def read_last_month(self):
@@ -237,9 +251,13 @@ class OrthancScrapper:
         return pd.read_csv(self.data_path + last_month + '_' + self.file_name + '.csv')
 
     def read_last_week(self):
+        last_week_flats = pd.DataFrame(
+            columns=['Id', 'Entrance', 'Number Of Floors', 'Floor', 'Surface', 'Price', 'Link'])
         last_week = get_tuesday_of_last_week().strftime('%Y-%m-%d')
-        last_week_flats = pd.read_csv(self.data_path + last_week + '_' + self.file_name + '.csv')
-        last_week_flats['Id'] = last_week_flats['Id'].astype(str)
-        last_week_flats['Number Of Floors'] = last_week_flats['Number Of Floors'].astype(int)
-        last_week_flats['Floor'] = last_week_flats['Floor'].astype(int)
+        file_name_last_week = self.data_path + last_week + '_' + self.file_name + '.csv'
+        if os.path.exists(file_name_last_week):
+            last_week_flats = pd.read_csv(file_name_last_week)
+            last_week_flats['Id'] = last_week_flats['Id'].astype(str)
+            last_week_flats['Number Of Floors'] = last_week_flats['Number Of Floors'].astype(int)
+            last_week_flats['Floor'] = last_week_flats['Floor'].astype(int)
         return last_week_flats

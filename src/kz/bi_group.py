@@ -1,5 +1,6 @@
 import pandas as pd
 
+from src.kz.emails import EMAILS_PROD, EMAILS_TEST
 from src.kz.read import read_bi_jk_ids
 from src.orthanc_scrapper import OrthancScrapper
 from src.utils.constants import STANDARD_FLAT_CHARACTERISTICS
@@ -35,12 +36,16 @@ def scrap_bi(city='astana', jk_name='Aqua', number_of_rooms=1):
     return bi.weekly_comparison()
 
 
-def send_email_bi(city='astana', jk_name='Aqua', number_of_rooms=1):
+def send_email_bi(city='astana', jk_name='Aqua', number_of_rooms=1, environment='PROD'):
+    if environment == 'PROD':
+        emails = EMAILS_PROD
+    else:
+        emails = EMAILS_TEST
     bi_flats = scrap_bi(city=city, jk_name=jk_name, number_of_rooms=number_of_rooms)
-    email_object = get_email_object(PLATFORM, city, jk_name)
+    email_object = get_email_object(PLATFORM, city, jk_name, environment)
     text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
     bi_flats['Price'] = format_prices_to_million_tenge(bi_flats['Price'])
-    send_dataframe_by_email(bi_flats, ['arthurimbagourdov@gmail.com'], email_object, text)
+    send_dataframe_by_email(bi_flats, emails, email_object, text)
 
 
 class KzBIGroup(OrthancScrapper):
@@ -55,7 +60,7 @@ class KzBIGroup(OrthancScrapper):
         OrthancScrapper.__init__(self, main_url, BI_BASE_FLAT_URL, 'kz', file_name, flat_characteristics_df)
 
     def find_all_flats_urls_on_main_page(self):
-        logger.info('Starting to find all flats urls')
+        logger.info(f'Starting to find all flats urls from the main url: \n{self.main_url}')
         driver = self.driver
         driver.get(self.main_url)
 
@@ -78,7 +83,10 @@ class KzBIGroup(OrthancScrapper):
 
     def find_flat_ids_from_img_urls(self):
         logger.info('Starting to find all flats ids from urls')
-        element_urls = self.get_elements_by_path("//img[starts-with(@class,'MRE-jss')]")
+        element_urls = self.get_elements_by_path("//img[starts-with(@class,'MF-MRE-jss')]", default=None)
+        if element_urls is None:
+            self.flat_urls = []
+            logger.error('No flat found.')
         for element_url in element_urls:
             uid = element_url.get_attribute("src").split("/")[-2]
             self.flat_urls.append(self.base_flat_url + uid)
@@ -91,21 +99,21 @@ class KzBIGroup(OrthancScrapper):
         driver.get(flat_url)
         try:
             flat_id = flat_url.split('=')[-1]
-            element_price = self.get_element_by_path("//div[contains(text(),'Стоимость')]//following::div[1]")
-            price = float(element_price.text.replace(' ₸', '').replace(",", ""))
+            element_price = self.get_element_by_path("//div[contains(text(),'Цена')]//following::div[1]", "-1")
+            price = float(element_price.replace(' ₸', '').replace(",", ""))
 
-            element_floor = self.get_element_by_path("//div[contains(text(),'Этаж')]//following::div[1]")
-            floor = element_floor.text
+            element_floor = self.get_element_by_path("//div[contains(text(),'Этаж')]//following::div[1]", "-1 из -1")
+            floor = element_floor
             floor, max_floor = floor.split(' из ')
             floor = int(floor)
             max_floor = int(max_floor)
 
-            element_surface = self.get_element_by_path("//div[contains(text(),'Площадь')]//following::div[1]")
-            surface = element_surface.text.split("м²")[0]
+            element_surface = self.get_element_by_path("//div[contains(text(),'Площадь')]//following::div[1]", "0 м²")
+            surface = element_surface.split("м²")[0]
             surface = float(surface.replace('м²', '').replace(' ', ''))
 
-            element_entrance = self.get_element_by_path("//div[contains(text(),'Подъезд')]//following::div[1]")
-            entrance = element_entrance.text
+            element_entrance = self.get_element_by_path("//div[contains(text(),'Подъезд')]//following::div[1]", "NA")
+            entrance = element_entrance
 
             return self.package_flat_characteristics(flat_id, entrance, max_floor, floor, surface, price, flat_url)
 
@@ -120,6 +128,5 @@ class KzBIGroup(OrthancScrapper):
         :return:
         """
         logger.info('Loading more flats on the page...')
-        button_class_to_find = "//button[starts-with(@class, 'MRE-MuiButtonBase-root MRE-MuiButton-root " \
-                               "MRE-MuiButton-contained MRE-jss')]//span[text()='Показать еще'] "
+        button_class_to_find = "//button[starts-with(@class, 'MF-MRE-MuiButtonBase-root MF-MRE-MuiButton-root MF-MRE-MuiButton-contained MF-MRE-jss')]//span[text()='Показать еще'] "
         self.click_button(button_class_to_find)

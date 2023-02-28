@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+from src.kz.emails import EMAILS_PROD, EMAILS_TEST
 from src.kz.read import read_jk_ids_krisha
 from src.orthanc_scrapper import OrthancScrapper
 from src.utils.constants import STANDARD_FLAT_CHARACTERISTICS
@@ -22,12 +23,16 @@ def scrap_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
     return krisha_scrapper.weekly_comparison()
 
 
-def send_email_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1):
+def send_email_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1, environment='PROD'):
+    if environment == 'PROD':
+        emails = EMAILS_PROD
+    else:
+        emails = EMAILS_TEST
     krisha_flats = scrap_krisha(city=city, jk_name=jk_name, number_of_rooms=number_of_rooms)
-    email_object = get_email_object(PLATFORM, city, jk_name)
+    email_object = get_email_object(PLATFORM, city, jk_name, environment)
     text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
     krisha_flats['Price'] = format_prices_to_million_tenge(krisha_flats['Price'])
-    send_dataframe_by_email(krisha_flats, ['arthurimbagourdov@gmail.com'], email_object, text)
+    send_dataframe_by_email(krisha_flats, emails, email_object, text)
 
 
 def build_main_url_krisha(city, number_of_rooms=0, jk_id=0):
@@ -66,10 +71,13 @@ class KrishaScrapper(OrthancScrapper):
         driver.get(self.main_url)
         elements = self.get_elements_by_path(
             "//div[starts-with(@class,'a-card a-storage-live ddl_product ddl_product_link not-colored is-visibl')]")
-        for element in elements:
-            uid = element.get_attribute("data-id")
-            self.flat_urls.append(self.base_flat_url + uid)
-        self.flat_urls = list(set(self.flat_urls))
+        if len(elements) > 0:
+            for element in elements:
+                uid = element.get_attribute("data-id")
+                self.flat_urls.append(self.base_flat_url + uid)
+            self.flat_urls = list(set(self.flat_urls))
+        else:
+            self.flat_urls = []
         return self.flat_urls
 
     def find_flat_characteristics(self, flat_url):
@@ -80,10 +88,10 @@ class KrishaScrapper(OrthancScrapper):
         try:
             flat_id = flat_url.split('/')[-1]
             element_price = self.get_element_by_path("//div[starts-with(@class,'offer__price')]")
-            price = float(element_price.text.replace(' \n〒', '').replace(",", "").replace(" ", ""))
+            price = float(element_price.replace(' \n〒', '').replace(",", "").replace(" ", ""))
 
             element_floor = self.get_element_by_path("//div[starts-with(@data-name,'flat.floor')]//following::div[3]")
-            floor = element_floor.text
+            floor = element_floor
             if 'из' in floor:
                 floor, max_floor = floor.split('из')
                 max_floor = int(max_floor)
@@ -94,7 +102,7 @@ class KrishaScrapper(OrthancScrapper):
 
             element_surface = self.get_element_by_path(
                 "//div[starts-with(@data-name,'live.square')]//following::div[3]")
-            surface = element_surface.text.split("м²")[0]
+            surface = element_surface.split("м²")[0]
             surface = float(surface.replace('м²', '').replace(' ', ''))
 
             entrance = "na"
