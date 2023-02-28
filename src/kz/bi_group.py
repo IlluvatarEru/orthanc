@@ -45,13 +45,7 @@ def send_email_bi(city='astana', jk_name='Aqua', number_of_rooms=1, environment=
     email_object = get_email_object(PLATFORM, city, jk_name, environment)
     text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
     bi_flats['Price'] = format_prices_to_million_tenge(bi_flats['Price'])
-    if jk_name == 'jazz':
-        email_in_ru = True
-        # TODO: add Lyudmila
-        # emails = emails.append('')
-    else:
-        email_in_ru = False
-    send_dataframe_by_email(bi_flats, emails, email_object, text, email_in_ru=email_in_ru)
+    send_dataframe_by_email(bi_flats, emails, email_object, text, email_in_ru=False)
 
 
 class KzBIGroup(OrthancScrapper):

@@ -32,13 +32,7 @@ def send_email_krisha(city='astana', jk_name='Nexpo', number_of_rooms=1, environ
     email_object = get_email_object(PLATFORM, city, jk_name, environment)
     text = get_email_text(PLATFORM, city, jk_name, number_of_rooms)
     krisha_flats['Price'] = format_prices_to_million_tenge(krisha_flats['Price'])
-
-    if jk_name == 'Jazz':
-        email_in_ru = True
-        # TODO: add Lyudmila
-        # emails = emails.append('')
-    else:
-        email_in_ru = False
+    email_in_ru = jk_name == 'Jazz'
     send_dataframe_by_email(krisha_flats, emails, email_object, text, email_in_ru=email_in_ru)
 
 
