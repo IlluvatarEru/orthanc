@@ -77,7 +77,7 @@ def send_email_from_ops(receivers, content, subject, content_format='txt', plot_
     send_email(sender, sender, receivers, user, password, content, subject, content_format, plot_to_send)
 
 
-def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None):
+def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None, email_in_ru=False):
     """
 
     :param df: a pd.DataFrame, to be formatted as a table and sent in the email
@@ -87,12 +87,40 @@ def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None):
     :param plot_to_send: a plot object, a plot to attach to the email
     :return:
     """
+    if email_in_ru:
+        text, df, subject = translate_email_in_ru(text, df, subject)
+        receivers = receivers.append("shatrova.lyudmila@gmail.com")
     html = ""
     html += text
     html += build_table(df, 'blue_light')
     html = html.replace('Retired', '<p style="color:red">Retired</p>')
     html = html.replace('Open', '<p style="color:green">Open</p>')
     send_email_from_ops(receivers, html, subject, content_format='html', plot_to_send=plot_to_send)
+
+
+def translate_email_in_ru(text, df, subject):
+    # Just for jazz for Lyudmila
+    df = df.loc[df['Surface'] >= 42]
+    df = df.loc[df['Surface'] <= 55]
+
+    translation_dict = {'Id': 'Идентификатор',
+                        'Entrance': 'Подъезд',
+                        'Number Of Floors': 'Количество этажей',
+                        'Floor': 'Этаж',
+                        'Surface': 'Площадь',
+                        'Price': 'Цена',
+                        'Link': 'Ссылка',
+                        'JK': 'ЖК',
+                        'Number of rooms': 'комн.',
+                        'City': 'Город'}
+
+    # rename the columns using the translation dictionary
+    df = df.rename(columns=translation_dict)
+
+    for en_word, ru_word in translation_dict.items():
+        text = text.replace(en_word, ru_word)
+
+    return text, df, subject
 
 
 def build_platform_jk_file_name(platform, jk_name):
