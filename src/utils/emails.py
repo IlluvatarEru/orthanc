@@ -75,6 +75,7 @@ def send_email_from_ops(receivers, content, subject, content_format='txt', plot_
     sender = 'ops@orthanc.capital.bagourd.com'
     user = sender
     password = os.environ.get('EMAIL_OPS_ORTHANC')
+    print(f'password={password}')
     send_email(sender, sender, receivers, user, password, content, subject, content_format, plot_to_send)
 
 
