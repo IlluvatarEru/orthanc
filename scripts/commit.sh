@@ -4,4 +4,4 @@
 branch=$(git branch | sed -n -e 's/^\* \(.*\)/\1/p')
 branch="${branch##*feat/}"
 branch="${branch//\_/ }"
-git commit -m "$branch"
+git commit -sam "$branch"
