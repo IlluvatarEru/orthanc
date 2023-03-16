@@ -1,4 +1,5 @@
 import io
+import os
 import sys
 from email.encoders import encode_base64
 from email.mime.base import MIMEBase
@@ -73,7 +74,7 @@ def send_email_from_ops(receivers, content, subject, content_format='txt', plot_
     """
     sender = 'ops@orthanc.capital.bagourd.com'
     user = sender
-    password = Path(PATH_TO_PASSWORDS + 'ops_orthanc_password.txt').read_text().replace('\n', '')
+    password = os.environ.get('EMAIL_OPS_ORTHANC')
     send_email(sender, sender, receivers, user, password, content, subject, content_format, plot_to_send)
 
 
