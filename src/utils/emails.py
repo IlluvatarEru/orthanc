@@ -5,12 +5,9 @@ from email.encoders import encode_base64
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from pathlib import Path
 from smtplib import SMTP_SSL as SMTP
 
 from pretty_html_table import build_table
-
-from src.utils.constants import PATH_TO_PASSWORDS
 
 
 def send_email(sender, sender_name, receivers, user, password, content, subject, content_format='txt',
@@ -60,7 +57,7 @@ def send_email(sender, sender_name, receivers, user, password, content, subject,
         finally:
             conn.quit()
     except Exception as e:
-        sys.exit('mail failed; %s' % 'e')
+        sys.exit(f'mail failed; with error:\n{e}')
 
 
 def send_email_from_ops(receivers, content, subject, content_format='txt', plot_to_send=None):
