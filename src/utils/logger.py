@@ -1,7 +1,7 @@
 import datetime as dt
 import logging
 
-from src.utils.constants import LOGGING_FORMAT, LOGGING_PATH
+from src.utils.constants import LOGGING_FORMAT
 
 
 def scrapper_logger(name):

@@ -102,7 +102,7 @@ class OrthancScrapper:
                 return result
             else:
                 return result.text
-        except Exception as e:
+        except Exception:
             logger.error('Failed to find element at url: ' + self.driver.current_url)  # + '\nError is:' + str(e))
             return default
 
