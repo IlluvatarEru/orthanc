@@ -1,15 +1,14 @@
 import io
+import os
 import sys
 from email.encoders import encode_base64
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from pathlib import Path
 from smtplib import SMTP_SSL as SMTP
 
+import pandas as pd
 from pretty_html_table import build_table
-
-from src.utils.constants import PATH_TO_PASSWORDS
 
 
 def send_email(sender, sender_name, receivers, user, password, content, subject, content_format='txt',
@@ -59,7 +58,7 @@ def send_email(sender, sender_name, receivers, user, password, content, subject,
         finally:
             conn.quit()
     except Exception as e:
-        sys.exit('mail failed; %s' % 'e')
+        sys.exit(f'mail failed; with error:\n{e}')
 
 
 def send_email_from_ops(receivers, content, subject, content_format='txt', plot_to_send=None):
@@ -73,7 +72,8 @@ def send_email_from_ops(receivers, content, subject, content_format='txt', plot_
     """
     sender = 'ops@orthanc.capital.bagourd.com'
     user = sender
-    password = Path(PATH_TO_PASSWORDS + 'ops_orthanc_password.txt').read_text().replace('\n', '')
+    password = os.environ.get('EMAIL_OPS_ORTHANC')
+    print(f'password={password}')
     send_email(sender, sender, receivers, user, password, content, subject, content_format, plot_to_send)
 
 
@@ -87,16 +87,24 @@ def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None, ema
     :param plot_to_send: a plot object, a plot to attach to the email
     :return:
     """
-    df = df.drop('Id', axis=1)
+    # for testing purpose
+    # df = pd.read_csv("C:/dev/data/test_orthanc.csv")
+    if len(df) > 0:
+        if 'Unnamed: 0' in df.columns:
+            df = df.drop('Unnamed: 0', axis=1)
+        if 'Id' in df.columns:
+            df = df.drop('Id', axis=1)
     if email_in_ru:
         text, df, subject = translate_email_in_ru(text, df, subject)
         receivers = receivers.append("shatrova.lyudmila@gmail.com")
     html = ""
     html += text
-    html += build_table(df, 'blue_light')
+    if len(df) > 0:
+        html += build_table(df, 'blue_light')
     html = html.replace('Retired', '<p style="color:red">Retired</p>')
     html = html.replace('Open', '<p style="color:green">Open</p>')
-    send_email_from_ops(receivers, html, subject, content_format='html', plot_to_send=plot_to_send)
+    send_email_from_ops(receivers, html, subject, content_format='html',
+                        plot_to_send=plot_to_send)
 
 
 def translate_email_in_ru(text, df, subject):

@@ -77,8 +77,9 @@ class OrthancScrapper:
                 user_agent = get_user_agent()
                 driver.execute_cdp_cmd('Network.setUserAgentOverride', {'userAgent': user_agent})
                 self.driver = driver
-            except:
+            except Exception as e:
                 logger.error('Failed to init driver. Trying again.')
+                logger.exception(e)
                 self.init_webdriver(trials - 1)
         else:
             logger.error('Failed to init driver despite multiple trials.')
@@ -101,7 +102,7 @@ class OrthancScrapper:
                 return result
             else:
                 return result.text
-        except Exception as e:
+        except Exception:
             logger.error('Failed to find element at url: ' + self.driver.current_url)  # + '\nError is:' + str(e))
             return default
 

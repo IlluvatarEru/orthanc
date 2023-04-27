@@ -1,7 +1,7 @@
 import datetime as dt
 import logging
 
-from src.utils.constants import LOGGING_FORMAT, LOGGING_PATH
+from src.utils.constants import LOGGING_FORMAT
 
 
 def scrapper_logger(name):
@@ -16,7 +16,7 @@ def scrapper_logger(name):
     logger.setLevel(logging.INFO)
 
     formatter = logging.Formatter(LOGGING_FORMAT)
-    file_handler = logging.FileHandler(LOGGING_PATH + logging_time + '_' + name + '.log', encoding='utf-8')
+    file_handler = logging.FileHandler(logging_time + '_' + name + '.log', encoding='utf-8')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
 
