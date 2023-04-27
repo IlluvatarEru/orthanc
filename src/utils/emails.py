@@ -7,6 +7,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from smtplib import SMTP_SSL as SMTP
 
+import pandas as pd
 from pretty_html_table import build_table
 
 
@@ -86,16 +87,24 @@ def send_dataframe_by_email(df, receivers, subject, text, plot_to_send=None, ema
     :param plot_to_send: a plot object, a plot to attach to the email
     :return:
     """
-    df = df.drop('Id', axis=1)
+    # for testing purpose
+    # df = pd.read_csv("C:/dev/data/test_orthanc.csv")
+    if len(df) > 0:
+        if 'Unnamed: 0' in df.columns:
+            df = df.drop('Unnamed: 0', axis=1)
+        if 'Id' in df.columns:
+            df = df.drop('Id', axis=1)
     if email_in_ru:
         text, df, subject = translate_email_in_ru(text, df, subject)
         receivers = receivers.append("shatrova.lyudmila@gmail.com")
     html = ""
     html += text
-    html += build_table(df, 'blue_light')
+    if len(df) > 0:
+        html += build_table(df, 'blue_light')
     html = html.replace('Retired', '<p style="color:red">Retired</p>')
     html = html.replace('Open', '<p style="color:green">Open</p>')
-    send_email_from_ops(receivers, html, subject, content_format='html', plot_to_send=plot_to_send)
+    send_email_from_ops(receivers, html, subject, content_format='html',
+                        plot_to_send=plot_to_send)
 
 
 def translate_email_in_ru(text, df, subject):

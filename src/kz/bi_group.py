@@ -1,3 +1,4 @@
+import pandas as pd
 
 from src.kz.emails import EMAILS_PROD, EMAILS_TEST
 from src.kz.read import read_bi_jk_ids
