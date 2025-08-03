@@ -107,6 +107,27 @@ class EnhancedFlatDatabase:
             )
         """)
         
+        # Create favorites table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS favorites (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                flat_id TEXT NOT NULL,
+                flat_type TEXT NOT NULL CHECK (flat_type IN ('rental', 'sale')),
+                price INTEGER NOT NULL,
+                area REAL NOT NULL,
+                residential_complex TEXT,
+                floor INTEGER,
+                total_floors INTEGER,
+                construction_year INTEGER,
+                parking TEXT,
+                description TEXT NOT NULL,
+                url TEXT NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT,
+                UNIQUE(flat_id, flat_type)
+            )
+        """)
+        
         # Create indexes for faster queries
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_rental_flat_id ON rental_flats(flat_id)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_rental_query_date ON rental_flats(query_date)")
@@ -535,6 +556,255 @@ class EnhancedFlatDatabase:
         flats.sort(key=lambda x: (x['type'] == 'sales', x['price']))
         
         return flats
+
+    def add_to_favorites(self, flat_data: dict, flat_type: str, notes: str = None) -> bool:
+        """
+        Add a flat to favorites.
+        
+        :param flat_data: dict, flat information
+        :param flat_type: str, 'rental' or 'sale'
+        :param notes: str, optional notes about the flat
+        :return: bool, True if successful
+        """
+        try:
+            self.connect()
+            
+            self.conn.execute("""
+                INSERT OR REPLACE INTO favorites 
+                (flat_id, flat_type, price, area, residential_complex, floor, total_floors, 
+                 construction_year, parking, description, url, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                flat_data['flat_id'],
+                flat_type,
+                flat_data['price'],
+                flat_data['area'],
+                flat_data.get('residential_complex'),
+                flat_data.get('floor'),
+                flat_data.get('total_floors'),
+                flat_data.get('construction_year'),
+                flat_data.get('parking'),
+                flat_data['description'],
+                flat_data['url'],
+                notes
+            ))
+            
+            self.conn.commit()
+            return True
+            
+        except Exception as e:
+            print(f"Error adding to favorites: {e}")
+            return False
+
+    def remove_from_favorites(self, flat_id: str, flat_type: str) -> bool:
+        """
+        Remove a flat from favorites.
+        
+        :param flat_id: str, flat ID
+        :param flat_type: str, 'rental' or 'sale'
+        :return: bool, True if successful
+        """
+        try:
+            self.connect()
+            
+            self.conn.execute("""
+                DELETE FROM favorites 
+                WHERE flat_id = ? AND flat_type = ?
+            """, (flat_id, flat_type))
+            
+            self.conn.commit()
+            return True
+            
+        except Exception as e:
+            print(f"Error removing from favorites: {e}")
+            return False
+
+    def get_favorites(self) -> List[dict]:
+        """
+        Get all favorites.
+        
+        :return: List[dict], list of favorite flats
+        """
+        try:
+            self.connect()
+            
+            cursor = self.conn.execute("""
+                SELECT flat_id, flat_type, price, area, residential_complex, floor, 
+                       total_floors, construction_year, parking, description, url, 
+                       added_at, notes
+                FROM favorites 
+                ORDER BY added_at DESC
+            """)
+            
+            favorites = []
+            for row in cursor.fetchall():
+                favorites.append({
+                    'flat_id': row[0],
+                    'flat_type': row[1],
+                    'price': row[2],
+                    'area': row[3],
+                    'residential_complex': row[4],
+                    'floor': row[5],
+                    'total_floors': row[6],
+                    'construction_year': row[7],
+                    'parking': row[8],
+                    'description': row[9],
+                    'url': row[10],
+                    'added_at': row[11],
+                    'notes': row[12]
+                })
+            
+            return favorites
+            
+        except Exception as e:
+            print(f"Error getting favorites: {e}")
+            return []
+
+    def is_favorite(self, flat_id: str, flat_type: str) -> bool:
+        """
+        Check if a flat is in favorites.
+        
+        :param flat_id: str, flat ID
+        :param flat_type: str, 'rental' or 'sale'
+        :return: bool, True if flat is in favorites
+        """
+        try:
+            self.connect()
+            
+            cursor = self.conn.execute("""
+                SELECT 1 FROM favorites 
+                WHERE flat_id = ? AND flat_type = ?
+            """, (flat_id, flat_type))
+            
+            return cursor.fetchone() is not None
+            
+        except Exception as e:
+            print(f"Error checking favorite status: {e}")
+            return False
+
+    def get_flat_count(self, flat_type: str) -> int:
+        """
+        Get count of flats by type.
+        
+        :param flat_type: str, 'rental' or 'sales'
+        :return: int, count of flats
+        """
+        try:
+            self.connect()
+            
+            if flat_type == 'rental':
+                cursor = self.conn.execute("SELECT COUNT(DISTINCT flat_id) FROM rental_flats")
+            elif flat_type == 'sales':
+                cursor = self.conn.execute("SELECT COUNT(DISTINCT flat_id) FROM sales_flats")
+            else:
+                return 0
+            
+            result = cursor.fetchone()
+            return result[0] if result else 0
+            
+        except Exception as e:
+            print(f"Error getting flat count: {e}")
+            return 0
+
+    def get_complex_count(self) -> int:
+        """
+        Get count of residential complexes.
+        
+        :return: int, count of complexes
+        """
+        try:
+            self.connect()
+            
+            cursor = self.conn.execute("SELECT COUNT(*) FROM residential_complexes")
+            result = cursor.fetchone()
+            return result[0] if result else 0
+            
+        except Exception as e:
+            print(f"Error getting complex count: {e}")
+            return 0
+
+    def move_flat_to_correct_table(self, flat_id: str, correct_type: str) -> bool:
+        """
+        Move a flat from one table to another if it was incorrectly classified.
+        
+        :param flat_id: str, flat ID to move
+        :param correct_type: str, 'rental' or 'sales'
+        :return: bool, True if successful
+        """
+        try:
+            self.connect()
+            
+            # Get flat data from the wrong table
+            if correct_type == 'rental':
+                # Move from sales to rental
+                cursor = self.conn.execute("""
+                    SELECT flat_id, price, area, residential_complex, floor, total_floors,
+                           construction_year, parking, description, url, query_date
+                    FROM sales_flats 
+                    WHERE flat_id = ?
+                """, (flat_id,))
+            else:
+                # Move from rental to sales
+                cursor = self.conn.execute("""
+                    SELECT flat_id, price, area, residential_complex, floor, total_floors,
+                           construction_year, parking, description, url, query_date
+                    FROM rental_flats 
+                    WHERE flat_id = ?
+                """, (flat_id,))
+            
+            flat_data = cursor.fetchone()
+            if not flat_data:
+                print(f"Flat {flat_id} not found in source table")
+                return False
+            
+            # Insert into correct table
+            if correct_type == 'rental':
+                success = self.insert_rental_flat(
+                    FlatInfo(
+                        flat_id=flat_data[0],
+                        price=flat_data[1],
+                        area=flat_data[2],
+                        residential_complex=flat_data[3],
+                        floor=flat_data[4],
+                        total_floors=flat_data[5],
+                        construction_year=flat_data[6],
+                        parking=flat_data[7],
+                        description=flat_data[8],
+                        is_rental=True
+                    ),
+                    flat_data[9],  # url
+                    flat_data[10]  # query_date
+                )
+                if success:
+                    # Delete from sales table
+                    self.conn.execute("DELETE FROM sales_flats WHERE flat_id = ?", (flat_id,))
+            else:
+                success = self.insert_sales_flat(
+                    FlatInfo(
+                        flat_id=flat_data[0],
+                        price=flat_data[1],
+                        area=flat_data[2],
+                        residential_complex=flat_data[3],
+                        floor=flat_data[4],
+                        total_floors=flat_data[5],
+                        construction_year=flat_data[6],
+                        parking=flat_data[7],
+                        description=flat_data[8],
+                        is_rental=False
+                    ),
+                    flat_data[9],  # url
+                    flat_data[10]  # query_date
+                )
+                if success:
+                    # Delete from rental table
+                    self.conn.execute("DELETE FROM rental_flats WHERE flat_id = ?", (flat_id,))
+            
+            self.conn.commit()
+            return success
+            
+        except Exception as e:
+            print(f"Error moving flat {flat_id}: {e}")
+            return False
 
 
 def save_rental_flat_to_db(flat_info: FlatInfo, url: str, query_date: str, db_path: str = "flats.db") -> bool:
