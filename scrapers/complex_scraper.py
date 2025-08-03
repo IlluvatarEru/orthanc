@@ -171,16 +171,161 @@ def search_complex_by_name(name: str, db_path: str = "flats.db") -> Optional[Dic
     return None
 
 
+def search_complexes_by_name(name: str, db_path: str = "flats.db") -> List[Dict]:
+    """
+    Search for residential complexes by name (returns multiple matches).
+    
+    :param name: str, complex name to search for
+    :param db_path: str, database file path
+    :return: List[Dict], list of matching complexes
+    """
+    db = EnhancedFlatDatabase(db_path)
+    complexes = db.get_all_residential_complexes()
+    
+    # Case-insensitive search
+    name_lower = name.lower()
+    matches = []
+    
+    for complex_data in complexes:
+        if name_lower in complex_data['name'].lower():
+            matches.append(complex_data)
+    
+    return matches
+
+
+def search_complexes_by_name_deduplicated(name: str, db_path: str = "flats.db") -> List[Dict]:
+    """
+    Search for residential complexes by name with deduplication of similar names.
+    
+    :param name: str, complex name to search for
+    :param db_path: str, database file path
+    :return: List[Dict], list of deduplicated matching complexes
+    """
+    db = EnhancedFlatDatabase(db_path)
+    complexes = db.get_all_residential_complexes()
+    
+    # Case-insensitive search
+    name_lower = name.lower()
+    matches = []
+    
+    for complex_data in complexes:
+        if name_lower in complex_data['name'].lower():
+            matches.append(complex_data)
+    
+    # Deduplicate similar names
+    if len(matches) > 1:
+        # Group by normalized name (remove common variations)
+        normalized_groups = {}
+        
+        for complex_data in matches:
+            # Normalize the name for grouping
+            normalized_name = normalize_complex_name(complex_data['name'])
+            
+            if normalized_name not in normalized_groups:
+                normalized_groups[normalized_name] = []
+            normalized_groups[normalized_name].append(complex_data)
+        
+        # For each group, select the best representative
+        deduplicated_matches = []
+        for group_name, group_complexes in normalized_groups.items():
+            if len(group_complexes) == 1:
+                deduplicated_matches.append(group_complexes[0])
+            else:
+                # Multiple complexes with similar names - select the best one
+                best_complex = select_best_complex_representative(group_complexes)
+                deduplicated_matches.append(best_complex)
+        
+        return deduplicated_matches
+    
+    return matches
+
+
+def normalize_complex_name(name: str) -> str:
+    """
+    Normalize complex name for deduplication.
+    
+    :param name: str, original complex name
+    :return: str, normalized name
+    """
+    # Convert to lowercase
+    normalized = name.lower()
+    
+    # Remove common suffixes and prefixes
+    suffixes_to_remove = [
+        ' apartments', ' apartment', ' жк', ' жилой комплекс',
+        ' residential complex', ' complex', ' квартал', ' quarter'
+    ]
+    
+    for suffix in suffixes_to_remove:
+        if normalized.endswith(suffix):
+            normalized = normalized[:-len(suffix)]
+    
+    # Remove extra spaces
+    normalized = ' '.join(normalized.split())
+    
+    return normalized
+
+
+def select_best_complex_representative(complexes: List[Dict]) -> Dict:
+    """
+    Select the best representative from a group of similar complexes.
+    
+    :param complexes: List[Dict], list of similar complexes
+    :return: Dict, the best representative
+    """
+    if len(complexes) == 1:
+        return complexes[0]
+    
+    # Prefer complexes with more complete information
+    scored_complexes = []
+    
+    for complex_data in complexes:
+        score = 0
+        
+        # Prefer longer names (more descriptive)
+        score += len(complex_data['name'])
+        
+        # Prefer names with proper capitalization
+        if complex_data['name'].istitle() or complex_data['name'].isupper():
+            score += 10
+        
+        # Prefer names that don't end with common suffixes
+        name_lower = complex_data['name'].lower()
+        if not any(name_lower.endswith(suffix) for suffix in [' apartments', ' apartment', ' жк']):
+            score += 5
+        
+        # Prefer names that contain the search term more prominently
+        if complex_data['name'].lower().startswith('meridian'):
+            score += 20
+        
+        scored_complexes.append((score, complex_data))
+    
+    # Sort by score (highest first) and return the best
+    scored_complexes.sort(key=lambda x: x[0], reverse=True)
+    return scored_complexes[0][1]
+
+
 def get_complex_by_id(complex_id: str, db_path: str = "flats.db") -> Optional[Dict]:
     """
     Get residential complex by ID.
     
     :param complex_id: str, complex ID
     :param db_path: str, database file path
-    :return: Optional[Dict], complex information if found
+    :return: Optional[Dict], complex information or None if not found
     """
     db = EnhancedFlatDatabase(db_path)
     return db.get_residential_complex_by_id(complex_id)
+
+
+def get_all_residential_complexes(db_path: str = "flats.db") -> List[Dict]:
+    """
+    Get all residential complexes from database.
+    
+    :param db_path: str, database file path
+    :return: List[Dict], list of all residential complexes
+    """
+    db = EnhancedFlatDatabase(db_path)
+    return db.get_all_residential_complexes()
 
 
 def update_complex_database(db_path: str = "flats.db") -> int:

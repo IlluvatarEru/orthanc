@@ -27,6 +27,7 @@ class FlatInfo:
     :param construction_year: Optional[int], year of construction
     :param parking: Optional[str], parking information
     :param description: str, full description text
+    :param is_rental: bool, True if the flat is for rent, False if for sale
     """
     flat_id: str
     price: int
@@ -37,6 +38,7 @@ class FlatInfo:
     construction_year: Optional[int]
     parking: Optional[str]
     description: str
+    is_rental: bool = False
 
 
 def extract_flat_id_from_url(url: str) -> str:
@@ -152,12 +154,86 @@ def extract_parking_info_from_description(description: str) -> Optional[str]:
     :return: Optional[str], parking information
     """
     # Look for parking-related keywords
-    parking_keywords = ['парковка', 'паркинг', 'подземная парковка', 'наземная парковка']
+    parking_keywords = ['парковка', 'парковочное место', 'гараж', 'parking']
+    description_lower = description.lower()
     
     for keyword in parking_keywords:
-        if keyword.lower() in description.lower():
-            return keyword
+        if keyword in description_lower:
+            # Extract the sentence containing parking info
+            sentences = description.split('.')
+            for sentence in sentences:
+                if keyword in sentence.lower():
+                    return sentence.strip()
+    
     return None
+
+
+def detect_rental_from_api_data(data: dict) -> bool:
+    """
+    Detect if a flat is for rent based on API response data.
+    
+    :param data: dict, API response data
+    :return: bool, True if rental, False if sale
+    """
+    # Check multiple indicators of rental vs sale
+    advert = data.get('advert', {})
+    
+    # 1. PRIORITY: Check if price is monthly (rental) vs total (sale)
+    # This is the most reliable indicator
+    price_text = advert.get('price', '')
+    if price_text:
+        # Clean price text the same way as in scrape_flat_info
+        price_text_clean = price_text.replace('&nbsp;', ' ').replace('<span class="currency-sign offer__currency">₸</span>', '').replace('<span class="currency-sign offer__currency">〒</span>', '')
+        # Extract numeric price
+        price_match = re.search(r'(\d+(?:\s*\d+)*)', price_text_clean)
+        if price_match:
+            price = int(price_match.group(1).replace(' ', ''))
+            # If price is less than 1 million tenge, likely rental
+            # Sale prices are typically 10M+ tenge
+            if price < 1000000:
+                return True
+            elif price > 5000000:
+                return False
+    
+    # 2. Check the title for rental keywords
+    title = advert.get('title', '').lower()
+    rental_keywords = ['аренда', 'сдам', 'сдаю', 'rent', 'rental', 'аренду', 'сдаётся']
+    sale_keywords = ['продажа', 'продам', 'продаю', 'sale', 'buy', 'куплю', 'продаётся']
+    
+    for keyword in rental_keywords:
+        if keyword in title:
+            return True
+    
+    for keyword in sale_keywords:
+        if keyword in title:
+            return False
+    
+    # 3. Check the description for rental keywords (exact word matches)
+    description = advert.get('description', '').lower()
+    description_words = description.split()
+    for keyword in rental_keywords:
+        if keyword in description_words:
+            return True
+    
+    for keyword in sale_keywords:
+        if keyword in description_words:
+            return False
+    
+    # 4. Check URL pattern (if available in data)
+    url = advert.get('url', '')
+    if 'arenda' in url.lower():
+        return True
+    elif 'prodazha' in url.lower():
+        return False
+    
+    # 5. Check for specific rental indicators in description (exact word matches)
+    rental_indicators = ['месяц', 'месячная', 'ежемесячно', 'арендная плата']
+    for indicator in rental_indicators:
+        if indicator in description_words:
+            return True
+    
+    # Default to sale if we can't determine
+    return False
 
 
 def scrape_flat_info(url: str) -> FlatInfo:
@@ -204,7 +280,7 @@ def scrape_flat_info(url: str) -> FlatInfo:
     # Extract price (remove HTML tags and convert to integer)
     price_text = advert.get('price', '')
     # Remove HTML tags and non-breaking spaces
-    price_text_clean = price_text.replace('&nbsp;', ' ').replace('<span class="currency-sign offer__currency">₸</span>', '')
+    price_text_clean = price_text.replace('&nbsp;', ' ').replace('<span class="currency-sign offer__currency">₸</span>', '').replace('<span class="currency-sign offer__currency">〒</span>', '')
     price_match = re.search(r'(\d+(?:\s*\d+)*)', price_text_clean)
     price = int(price_match.group(1).replace(' ', '')) if price_match else 0
     
@@ -223,6 +299,9 @@ def scrape_flat_info(url: str) -> FlatInfo:
     # Extract parking information from description
     parking = extract_parking_info_from_description(description)
     
+    # Detect if the flat is for rent
+    is_rental = detect_rental_from_api_data(data)
+    
     return FlatInfo(
         flat_id=flat_id,
         price=price,
@@ -232,7 +311,8 @@ def scrape_flat_info(url: str) -> FlatInfo:
         total_floors=total_floors,
         construction_year=construction_year,
         parking=parking,
-        description=description
+        description=description,
+        is_rental=is_rental
     )
 
 
@@ -254,6 +334,7 @@ def main():
         print(f"Construction Year: {flat_info.construction_year}")
         print(f"Parking: {flat_info.parking}")
         print(f"Description: {flat_info.description[:200]}...")
+        print(f"Is Rental: {flat_info.is_rental}")
         
     except Exception as e:
         print(f"Error scraping flat info: {e}")

@@ -21,6 +21,97 @@ from cli.scheduler import ScraperScheduler
 from analytics.jk_analytics import JKAnalytics
 from db.enhanced_database import EnhancedFlatDatabase
 from scrapers.complex_scraper import update_complex_database
+from scrapers.search_scraper import scrape_and_save_search_results
+import toml
+
+
+def load_recommendation_thresholds(config_path: str = "config/config.toml") -> dict:
+    """
+    Load recommendation thresholds from config file.
+    
+    :param config_path: str, path to config file
+    :return: dict, recommendation thresholds
+    """
+    try:
+        with open(config_path, 'r') as f:
+            config = toml.load(f)
+        
+        recommendations = config.get('recommendations', {})
+        return {
+            'strong_buy_yield': recommendations.get('strong_buy_yield', 20.0),
+            'buy_yield': recommendations.get('buy_yield', 8.0),
+            'consider_yield': recommendations.get('consider_yield', 5.0),
+            'excellent_deal_discount': recommendations.get('excellent_deal_discount', -15.0),
+            'good_deal_discount': recommendations.get('good_deal_discount', -5.0),
+            'fair_deal_discount': recommendations.get('fair_deal_discount', 5.0)
+        }
+    except Exception as e:
+        print(f"Warning: Could not load recommendation thresholds: {e}")
+        # Return default values
+        return {
+            'strong_buy_yield': 20.0,
+            'buy_yield': 8.0,
+            'consider_yield': 5.0,
+            'excellent_deal_discount': -15.0,
+            'good_deal_discount': -5.0,
+            'fair_deal_discount': 5.0
+        }
+
+
+def load_analysis_config(config_path: str = "config/config.toml") -> dict:
+    """
+    Load analysis configuration from config file.
+    
+    :param config_path: str, path to config file
+    :return: dict, analysis configuration
+    """
+    try:
+        with open(config_path, 'r') as f:
+            config = toml.load(f)
+        
+        analysis = config.get('analysis', {})
+        return {
+            'default_area_tolerance': analysis.get('default_area_tolerance', 10.0)
+        }
+    except Exception as e:
+        print(f"Warning: Could not load analysis config: {e}")
+        # Return default values
+        return {
+            'default_area_tolerance': 10.0
+        }
+
+
+def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
+    """
+    Automatically scrape rental and sales data for a complex.
+    
+    :param complex_name: str, name of the complex
+    :param complex_id: str, complex ID (optional)
+    :return: bool, True if scraping was successful
+    """
+    try:
+        print(f"🔄 Auto-scraping data for {complex_name}...")
+        
+        # Construct search URLs for rental and sales
+        rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}" if complex_id else f"https://krisha.kz/arenda/kvartiry/almaty/?das[live.square][to]=35"
+        sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}" if complex_id else f"https://krisha.kz/prodazha/kvartiry/almaty/?das[live.square][to]=35"
+        
+        # Scrape rental data
+        print(f"   📥 Scraping rental data...")
+        rental_flats = scrape_and_save_search_results(rental_url, max_flats=20, delay=1.0)
+        
+        # Scrape sales data
+        print(f"   📥 Scraping sales data...")
+        sales_flats = scrape_and_save_search_results(sales_url, max_flats=20, delay=1.0)
+        
+        total_scraped = len(rental_flats) + len(sales_flats)
+        print(f"✅ Successfully scraped {total_scraped} flats for {complex_name}")
+        
+        return total_scraped > 0
+        
+    except Exception as e:
+        print(f"❌ Error scraping data for {complex_name}: {e}")
+        return False
 
 
 def main():
@@ -87,8 +178,17 @@ Examples:
     # Estimate command
     estimate_parser = subparsers.add_parser('estimate', help='Estimate investment potential for a specific flat')
     estimate_parser.add_argument('--flat-id', required=True, help='Flat ID to analyze')
-    estimate_parser.add_argument('--area-tolerance', type=float, default=25.0, help='Area tolerance percentage (default: 25%)')
     estimate_parser.add_argument('--config', default='config/config.toml', help='Configuration file path')
+    
+    # Load default area tolerance from config for the estimate command
+    try:
+        analysis_config = load_analysis_config('config/config.toml')
+        default_area_tolerance = analysis_config['default_area_tolerance']
+    except:
+        default_area_tolerance = 10.0
+    
+    estimate_parser.add_argument('--area-tolerance', type=float, default=default_area_tolerance, 
+                                help=f'Area tolerance percentage (default: {default_area_tolerance}%%)')
     
     args = parser.parse_args()
     
@@ -335,7 +435,91 @@ def handle_estimate(args):
         print(f"\n📈 Investment Analysis:")
         print("=" * 50)
         
+        # If insufficient data, try to scrape more data for the complex
+        if (not similar_rentals or len(similar_rentals) < 5) or (not similar_sales or len(similar_sales) < 5):
+            print(f"⚠️ Insufficient data for analysis. Attempting to scrape more data for {flat_info.residential_complex or 'this complex'}...")
+            
+            # Try to find complex ID
+            from scrapers.complex_scraper import search_complex_by_name
+            complex_info = search_complex_by_name(flat_info.residential_complex or '')
+            complex_id = complex_info.get('complex_id') if complex_info else None
+            
+            # Scrape data for this complex
+            if scrape_complex_data(flat_info.residential_complex or 'Unknown', complex_id):
+                print(f"✅ Successfully scraped additional data. Re-analyzing...")
+                
+                # Re-query similar properties
+                cursor = db.conn.execute("""
+                    SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
+                    FROM rental_flats 
+                    WHERE residential_complex LIKE ? 
+                    AND area BETWEEN ? AND ?
+                    ORDER BY flat_id, query_date DESC
+                """, (f'%{flat_info.residential_complex}%' if flat_info.residential_complex else '%', 
+                      area_min, area_max))
+                
+                rental_data = {}
+                for row in cursor.fetchall():
+                    flat_id = row[0]
+                    if flat_id not in rental_data:
+                        rental_data[flat_id] = row[1:]
+                
+                similar_rentals = list(rental_data.values())
+                
+                cursor = db.conn.execute("""
+                    SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
+                    FROM sales_flats 
+                    WHERE residential_complex LIKE ? 
+                    AND area BETWEEN ? AND ?
+                    ORDER BY flat_id, query_date DESC
+                """, (f'%{flat_info.residential_complex}%' if flat_info.residential_complex else '%', 
+                      area_min, area_max))
+                
+                sales_data = {}
+                for row in cursor.fetchall():
+                    flat_id = row[0]
+                    if flat_id not in sales_data:
+                        sales_data[flat_id] = row[1:]
+                
+                similar_sales = list(sales_data.values())
+                
+                # Recalculate statistics
+                if similar_rentals:
+                    rental_prices = [r[0] for r in similar_rentals]
+                    rental_areas = [r[1] for r in similar_rentals]
+                    rental_stats = {
+                        'count': len(similar_rentals),
+                        'min_price': min(rental_prices),
+                        'max_price': max(rental_prices),
+                        'avg_price': sum(rental_prices) / len(rental_prices),
+                        'median_price': statistics.median(rental_prices),
+                        'avg_area': sum(rental_areas) / len(rental_areas)
+                    }
+                else:
+                    rental_stats = None
+                
+                if similar_sales:
+                    sales_prices = [s[0] for s in similar_sales]
+                    sales_areas = [s[1] for s in similar_sales]
+                    sales_stats = {
+                        'count': len(similar_sales),
+                        'min_price': min(sales_prices),
+                        'max_price': max(sales_prices),
+                        'avg_price': sum(sales_prices) / len(sales_prices),
+                        'median_price': statistics.median(sales_prices),
+                        'avg_area': sum(sales_areas) / len(sales_areas)
+                    }
+                else:
+                    sales_stats = None
+                
+                print(f"   Found {len(similar_rentals)} rental flats and {len(similar_sales)} sales flats after scraping")
+            else:
+                print(f"❌ Failed to scrape additional data")
+        
         if similar_rentals and similar_sales:
+            # Load recommendation thresholds
+            thresholds = load_recommendation_thresholds()
+            
             # Calculate rental yield
             median_rental = rental_stats['median_price']
             median_sales = sales_stats['median_price']
@@ -357,40 +541,40 @@ def handle_estimate(args):
             print(f"   Median similar sales: {median_sales:,} tenge")
             print(f"   Average similar sales: {sales_stats['avg_price']:,.0f} tenge")
             
-            if price_vs_median < -10:
+            # Price rating based on configurable thresholds
+            if price_vs_median < thresholds['excellent_deal_discount']:
                 price_rating = "🔥 Excellent deal (significantly below median)"
-            elif price_vs_median < -5:
+            elif price_vs_median < thresholds['good_deal_discount']:
                 price_rating = "✅ Good deal (below median)"
-            elif price_vs_median < 5:
+            elif price_vs_median < thresholds['fair_deal_discount']:
                 price_rating = "⚖️ Fair price (around median)"
-            elif price_vs_median < 10:
-                price_rating = "⚠️ Above median price"
             else:
-                price_rating = "❌ Expensive (significantly above median)"
+                price_rating = "❌ Expensive (above median)"
             
             print(f"   Price vs median: {price_vs_median:+.1f}% ({price_rating})")
             
-            if rental_yield > 8:
-                yield_rating = "🔥 Excellent yield (>8%)"
-            elif rental_yield > 6:
-                yield_rating = "✅ Good yield (6-8%)"
-            elif rental_yield > 4:
-                yield_rating = "⚖️ Moderate yield (4-6%)"
+            # Yield rating based on configurable thresholds
+            if rental_yield > thresholds['strong_buy_yield']:
+                yield_rating = f"🚀 Excellent yield (>{thresholds['strong_buy_yield']}%)"
+            elif rental_yield > thresholds['buy_yield']:
+                yield_rating = f"✅ Good yield ({thresholds['buy_yield']}-{thresholds['strong_buy_yield']}%)"
+            elif rental_yield > thresholds['consider_yield']:
+                yield_rating = f"⚖️ Moderate yield ({thresholds['consider_yield']}-{thresholds['buy_yield']}%)"
             else:
-                yield_rating = "❌ Low yield (<4%)"
+                yield_rating = f"❌ Low yield (<{thresholds['consider_yield']}%)"
             
             print(f"   Yield rating: {yield_rating}")
             
-            # Overall recommendation
+            # Overall recommendation based on configurable thresholds
             print(f"\n🎯 Overall Recommendation:")
-            if rental_yield > 20:
-                print("   🚀 STRONG BUY - Excellent yield (>20%)")
-            elif rental_yield > 6 and price_vs_median < 0:
-                print("   ✅ BUY - Good yield + good price")
-            elif rental_yield > 5 and price_vs_median < 5:
-                print("   ⚖️ CONSIDER - Moderate potential")
+            if rental_yield > thresholds['strong_buy_yield']:
+                print(f"   🚀 STRONG BUY - Excellent yield (>{thresholds['strong_buy_yield']}%)")
+            elif rental_yield > thresholds['buy_yield'] and price_vs_median < 0:
+                print(f"   ✅ BUY - Good yield (>{thresholds['buy_yield']}%) + good price")
+            elif rental_yield > thresholds['consider_yield'] and price_vs_median < thresholds['fair_deal_discount']:
+                print(f"   ⚖️ CONSIDER - Moderate potential (>{thresholds['consider_yield']}% yield)")
             else:
-                print("   ❌ PASS - Low investment potential")
+                print(f"   ❌ PASS - Low investment potential (<{thresholds['consider_yield']}% yield)")
             
             # Discount-based return analysis
             print(f"\n💰 Discount Analysis:")
@@ -406,40 +590,37 @@ def handle_estimate(args):
                 print(f"   Savings: {savings:,.0f} tenge")
                 print(f"   Rental yield: {discounted_yield:.2f}%")
                 
-                if discounted_yield > 20:
-                    yield_rating = "🚀 Excellent yield (>20%)"
-                elif discounted_yield > 15:
-                    yield_rating = "🔥 Very good yield (15-20%)"
-                elif discounted_yield > 10:
-                    yield_rating = "✅ Good yield (10-15%)"
-                elif discounted_yield > 6:
-                    yield_rating = "⚖️ Moderate yield (6-10%)"
+                # Yield rating for discount scenario
+                if discounted_yield > thresholds['strong_buy_yield']:
+                    yield_rating = f"🚀 Excellent yield (>{thresholds['strong_buy_yield']}%)"
+                elif discounted_yield > thresholds['buy_yield']:
+                    yield_rating = f"🔥 Very good yield ({thresholds['buy_yield']}-{thresholds['strong_buy_yield']}%)"
+                elif discounted_yield > thresholds['consider_yield']:
+                    yield_rating = f"✅ Good yield ({thresholds['consider_yield']}-{thresholds['buy_yield']}%)"
                 else:
-                    yield_rating = "❌ Low yield (<6%)"
+                    yield_rating = f"❌ Low yield (<{thresholds['consider_yield']}%)"
                 
                 print(f"   Yield rating: {yield_rating}")
                 
                 # Price comparison with discount
                 price_vs_median_discounted = ((discounted_price - median_sales) / median_sales) * 100
-                if price_vs_median_discounted < -15:
+                if price_vs_median_discounted < thresholds['excellent_deal_discount']:
                     price_rating = "🔥 Excellent deal (significantly below median)"
-                elif price_vs_median_discounted < -10:
+                elif price_vs_median_discounted < thresholds['good_deal_discount']:
                     price_rating = "✅ Very good deal (well below median)"
-                elif price_vs_median_discounted < -5:
+                elif price_vs_median_discounted < thresholds['fair_deal_discount']:
                     price_rating = "⚖️ Good deal (below median)"
-                elif price_vs_median_discounted < 0:
-                    price_rating = "📊 Fair price (around median)"
                 else:
                     price_rating = "⚠️ Above median price"
                 
                 print(f"   Price vs median: {price_vs_median_discounted:+.1f}% ({price_rating})")
                 
                 # Recommendation for this discount level
-                if discounted_yield > 15 and price_vs_median_discounted < -10:
+                if discounted_yield > thresholds['strong_buy_yield'] and price_vs_median_discounted < thresholds['excellent_deal_discount']:
                     print(f"   💡 Recommendation: 🚀 STRONG BUY with {discount}% discount")
-                elif discounted_yield > 10 and price_vs_median_discounted < -5:
+                elif discounted_yield > thresholds['buy_yield'] and price_vs_median_discounted < thresholds['good_deal_discount']:
                     print(f"   💡 Recommendation: ✅ BUY with {discount}% discount")
-                elif discounted_yield > 6:
+                elif discounted_yield > thresholds['consider_yield']:
                     print(f"   💡 Recommendation: ⚖️ CONSIDER with {discount}% discount")
                 else:
                     print(f"   💡 Recommendation: ❌ PASS even with {discount}% discount")

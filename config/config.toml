@@ -69,4 +69,22 @@ timezone = "Asia/Almaty"
 level = "INFO"  # DEBUG, INFO, WARNING, ERROR
 file = "scraper.log"
 max_size_mb = 10
-backup_count = 5 
+backup_count = 5
+
+# Investment recommendation thresholds
+[recommendations]
+# Rental yield thresholds for different recommendations
+strong_buy_yield = 20.0    # STRONG BUY for yield > 20%
+buy_yield = 15.0            # BUY for yield > 8%
+consider_yield = 12.0       # CONSIDER for yield > 5%
+# Below consider_yield will be marked as "NOT RECOMMENDED"
+
+# Price comparison thresholds
+excellent_deal_discount = -15.0  # Excellent deal if price is 15% below median
+good_deal_discount = -10.0        # Good deal if price is 5% below median
+fair_deal_discount = 1.0         # Fair deal if price is within 5% of median
+# Above fair_deal_discount will be marked as "Expensive"
+
+# Analysis configuration
+[analysis]
+default_area_tolerance = 10.0  # Default area tolerance percentage for finding similar flats 

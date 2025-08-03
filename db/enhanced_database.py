@@ -455,6 +455,86 @@ class EnhancedFlatDatabase:
             
         finally:
             self.disconnect()
+    
+    def get_flats_by_complex(self, complex_name: str, flat_type: str = 'both') -> List[dict]:
+        """
+        Get all flats for a specific residential complex.
+        
+        :param complex_name: str, name of the residential complex
+        :param flat_type: str, 'rental', 'sales', or 'both'
+        :return: List[dict], list of flats for the complex
+        """
+        self.connect()
+        flats = []
+        
+        if flat_type in ['rental', 'both']:
+            cursor = self.conn.execute("""
+                SELECT DISTINCT flat_id, price, area, residential_complex, floor, 
+                       total_floors, construction_year, parking, description, url, 
+                       query_date, scraped_at
+                FROM rental_flats 
+                WHERE residential_complex LIKE ?
+                ORDER BY flat_id, query_date DESC
+            """, (f'%{complex_name}%',))
+            
+            rental_data = {}
+            for row in cursor.fetchall():
+                flat_id = row[0]
+                if flat_id not in rental_data:
+                    rental_data[flat_id] = {
+                        'flat_id': row[0],
+                        'price': row[1],
+                        'area': row[2],
+                        'residential_complex': row[3],
+                        'floor': row[4],
+                        'total_floors': row[5],
+                        'construction_year': row[6],
+                        'parking': row[7],
+                        'description': row[8],
+                        'url': row[9],
+                        'query_date': row[10],
+                        'scraped_at': row[11],
+                        'type': 'rental'
+                    }
+            
+            flats.extend(list(rental_data.values()))
+        
+        if flat_type in ['sales', 'both']:
+            cursor = self.conn.execute("""
+                SELECT DISTINCT flat_id, price, area, residential_complex, floor, 
+                       total_floors, construction_year, parking, description, url, 
+                       query_date, scraped_at
+                FROM sales_flats 
+                WHERE residential_complex LIKE ?
+                ORDER BY flat_id, query_date DESC
+            """, (f'%{complex_name}%',))
+            
+            sales_data = {}
+            for row in cursor.fetchall():
+                flat_id = row[0]
+                if flat_id not in sales_data:
+                    sales_data[flat_id] = {
+                        'flat_id': row[0],
+                        'price': row[1],
+                        'area': row[2],
+                        'residential_complex': row[3],
+                        'floor': row[4],
+                        'total_floors': row[5],
+                        'construction_year': row[6],
+                        'parking': row[7],
+                        'description': row[8],
+                        'url': row[9],
+                        'query_date': row[10],
+                        'scraped_at': row[11],
+                        'type': 'sales'
+                    }
+            
+            flats.extend(list(sales_data.values()))
+        
+        # Sort by price (rentals first, then sales)
+        flats.sort(key=lambda x: (x['type'] == 'sales', x['price']))
+        
+        return flats
 
 
 def save_rental_flat_to_db(flat_info: FlatInfo, url: str, query_date: str, db_path: str = "flats.db") -> bool:
