@@ -1,0 +1,1106 @@
+{% extends "base.html" %}
+
+{% block title %}♖ {{ complex_info.name }} - Analysis & Flats - Orthanc Capital{% endblock %}
+
+{% block content %}
+<!-- Complex Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-1"><i class="fas fa-building me-2"></i>{{ complex_info.name }}</h2>
+                        {% if complex_info.city %}
+                            <p class="mb-0 text-muted">
+                                <i class="fas fa-map-marker-alt me-1"></i>{{ complex_info.city }}
+                                {% if complex_info.district %}, {{ complex_info.district }}{% endif %}
+                            </p>
+                        {% endif %}
+                        <p class="mb-0 text-muted">
+                            Date: {{ analysis.query_date }} | Area limit: ≤{{ analysis.area_max }} m²
+                        </p>
+                        <p class="mb-0 text-muted small">
+                            <i class="fas fa-database me-1"></i>
+                            {% if analysis.rental_stats.count > 0 or analysis.sales_stats.count > 0 %}
+                                Data from database | {{ analysis.rental_stats.count + analysis.sales_stats.count }} flats analyzed
+                            {% else %}
+                                No data available | Use "Refresh Analysis" to fetch latest data
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="refreshAnalysisBtn" class="btn btn-primary" onclick="showRefreshConfirm();">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh Analysis
+                        </button>
+                        <a href="{{ url_for('search_jk') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Message Display -->
+<div id="successMessage" class="alert alert-success alert-dismissible fade" style="display: none;" role="alert">
+    <i class="fas fa-check-circle me-2"></i>
+    <span id="successMessageText"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+
+
+
+<!-- Data Quality Warnings -->
+{% if data_warnings %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Data Quality Warning:</strong>
+            <ul class="mb-0 mt-2">
+                {% for warning in data_warnings %}
+                <li>{{ warning }}</li>
+                {% endfor %}
+            </ul>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if analysis.rental_stats and analysis.sales_stats and not analysis.error %}
+<!-- Analysis Section -->
+<div class="row mb-4">
+    <!-- Rental Statistics -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-home me-2"></i>Rental Statistics (Monthly/Annual)
+                    {% if analysis.rental_stats.count > 0 %}
+                        ({{ analysis.rental_stats.count }} flats)
+                    {% else %}
+                        (No data)
+                    {% endif %}
+                </h4>
+                <small class="text-white-50">Format: Monthly/Annual</small>
+            </div>
+            <div class="card-body">
+                {% if analysis.rental_stats.count > 0 and not analysis.rental_stats.error %}
+                <div class="row">
+                    <div class="col-6">
+                        <h6>Rent Range (Monthly/Annual)</h6>
+                        <p class="text-primary">
+                            <span class="price-kzt">₸{{ "{:,}".format(analysis.rental_stats.price_stats.min) }}</span> - <span class="price-kzt">₸{{ "{:,}".format(analysis.rental_stats.price_stats.max) }}</span> / 
+                            <span class="price-kzt">₸{{ "{:,}".format(analysis.rental_stats.price_stats.min * 12) }}</span> - <span class="price-kzt">₸{{ "{:,}".format(analysis.rental_stats.price_stats.max * 12) }}</span>
+                        </p>
+                    </div>
+                    <div class="col-6">
+                        <h6>Average Rent (Monthly/Annual)</h6>
+                        <p class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg * 12) }}</span></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <h6>Median Rent (Monthly/Annual)</h6>
+                        <p class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median * 12) }}</span></p>
+                    </div>
+                    <div class="col-6">
+                        <h6>Average Area</h6>
+                        <p class="text-primary">{{ "{:.1f}".format(analysis.rental_stats.area_stats.avg) }} m²</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
+                    <p>Insufficient rental data for analysis</p>
+                    <small>Use "Refresh Analysis" to fetch latest data</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sales Statistics -->
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-money-bill-wave me-2"></i>Sales Statistics 
+                    {% if analysis.sales_stats.count > 0 %}
+                        ({{ analysis.sales_stats.count }} flats)
+                    {% else %}
+                        (No data)
+                    {% endif %}
+                </h4>
+            </div>
+            <div class="card-body">
+                {% if analysis.sales_stats.count > 0 and not analysis.sales_stats.error %}
+                <div class="row">
+                    <div class="col-6">
+                        <h6>Price Range</h6>
+                        <p class="text-success"><span class="price-kzt">₸{{ "{:,}".format(analysis.sales_stats.price_stats.min) }}</span> - <span class="price-kzt">₸{{ "{:,}".format(analysis.sales_stats.price_stats.max) }}</span></p>
+                    </div>
+                    <div class="col-6">
+                        <h6>Average Price</h6>
+                        <p class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.avg) }}</span></p>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <h6>Median Price</h6>
+                        <p class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.median) }}</span></p>
+                    </div>
+                    <div class="col-6">
+                        <h6>Average Area</h6>
+                        <p class="text-success">{{ "{:.1f}".format(analysis.sales_stats.area_stats.avg) }} m²</p>
+                    </div>
+                </div>
+                {% else %}
+                <div class="text-center text-muted">
+                    <i class="fas fa-exclamation-circle fa-2x mb-2"></i>
+                    <p>Insufficient sales data for analysis</p>
+                    <small>Use "Refresh Analysis" to fetch latest data</small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bucket-Based Yield Analysis -->
+{% if bucket_analysis and bucket_analysis.bucket_analysis %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card stats-card">
+            <div class="card-header">
+                <h4><i class="fas fa-chart-pie me-2"></i>Bucket-Based Yield Analysis</h4>
+                <p class="mb-0 text-white-50">Accurate yield analysis by room count and area size</p>
+            </div>
+            <div class="card-body">
+                <!-- Overall Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Overall Median Yield</h5>
+                            <h3 class="{% if bucket_analysis.overall_stats.overall_median_yield > 8 %}yield-high{% elif bucket_analysis.overall_stats.overall_median_yield > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                {{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_median_yield) }}
+                            </h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Overall Mean Yield</h5>
+                            <h3 class="{% if bucket_analysis.overall_stats.overall_yield_mean > 8 %}yield-high{% elif bucket_analysis.overall_stats.overall_yield_mean > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                {{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_yield_mean) }}
+                            </h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Yield Range</h5>
+                            <h3 class="text-info">{{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_yield_min) }} - {{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_yield_max) }}</h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Valid Buckets</h5>
+                            <h3 class="text-info">{{ bucket_analysis.overall_stats.valid_buckets }}</h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bucket Details -->
+                <div class="row">
+                    {% for bucket in bucket_analysis.bucket_analysis %}
+                    {% if bucket.rental_count > 0 and bucket.sales_count > 0 %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-home me-1"></i>{{ bucket.rooms }}BR - {{ bucket.area_bucket }}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Rental: {{ bucket.rental_count }}</small><br>
+                                        <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median * 12) }}</span></small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Sales: {{ bucket.sales_count }}</small><br>
+                                        <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.sales_median) }}</span></small>
+                                    </div>
+                                </div>
+                                <hr class="my-2">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Min Yield</small><br>
+                                        <small class="{% if bucket.yield_min > 8 %}yield-high{% elif bucket.yield_min > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {{ "{:.1f}%".format(bucket.yield_min) }}
+                                        </small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Max Yield</small><br>
+                                        <small class="{% if bucket.yield_max > 8 %}yield-high{% elif bucket.yield_max > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {{ "{:.1f}%".format(bucket.yield_max) }}
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="row mt-1">
+                                    <div class="col-6">
+                                        <small class="text-muted">Median</small><br>
+                                        <small class="{% if bucket.yield_median > 8 %}yield-high{% elif bucket.yield_median > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {{ "{:.1f}%".format(bucket.yield_median) }}
+                                        </small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Mean</small><br>
+                                        <small class="{% if bucket.yield_mean > 8 %}yield-high{% elif bucket.yield_mean > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {{ "{:.1f}%".format(bucket.yield_mean) }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <!-- Buckets with only one type of data -->
+                {% set incomplete_buckets = bucket_analysis.bucket_analysis|selectattr('rental_count', '>', 0)|selectattr('sales_count', '==', 0)|list %}
+                {% set incomplete_buckets = incomplete_buckets + (bucket_analysis.bucket_analysis|selectattr('rental_count', '==', 0)|selectattr('sales_count', '>', 0)|list) %}
+                
+                {% if incomplete_buckets %}
+                <div class="mt-4">
+                    <h6 class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Incomplete Data Buckets</h6>
+                    <div class="row">
+                        {% for bucket in incomplete_buckets %}
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="card h-100" style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); opacity: 0.7;">
+                                <div class="card-header">
+                                    <h6 class="mb-0 text-muted">
+                                        <i class="fas fa-home me-1"></i>{{ bucket.rooms }}BR - {{ bucket.area_bucket }}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <small class="text-muted">Rental: {{ bucket.rental_count }}</small><br>
+                                            {% if bucket.rental_count > 0 %}
+                                            <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median * 12) }}</span></small>
+                                            {% else %}
+                                            <small class="text-muted">No data</small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Sales: {{ bucket.sales_count }}</small><br>
+                                            {% if bucket.sales_count > 0 %}
+                                            <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.sales_median) }}</span></small>
+                                            {% else %}
+                                            <small class="text-muted">No data</small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <hr class="my-2">
+                                    <div class="text-center">
+                                        <small class="text-muted">Insufficient data for yield calculation</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Yield Distribution by Bucket -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Yield Distribution by Bucket</h5>
+    </div>
+    <div class="card-body">
+        <div style="height: 400px; position: relative;">
+            <canvas id="yieldDistributionChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+
+// Refresh Analysis functionality - Global functions
+window.showRefreshConfirm = function() {
+    console.log('🔍 showRefreshConfirm function called');
+    const complexName = '{{ complex_info.name | safe }}';
+    const refreshBtn = document.getElementById('refreshAnalysisBtn');
+    
+    console.log('🔍 complexName:', complexName);
+    console.log('🔍 refreshBtn:', refreshBtn);
+    
+    // Show confirmation dialog first
+    console.log('🔍 About to show confirm dialog...');
+    const confirmed = confirm(`⚠️ Refresh Analysis Warning ⚠️\n\nThis will fetch the latest data from Krisha.kz for ${complexName} and can take several minutes to complete.\n\nAre you sure you want to continue?`);
+    
+    console.log('🔍 confirm result:', confirmed);
+    
+    if (confirmed) {
+        console.log('🔍 User confirmed, calling performRefreshAnalysis...');
+        performRefreshAnalysis(complexName, refreshBtn);
+    } else {
+        console.log('🔍 User cancelled');
+    }
+};
+
+// Actual refresh function
+window.performRefreshAnalysis = function(complexName, refreshBtn) {
+    // Show loading state
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Refreshing...';
+    
+    // Show loading overlay
+    showLoading(`Refreshing analysis for ${complexName}...`, 'Fetching latest data from Krisha.kz and updating analysis');
+    
+    // Make request to refresh endpoint
+    const refreshUrl = `/refresh_analysis/{{ complex_name | safe }}`;
+    console.log('Calling refresh URL:', refreshUrl);
+    
+    fetch(refreshUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        console.log('Data success:', data.success);
+        console.log('Data message:', data.message);
+        
+        // Hide loading overlay first
+        hideLoading();
+        
+        // Reset button state
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh Analysis';
+        
+        if (data.success) {
+            console.log('Success branch entered');
+            
+            // Show success message if elements exist
+            try {
+                const successMessage = document.getElementById('successMessage');
+                const successMessageText = document.getElementById('successMessageText');
+                console.log('Success message elements:', { successMessage, successMessageText });
+                if (successMessage && successMessageText) {
+                    successMessageText.textContent = data.message;
+                    successMessage.style.display = 'block';
+                    successMessage.classList.add('show');
+                    
+                    // Auto-hide after 5 seconds
+                    setTimeout(() => {
+                        successMessage.classList.remove('show');
+                        setTimeout(() => {
+                            successMessage.style.display = 'none';
+                        }, 150);
+                    }, 5000);
+                }
+            } catch (e) {
+                console.error('Error showing success message:', e);
+            }
+            
+            // Reload the page to show updated data after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            console.log('Error branch entered, throwing error');
+            throw new Error(data.error || 'Refresh failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing analysis:', error);
+        console.error('Error stack:', error.stack);
+        
+        // Hide loading overlay
+        hideLoading();
+        
+        // Reset button state
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh Analysis';
+        
+        // Show error message
+        alert('Failed to refresh analysis. Please try again.');
+    });
+};
+
+console.log('🔍 Main script block loaded!');
+console.log('🔍 window.showRefreshConfirm:', typeof window.showRefreshConfirm);
+console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshAnalysis);
+
+// Chart.js Box Plot Implementation - Using real yield data
+document.addEventListener('DOMContentLoaded', function() {
+        // Check if boxplot plugin is loaded
+        if (!Chart.controllers || !Chart.controllers.boxplot) {
+            console.error('Box plot plugin not loaded!');
+            console.log('Available controllers:', Object.keys(Chart.controllers || {}));
+            
+            // Try to create a simple bar chart as fallback
+            try {
+                const ctx = document.getElementById('yieldDistributionChart').getContext('2d');
+                const fallbackData = {
+                    labels: ['A', 'B', 'C', 'D'],
+                    datasets: [{
+                        label: 'Test Data',
+                        data: [50, 30, 70, 40],
+                        backgroundColor: 'rgba(0, 168, 132, 0.5)',
+                        borderColor: 'rgba(0, 168, 132, 1)',
+                        borderWidth: 1
+                    }]
+                };
+                
+                const fallbackConfig = {
+                    type: 'bar',
+                    data: fallbackData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Fallback Bar Chart - Box Plot Plugin Not Available',
+                                color: 'white'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                };
+                
+                new Chart(ctx, fallbackConfig);
+                console.log('Created fallback bar chart');
+                return;
+            } catch (fallbackError) {
+                console.error('Fallback chart also failed:', fallbackError);
+                document.getElementById('yieldDistributionChart').parentElement.innerHTML = 
+                    '<p class="text-danger text-center">Chart creation failed. Box plot plugin not available.</p>';
+                return;
+            }
+        }
+        
+        console.log('Box plot plugin loaded successfully!');
+        
+        // Get real yield data from bucket analysis
+        const boxPlotData = {{ bucket_analysis.bucket_analysis | tojson }};
+        
+        console.log('Box plot data:', boxPlotData);
+        
+        // Transform data for Chart.js box plot
+        const chartData = boxPlotData.map(bucket => ({
+            label: `${bucket.rooms}BR ${bucket.area_bucket}`,
+            data: bucket.yields || []
+        })).filter(item => item.data.length > 0);
+        
+        console.log('Chart data:', chartData);
+        
+        if (chartData.length > 0) {
+            const ctx = document.getElementById('yieldDistributionChart').getContext('2d');
+            
+            // Prepare data in the correct format for Chart.js box plot
+            const data = {
+                labels: chartData.map(item => item.label),
+                datasets: [{
+                    label: 'Yield Distribution',
+                    data: chartData.map(item => item.data),
+                    backgroundColor: 'rgba(0, 168, 132, 0.5)',
+                    borderColor: 'rgba(0, 168, 132, 1)',
+                    borderWidth: 1,
+                    outlierBackgroundColor: 'rgba(255, 107, 107, 0.5)',
+                    outlierBorderColor: 'rgba(255, 107, 107, 1)',
+                    outlierRadius: 3
+                }]
+            };
+            
+            const config = {
+                type: 'boxplot',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Yield Distribution by Bucket',
+                            color: 'white'
+                        },
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Yield (%)',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Bucket',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white',
+                                maxRotation: 45,
+                                minRotation: 0
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            };
+            
+            try {
+                // Create the box plot with real yield data
+                new Chart(ctx, config);
+                console.log('Chart created successfully with real yield data!');
+            } catch (error) {
+                console.error('Error creating chart:', error);
+                document.getElementById('yieldDistributionChart').parentElement.innerHTML = 
+                    '<p class="text-danger text-center">Error creating box plot: ' + error.message + '</p>';
+            }
+            
+        } else {
+            console.log('No chart data available');
+            document.getElementById('yieldDistributionChart').parentElement.innerHTML = 
+                '<p class="text-muted text-center">No yield data available for visualization</p>';
+        }
+    });
+</script>
+
+<!-- Market Insights -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-lightbulb me-2"></i>Market Insights</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Rental Price per m²</h6>
+                        <p class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental) }}</span></p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Sales Price per m²</h6>
+                        <p class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales) }}</span></p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Investment Potential</h6>
+                        <p class="{% if analysis.insights.market_position.investment_potential == 'High' %}text-success{% elif analysis.insights.market_position.investment_potential == 'Medium' %}text-warning{% else %}text-danger{% endif %}">
+                            {{ analysis.insights.market_position.investment_potential }}
+                        </p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <h6>Data Reliability</h6>
+                        <p class="{% if analysis.insights.data_quality.reliability == 'High' %}text-success{% elif analysis.insights.data_quality.reliability == 'Medium' %}text-warning{% else %}text-danger{% endif %}">
+                            {{ analysis.insights.data_quality.reliability }}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Rental Sample Size</h6>
+                        <p>{{ analysis.insights.data_quality.rental_sample_size }} flats</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Sales Sample Size</h6>
+                        <p>{{ analysis.insights.data_quality.sales_sample_size }} flats</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% else %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="alert alert-warning">
+            <i class="fas fa-exclamation-triangle me-2"></i> 
+            Insufficient data for analysis. 
+            {% if not analysis.rental_stats %}No rental data found.{% endif %}
+            {% if not analysis.sales_stats %}No sales data found.{% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- No Analysis Data Section -->
+{% if analysis.error or not analysis.rental_stats or not analysis.sales_stats %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-exclamation-triangle me-2"></i>Analysis Unavailable</h4>
+            </div>
+            <div class="card-body text-center">
+                <i class="fas fa-chart-line fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Insufficient Data for Analysis</h5>
+                <p class="text-muted">
+                    {% if analysis.error %}
+                        {{ analysis.error }}
+                    {% else %}
+                        No rental or sales data available for reliable analysis.
+                    {% endif %}
+                </p>
+                <p class="text-muted small">
+                    Use the "Refresh Analysis" button above to fetch latest data from Krisha.kz.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-home me-2"></i>Rental Flats ({{ rental_flats|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if rental_flats %}
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-primary">
+                                    {{ "{:,}".format(rental_flats|map(attribute='price')|min) }}
+                                </div>
+                                <div class="kpi-label">Min Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-success">
+                                    {{ "{:,.0f}".format((rental_flats|map(attribute='price')|sum) / rental_flats|length) }}
+                                </div>
+                                <div class="kpi-label">Avg Price</div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No rental flats found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-money-bill-wave me-2"></i>Sales Flats ({{ sales_flats|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if sales_flats %}
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-warning">
+                                    {{ "{:,}".format(sales_flats|map(attribute='price')|min) }}
+                                </div>
+                                <div class="kpi-label">Min Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-info">
+                                    {{ "{:,.0f}".format((sales_flats|map(attribute='price')|sum) / sales_flats|length) }}
+                                </div>
+                                <div class="kpi-label">Avg Price</div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No sales flats found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sales Flats -->
+{% if sales_flats %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header toggle-header" data-target="sales-flats-content" style="cursor: pointer;">
+                <h4 class="mb-0">
+                    <i class="fas fa-money-bill-wave me-2"></i>Sales Flats ({{ sales_flats|length }})
+                    <i class="fas fa-chevron-down toggle-icon ms-2" style="float: right; transition: transform 0.3s ease;"></i>
+                </h4>
+            </div>
+            <div class="card-body" id="sales-flats-content">
+                <div class="row">
+                    {% for flat in sales_flats %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title text-success"><span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span></h6>
+                                    <span class="badge bg-success">Sale</span>
+                                </div>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <i class="fas fa-ruler-combined me-1"></i>{{ flat.area }} m²
+                                        {% if flat.floor %}<br><i class="fas fa-building me-1"></i>Floor {{ flat.floor }}{% endif %}
+                                        {% if flat.construction_year %}<br><i class="fas fa-calendar me-1"></i>{{ flat.construction_year }}{% endif %}
+                                        {% if flat.parking %}<br><i class="fas fa-car me-1"></i>{{ flat.parking }}{% endif %}
+                                    </small>
+                                </p>
+                                <p class="card-text small">{{ flat.description[:100] }}{% if flat.description|length > 100 %}...{% endif %}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">{{ flat.query_date }}</small>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-warning toggle-favorite" 
+                                                data-flat-id="{{ flat.flat_id }}" 
+                                                data-flat-type="sale"
+                                                data-price="{{ flat.price }}"
+                                                data-area="{{ flat.area }}"
+                                                data-residential-complex="{{ flat.residential_complex or '' }}"
+                                                data-floor="{{ flat.floor or '' }}"
+                                                data-total-floors="{{ flat.total_floors or '' }}"
+                                                data-construction-year="{{ flat.construction_year or '' }}"
+                                                data-parking="{{ flat.parking or '' }}"
+                                                data-description="{{ flat.description }}"
+                                                data-url="{{ flat.url }}">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                        <a href="{{ url_for('estimate_flat') }}?flat_id={{ flat.flat_id }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-calculator me-1"></i>Analyze
+                                        </a>
+                                        <a href="{{ flat.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-external-link-alt me-1"></i>View on Krisha
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Rental Flats -->
+{% if rental_flats %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header toggle-header" data-target="rental-flats-content" style="cursor: pointer;">
+                <h4 class="mb-0">
+                    <i class="fas fa-home me-2"></i>Rental Flats ({{ rental_flats|length }})
+                    <i class="fas fa-chevron-down toggle-icon ms-2" style="float: right; transition: transform 0.3s ease;"></i>
+                </h4>
+            </div>
+            <div class="card-body" id="rental-flats-content">
+                <div class="row">
+                    {% for flat in rental_flats %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title text-primary"><span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span></h6>
+                                    <span class="badge bg-primary">Rental</span>
+                                </div>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <i class="fas fa-ruler-combined me-1"></i>{{ flat.area }} m²
+                                        {% if flat.floor %}<br><i class="fas fa-building me-1"></i>Floor {{ flat.floor }}{% endif %}
+                                        {% if flat.construction_year %}<br><i class="fas fa-calendar me-1"></i>{{ flat.construction_year }}{% endif %}
+                                        {% if flat.parking %}<br><i class="fas fa-car me-1"></i>{{ flat.parking }}{% endif %}
+                                    </small>
+                                </p>
+                                <p class="card-text small">{{ flat.description[:100] }}{% if flat.description|length > 100 %}...{% endif %}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">{{ flat.query_date }}</small>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-warning toggle-favorite" 
+                                                data-flat-id="{{ flat.flat_id }}" 
+                                                data-flat-type="rental"
+                                                data-price="{{ flat.price }}"
+                                                data-area="{{ flat.area }}"
+                                                data-residential-complex="{{ flat.residential_complex or '' }}"
+                                                data-floor="{{ flat.floor or '' }}"
+                                                data-total-floors="{{ flat.total_floors or '' }}"
+                                                data-construction-year="{{ flat.construction_year or '' }}"
+                                                data-parking="{{ flat.parking or '' }}"
+                                                data-description="{{ flat.description }}"
+                                                data-url="{{ flat.url }}">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                        <a href="{{ flat.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-external-link-alt me-1"></i>View on Krisha
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+console.log('🔍 extra_js script block loaded!');
+console.log('🔍 About to define window functions...');
+
+// Toggle functionality for rental and sales flats sections
+const toggleHeaders = document.querySelectorAll('.toggle-header');
+    
+toggleHeaders.forEach(function(header) {
+    header.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const content = document.getElementById(targetId);
+        const icon = this.querySelector('.toggle-icon');
+        
+        if (content.style.display === 'none') {
+            // Show content
+            content.style.display = 'block';
+            icon.style.transform = 'rotate(0deg)';
+            icon.classList.remove('fa-chevron-up');
+            icon.classList.add('fa-chevron-down');
+        } else {
+            // Hide content
+            content.style.display = 'none';
+            icon.style.transform = 'rotate(180deg)';
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-up');
+        }
+    });
+});
+    
+// Favorite functionality
+const favoriteButtons = document.querySelectorAll('.toggle-favorite');
+    
+favoriteButtons.forEach(function(button) {
+        // Check initial favorite status
+        const flatId = button.getAttribute('data-flat-id');
+        const flatType = button.getAttribute('data-flat-type');
+        
+        fetch('/api/favorites/check', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                flat_id: flatId,
+                flat_type: flatType
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.is_favorite) {
+                button.classList.add('btn-warning');
+                button.classList.remove('btn-outline-warning');
+            }
+        })
+        .catch(error => console.error('Error checking favorite status:', error));
+        
+        // Handle click events
+        button.addEventListener('click', function() {
+            const flatId = this.getAttribute('data-flat-id');
+            const flatType = this.getAttribute('data-flat-type');
+            const isFavorite = this.classList.contains('btn-warning');
+            
+            const flatData = {
+                flat_id: flatId,
+                price: parseInt(this.getAttribute('data-price')),
+                area: parseFloat(this.getAttribute('data-area')),
+                residential_complex: this.getAttribute('data-residential-complex'),
+                floor: this.getAttribute('data-floor'),
+                total_floors: this.getAttribute('data-total-floors'),
+                construction_year: this.getAttribute('data-construction-year'),
+                parking: this.getAttribute('data-parking'),
+                description: this.getAttribute('data-description'),
+                url: this.getAttribute('data-url')
+            };
+            
+            const url = isFavorite ? '/api/favorites/remove' : '/api/favorites/add';
+            
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    flat_data: flatData,
+                    flat_type: flatType
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    if (isFavorite) {
+                        this.classList.remove('btn-warning');
+                        this.classList.add('btn-outline-warning');
+                    } else {
+                        this.classList.add('btn-warning');
+                        this.classList.remove('btn-outline-warning');
+                    }
+                } else {
+                    console.error('Error:', data.error);
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+    });
+    
+    // Plotly.js Box Plot Implementation
+    document.addEventListener('DOMContentLoaded', function() {
+        const boxPlotData = {{ bucket_analysis.bucket_analysis | tojson }};
+        
+        console.log('Box plot data:', boxPlotData);
+        
+        // Transform data for Plotly box plot
+        const chartData = boxPlotData.map(bucket => ({
+            label: `${bucket.rooms}BR ${bucket.area_bucket}`,
+            data: bucket.yields || []
+        })).filter(item => item.data.length > 0);
+        
+        console.log('Chart data:', chartData);
+        
+        if (chartData.length > 0) {
+            const chartContainer = document.getElementById('yieldDistributionChart').parentElement;
+            
+            // Prepare data for Plotly box plot
+            const traces = chartData.map(bucket => ({
+                y: bucket.data,
+                type: 'box',
+                name: bucket.label,
+                boxpoints: 'outliers',
+                jitter: 0.3,
+                pointpos: -1.8,
+                marker: {
+                    color: '#00a884',
+                    outliercolor: '#ff6b6b',
+                    line: {
+                        outliercolor: '#ff6b6b',
+                        outlierwidth: 1
+                    }
+                },
+                line: {
+                    color: '#00a884'
+                },
+                fillcolor: 'rgba(0, 168, 132, 0.3)'
+            }));
+            
+            const layout = {
+                title: {
+                    text: 'Yield Distribution by Bucket',
+                    font: {
+                        color: 'white'
+                    }
+                },
+                yaxis: {
+                    title: 'Yield (%)',
+                    titlefont: {
+                        color: 'white'
+                    },
+                    tickfont: {
+                        color: 'white'
+                    },
+                    gridcolor: 'rgba(255, 255, 255, 0.1)',
+                    zerolinecolor: 'rgba(255, 255, 255, 0.1)'
+                },
+                xaxis: {
+                    title: 'Bucket',
+                    titlefont: {
+                        color: 'white'
+                    },
+                    tickfont: {
+                        color: 'white'
+                    },
+                    gridcolor: 'rgba(255, 255, 255, 0.1)',
+                    zerolinecolor: 'rgba(255, 255, 255, 0.1)'
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: {
+                    color: 'white'
+                },
+                showlegend: false,
+                height: 400,
+                margin: {
+                    l: 60,
+                    r: 30,
+                    t: 60,
+                    b: 80
+                }
+            };
+            
+            const config = {
+                responsive: true,
+                displayModeBar: false
+            };
+            
+            // Create the box plot
+            Plotly.newPlot('yieldDistributionChart', traces, layout, config);
+            
+        } else {
+            console.log('No chart data available');
+            chartContainer.innerHTML = 
+                '<p class="text-muted text-center">No yield data available for visualization</p>';
+        }
+    });
+    
+    console.log('🔍 extra_js script block completed!');
+    console.log('🔍 window.showRefreshConfirm:', typeof window.showRefreshConfirm);
+    console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshAnalysis);
+</script>
+{% endblock %} 
