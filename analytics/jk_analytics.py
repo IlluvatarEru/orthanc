@@ -239,40 +239,77 @@ class JKAnalytics:
         rental_stats = self.get_jk_rental_stats(complex_name, area_max, query_date)
         sales_stats = self.get_jk_sales_stats(complex_name, area_max, query_date)
         
-        if 'error' in rental_stats or 'error' in sales_stats:
+        # Check if we have at least some data to work with
+        rental_count = rental_stats.get('count', 0)
+        sales_count = sales_stats.get('count', 0)
+        
+        if rental_count == 0 and sales_count == 0:
             return {
                 'complex_name': complex_name,
                 'query_date': query_date,
                 'area_max': area_max,
-                'error': 'Missing rental or sales data',
-                'rental_count': rental_stats.get('count', 0),
-                'sales_count': sales_stats.get('count', 0)
+                'error': 'No data available for analysis',
+                'rental_count': 0,
+                'sales_count': 0
             }
         
-        # Add market insights
+        # If we have data but some stats have errors, create partial analysis
+        if 'error' in rental_stats or 'error' in sales_stats:
+            # Create a basic analysis with available data
+            analysis_result = {
+                'complex_name': complex_name,
+                'query_date': query_date,
+                'area_max': area_max,
+                'rental_count': rental_count,
+                'sales_count': sales_count
+            }
+            
+            # Add available stats (only if no error)
+            if 'error' not in rental_stats:
+                analysis_result['rental_stats'] = rental_stats
+            else:
+                analysis_result['rental_stats'] = {'count': 0, 'error': rental_stats.get('error', 'No rental data')}
+                
+            if 'error' not in sales_stats:
+                analysis_result['sales_stats'] = sales_stats
+            else:
+                analysis_result['sales_stats'] = {'count': 0, 'error': sales_stats.get('error', 'No sales data')}
+            
+            return analysis_result
+        
+        # Add market insights (only if both types of data are available)
         rental_data = rental_stats
         sales_data = sales_stats
         
-        # Calculate price per square meter
-        rental_price_per_sqm = rental_data['price_stats']['avg'] / rental_data['area_stats']['avg']
-        sales_price_per_sqm = sales_data['price_stats']['avg'] / sales_data['area_stats']['avg']
-        
-        # Market insights
         insights = {
             'price_per_sqm': {
-                'rental': rental_price_per_sqm,
-                'sales': sales_price_per_sqm
+                'rental': None,
+                'sales': None
             },
             'market_position': {
-                'rental_competitiveness': 'High' if rental_price_per_sqm > 100000 else 'Medium' if rental_price_per_sqm > 50000 else 'Low',
-                'investment_potential': 'High' if sales_price_per_sqm > 150000 else 'Medium' if sales_price_per_sqm > 80000 else 'Low'
+                'rental_competitiveness': 'N/A',
+                'investment_potential': 'N/A'
             },
             'data_quality': {
-                'rental_sample_size': rental_data['count'],
-                'sales_sample_size': sales_data['count'],
-                'reliability': 'High' if min(rental_data['count'], sales_data['count']) >= 5 else 'Medium' if min(rental_data['count'], sales_data['count']) >= 3 else 'Low'
+                'rental_sample_size': rental_data.get('count', 0),
+                'sales_sample_size': sales_data.get('count', 0),
+                'reliability': 'Low'
             }
         }
+        
+        # Calculate insights only if both data types are available
+        if 'error' not in rental_data and 'error' not in sales_data:
+            # Calculate price per square meter
+            rental_price_per_sqm = rental_data['price_stats']['avg'] / rental_data['area_stats']['avg']
+            sales_price_per_sqm = sales_data['price_stats']['avg'] / sales_data['area_stats']['avg']
+            
+            insights['price_per_sqm']['rental'] = rental_price_per_sqm
+            insights['price_per_sqm']['sales'] = sales_price_per_sqm
+            
+            insights['market_position']['rental_competitiveness'] = 'High' if rental_price_per_sqm > 100000 else 'Medium' if rental_price_per_sqm > 50000 else 'Low'
+            insights['market_position']['investment_potential'] = 'High' if sales_price_per_sqm > 150000 else 'Medium' if sales_price_per_sqm > 80000 else 'Low'
+            
+            insights['data_quality']['reliability'] = 'High' if min(rental_data['count'], sales_data['count']) >= 5 else 'Medium' if min(rental_data['count'], sales_data['count']) >= 3 else 'Low'
         
         return {
             'complex_name': complex_name,

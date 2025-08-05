@@ -14,7 +14,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from pathlib import Path
-from scrapers.search_scraper import extract_flat_urls_from_search_page
+from scrapers.search_scraper import (
+    extract_flat_urls_from_search_page, 
+    scrape_search_results_with_pagination,
+    scrape_and_save_search_results_with_pagination
+)
 from common.krisha_scraper import scrape_flat_info
 from db.enhanced_database import EnhancedFlatDatabase, save_rental_flat_to_db, save_sales_flat_to_db
 
@@ -71,142 +75,74 @@ class ScraperScheduler:
     
     def scrape_rental_query(self, query_config: Dict) -> int:
         """
-        Scrape a rental query and save to database.
+        Scrape a rental query with pagination and save to database.
         
         :param query_config: Dict, rental query configuration
         :return: int, number of flats scraped
         """
         query_name = query_config['name']
         url = query_config['url']
-        query_date = datetime.now().strftime('%Y-%m-%d')
         
-        self.logger.info(f"🏠 Starting rental query: {query_name}")
+        self.logger.info(f"🏠 Starting rental query with pagination: {query_name}")
         self.logger.info(f"   URL: {url}")
         
         try:
-            # Extract flat URLs from search page
-            flat_urls = extract_flat_urls_from_search_page(url)
+            # Use paginated scraping
+            max_pages = self.config['scraping'].get('max_pages_per_query', 5)
+            max_flats = None  # No limit on flats
+            delay = self.config['scraping']['delay_between_requests']
             
-            if not flat_urls:
-                self.logger.warning(f"   No flats found for query: {query_name}")
-                return 0
+            # Scrape with pagination
+            scraped_flats = scrape_and_save_search_results_with_pagination(
+                search_url=url,
+                db_path=self.config['database']['path'],
+                max_pages=max_pages,
+                max_flats=max_flats,
+                delay=delay
+            )
             
-            # Limit number of flats if specified
-            max_flats = self.config['scraping']['max_flats_per_query']
-            if len(flat_urls) > max_flats:
-                flat_urls = flat_urls[:max_flats]
-                self.logger.info(f"   Limiting to {max_flats} flats")
-            
-            self.logger.info(f"   Found {len(flat_urls)} flats to scrape")
-            
-            scraped_count = 0
-            
-            for i, flat_url in enumerate(flat_urls, 1):
-                try:
-                    self.logger.info(f"   [{i}/{len(flat_urls)}] Scraping: {flat_url}")
-                    
-                    # Scrape flat information
-                    flat_info = scrape_flat_info(flat_url)
-                    
-                    # Save to database
-                    success = save_rental_flat_to_db(
-                        flat_info, 
-                        flat_url, 
-                        query_date, 
-                        self.config['database']['path']
-                    )
-                    
-                    if success:
-                        self.logger.info(f"     ✅ Saved flat {flat_info.flat_id}")
-                        scraped_count += 1
-                    else:
-                        self.logger.warning(f"     ⚠️ Failed to save flat {flat_info.flat_id}")
-                    
-                    # Add delay between requests
-                    delay = self.config['scraping']['delay_between_requests']
-                    if i < len(flat_urls):
-                        time.sleep(delay)
-                        
-                except Exception as e:
-                    self.logger.error(f"     ❌ Error scraping {flat_url}: {e}")
-            
-            self.logger.info(f"   ✅ Completed rental query: {query_name}")
-            self.logger.info(f"   📊 Scraped {scraped_count}/{len(flat_urls)} flats")
-            
+            scraped_count = len(scraped_flats)
+            self.logger.info(f"   ✅ Completed rental query: {query_name} - {scraped_count} flats scraped")
             return scraped_count
             
         except Exception as e:
-            self.logger.error(f"   ❌ Error processing rental query {query_name}: {e}")
+            self.logger.error(f"   ❌ Error in rental query {query_name}: {e}")
             return 0
     
     def scrape_sales_query(self, query_config: Dict) -> int:
         """
-        Scrape a sales query and save to database.
+        Scrape a sales query with pagination and save to database.
         
         :param query_config: Dict, sales query configuration
         :return: int, number of flats scraped
         """
         query_name = query_config['name']
         url = query_config['url']
-        query_date = datetime.now().strftime('%Y-%m-%d')
         
-        self.logger.info(f"🏠 Starting sales query: {query_name}")
+        self.logger.info(f"🏠 Starting sales query with pagination: {query_name}")
         self.logger.info(f"   URL: {url}")
         
         try:
-            # Extract flat URLs from search page
-            flat_urls = extract_flat_urls_from_search_page(url)
+            # Use paginated scraping
+            max_pages = self.config['scraping'].get('max_pages_per_query', 5)
+            max_flats = None  # No limit on flats
+            delay = self.config['scraping']['delay_between_requests']
             
-            if not flat_urls:
-                self.logger.warning(f"   No flats found for query: {query_name}")
-                return 0
+            # Scrape with pagination
+            scraped_flats = scrape_and_save_search_results_with_pagination(
+                search_url=url,
+                db_path=self.config['database']['path'],
+                max_pages=max_pages,
+                max_flats=max_flats,
+                delay=delay
+            )
             
-            # Limit number of flats if specified
-            max_flats = self.config['scraping']['max_flats_per_query']
-            if len(flat_urls) > max_flats:
-                flat_urls = flat_urls[:max_flats]
-                self.logger.info(f"   Limiting to {max_flats} flats")
-            
-            self.logger.info(f"   Found {len(flat_urls)} flats to scrape")
-            
-            scraped_count = 0
-            
-            for i, flat_url in enumerate(flat_urls, 1):
-                try:
-                    self.logger.info(f"   [{i}/{len(flat_urls)}] Scraping: {flat_url}")
-                    
-                    # Scrape flat information
-                    flat_info = scrape_flat_info(flat_url)
-                    
-                    # Save to database
-                    success = save_sales_flat_to_db(
-                        flat_info, 
-                        flat_url, 
-                        query_date, 
-                        self.config['database']['path']
-                    )
-                    
-                    if success:
-                        self.logger.info(f"     ✅ Saved flat {flat_info.flat_id}")
-                        scraped_count += 1
-                    else:
-                        self.logger.warning(f"     ⚠️ Failed to save flat {flat_info.flat_id}")
-                    
-                    # Add delay between requests
-                    delay = self.config['scraping']['delay_between_requests']
-                    if i < len(flat_urls):
-                        time.sleep(delay)
-                        
-                except Exception as e:
-                    self.logger.error(f"     ❌ Error scraping {flat_url}: {e}")
-            
-            self.logger.info(f"   ✅ Completed sales query: {query_name}")
-            self.logger.info(f"   📊 Scraped {scraped_count}/{len(flat_urls)} flats")
-            
+            scraped_count = len(scraped_flats)
+            self.logger.info(f"   ✅ Completed sales query: {query_name} - {scraped_count} flats scraped")
             return scraped_count
             
         except Exception as e:
-            self.logger.error(f"   ❌ Error processing sales query {query_name}: {e}")
+            self.logger.error(f"   ❌ Error in sales query {query_name}: {e}")
             return 0
     
     def run_all_queries(self) -> Dict:
