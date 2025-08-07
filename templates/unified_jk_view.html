@@ -183,36 +183,68 @@
                     <div class="col-md-3">
                         <div class="text-center">
                             <h5 class="text-white">Overall Median Yield</h5>
-                            <h3 class="{% if bucket_analysis.overall_stats.overall_median_yield > 8 %}yield-high{% elif bucket_analysis.overall_stats.overall_median_yield > 5 %}yield-medium{% else %}yield-low{% endif %}">
-                                {{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_median_yield) }}
+                            <h3 class="text-info">
+                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
+                                {% if valid_buckets %}
+                                    {% set yields = valid_buckets|map(attribute='yield_analysis.rental_yield')|list %}
+                                    {% set median_yield = yields|sort|list %}
+                                    {% set median_index = (median_yield|length // 2) %}
+                                    {% if median_yield|length % 2 == 0 %}
+                                        {% set median = (median_yield[median_index - 1] + median_yield[median_index]) / 2 %}
+                                    {% else %}
+                                        {% set median = median_yield[median_index] %}
+                                    {% endif %}
+                                    {{ "{:.1f}%".format(median) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
                             </h3>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <h5 class="text-white">Overall Mean Yield</h5>
-                            <h3 class="{% if bucket_analysis.overall_stats.overall_yield_mean > 8 %}yield-high{% elif bucket_analysis.overall_stats.overall_yield_mean > 5 %}yield-medium{% else %}yield-low{% endif %}">
-                                {{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_yield_mean) }}
+                            <h3 class="text-info">
+                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
+                                {% if valid_buckets %}
+                                    {% set yields = valid_buckets|map(attribute='yield_analysis.rental_yield')|list %}
+                                    {% set mean_yield = (yields|sum) / (yields|length) %}
+                                    {{ "{:.1f}%".format(mean_yield) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
                             </h3>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <h5 class="text-white">Yield Range</h5>
-                            <h3 class="text-info">{{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_yield_min) }} - {{ "{:.1f}%".format(bucket_analysis.overall_stats.overall_yield_max) }}</h3>
+                            <h3 class="text-info">
+                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
+                                {% if valid_buckets %}
+                                    {% set min_yield = valid_buckets|map(attribute='yield_analysis.yield_min')|min %}
+                                    {% set max_yield = valid_buckets|map(attribute='yield_analysis.yield_max')|max %}
+                                    {{ "{:.1f}%".format(min_yield) }} - {{ "{:.1f}%".format(max_yield) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </h3>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="text-center">
                             <h5 class="text-white">Valid Buckets</h5>
-                            <h3 class="text-info">{{ bucket_analysis.overall_stats.valid_buckets }}</h3>
+                            <h3 class="text-info">
+                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
+                                {{ valid_buckets|length }}
+                            </h3>
                         </div>
                     </div>
                 </div>
                 
                 <!-- Bucket Details -->
                 <div class="row">
-                    {% for bucket in bucket_analysis.bucket_analysis %}
+                    {% for bucket in bucket_analysis.bucket_analysis.values() %}
                     {% if bucket.rental_count > 0 and bucket.sales_count > 0 %}
                     <div class="col-md-6 col-lg-4 mb-3">
                         <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
@@ -225,39 +257,67 @@
                                 <div class="row">
                                     <div class="col-6">
                                         <small class="text-muted">Rental: {{ bucket.rental_count }}</small><br>
-                                        <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median * 12) }}</span></small>
+                                        <small class="text-primary">
+                                            {% if bucket.rental_stats %}
+                                                <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_stats.median_price) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_stats.median_price * 12) }}</span>
+                                            {% else %}
+                                                <span class="text-muted">No data</span>
+                                            {% endif %}
+                                        </small>
                                     </div>
                                     <div class="col-6">
                                         <small class="text-muted">Sales: {{ bucket.sales_count }}</small><br>
-                                        <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.sales_median) }}</span></small>
+                                        <small class="text-success">
+                                            {% if bucket.sales_stats %}
+                                                <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.sales_stats.median_price) }}</span>
+                                            {% else %}
+                                                <span class="text-muted">No data</span>
+                                            {% endif %}
+                                        </small>
                                     </div>
                                 </div>
                                 <hr class="my-2">
                                 <div class="row">
                                     <div class="col-6">
                                         <small class="text-muted">Min Yield</small><br>
-                                        <small class="{% if bucket.yield_min > 8 %}yield-high{% elif bucket.yield_min > 5 %}yield-medium{% else %}yield-low{% endif %}">
-                                            {{ "{:.1f}%".format(bucket.yield_min) }}
+                                        <small class="{% if bucket.yield_analysis and bucket.yield_analysis.yield_min > 8 %}yield-high{% elif bucket.yield_analysis and bucket.yield_analysis.yield_min > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {% if bucket.yield_analysis %}
+                                                {{ "{:.1f}%".format(bucket.yield_analysis.yield_min) }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
                                         </small>
                                     </div>
                                     <div class="col-6">
                                         <small class="text-muted">Max Yield</small><br>
-                                        <small class="{% if bucket.yield_max > 8 %}yield-high{% elif bucket.yield_max > 5 %}yield-medium{% else %}yield-low{% endif %}">
-                                            {{ "{:.1f}%".format(bucket.yield_max) }}
+                                        <small class="{% if bucket.yield_analysis and bucket.yield_analysis.yield_max > 8 %}yield-high{% elif bucket.yield_analysis and bucket.yield_analysis.yield_max > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {% if bucket.yield_analysis %}
+                                                {{ "{:.1f}%".format(bucket.yield_analysis.yield_max) }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
                                         </small>
                                     </div>
                                 </div>
                                 <div class="row mt-1">
                                     <div class="col-6">
-                                        <small class="text-muted">Median</small><br>
-                                        <small class="{% if bucket.yield_median > 8 %}yield-high{% elif bucket.yield_median > 5 %}yield-medium{% else %}yield-low{% endif %}">
-                                            {{ "{:.1f}%".format(bucket.yield_median) }}
+                                        <small class="text-muted">Rental Yield</small><br>
+                                        <small class="{% if bucket.yield_analysis and bucket.yield_analysis.rental_yield > 8 %}yield-high{% elif bucket.yield_analysis and bucket.yield_analysis.rental_yield > 5 %}yield-medium{% else %}yield-low{% endif %}">
+                                            {% if bucket.yield_analysis %}
+                                                {{ "{:.1f}%".format(bucket.yield_analysis.rental_yield) }}
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
                                         </small>
                                     </div>
                                     <div class="col-6">
-                                        <small class="text-muted">Mean</small><br>
-                                        <small class="{% if bucket.yield_mean > 8 %}yield-high{% elif bucket.yield_mean > 5 %}yield-medium{% else %}yield-low{% endif %}">
-                                            {{ "{:.1f}%".format(bucket.yield_mean) }}
+                                        <small class="text-muted">Annual Income</small><br>
+                                        <small class="text-success">
+                                            {% if bucket.yield_analysis %}
+                                                <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.yield_analysis.annual_rental_income) }}</span>
+                                            {% else %}
+                                                N/A
+                                            {% endif %}
                                         </small>
                                     </div>
                                 </div>
@@ -269,8 +329,8 @@
                 </div>
                 
                 <!-- Buckets with only one type of data -->
-                {% set incomplete_buckets = bucket_analysis.bucket_analysis|selectattr('rental_count', '>', 0)|selectattr('sales_count', '==', 0)|list %}
-                {% set incomplete_buckets = incomplete_buckets + (bucket_analysis.bucket_analysis|selectattr('rental_count', '==', 0)|selectattr('sales_count', '>', 0)|list) %}
+                {% set incomplete_buckets = bucket_analysis.bucket_analysis.values()|selectattr('rental_count', '>', 0)|selectattr('sales_count', '==', 0)|list %}
+                {% set incomplete_buckets = incomplete_buckets + (bucket_analysis.bucket_analysis.values()|selectattr('rental_count', '==', 0)|selectattr('sales_count', '>', 0)|list) %}
                 
                 {% if incomplete_buckets %}
                 <div class="mt-4">
@@ -288,16 +348,16 @@
                                     <div class="row">
                                         <div class="col-6">
                                             <small class="text-muted">Rental: {{ bucket.rental_count }}</small><br>
-                                            {% if bucket.rental_count > 0 %}
-                                            <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_median * 12) }}</span></small>
+                                            {% if bucket.rental_count > 0 and bucket.rental_stats %}
+                                            <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_stats.median_price) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(bucket.rental_stats.median_price * 12) }}</span></small>
                                             {% else %}
                                             <small class="text-muted">No data</small>
                                             {% endif %}
                                         </div>
                                         <div class="col-6">
                                             <small class="text-muted">Sales: {{ bucket.sales_count }}</small><br>
-                                            {% if bucket.sales_count > 0 %}
-                                            <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.sales_median) }}</span></small>
+                                            {% if bucket.sales_count > 0 and bucket.sales_stats %}
+                                            <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(bucket.sales_stats.median_price) }}</span></small>
                                             {% else %}
                                             <small class="text-muted">No data</small>
                                             {% endif %}
@@ -624,16 +684,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="row">
                     <div class="col-md-4">
                         <h6>Rental Price per m²</h6>
-                        <p class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental) }}</span></p>
+                        <p class="text-primary">
+                            {% if analysis.insights.price_per_sqm.rental %}
+                                <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental) }}</span>
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="col-md-4">
                         <h6>Sales Price per m²</h6>
-                        <p class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales) }}</span></p>
+                        <p class="text-success">
+                            {% if analysis.insights.price_per_sqm.sales %}
+                                <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales) }}</span>
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </p>
                     </div>
                     <div class="col-md-4">
                         <h6>Investment Potential</h6>
                         <p class="{% if analysis.insights.market_position.investment_potential == 'High' %}text-success{% elif analysis.insights.market_position.investment_potential == 'Medium' %}text-warning{% else %}text-danger{% endif %}">
-                            {{ analysis.insights.market_position.investment_potential }}
+                            {{ analysis.insights.market_position.investment_potential or 'N/A' }}
                         </p>
                     </div>
                 </div>
@@ -641,16 +713,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="col-md-4">
                         <h6>Data Reliability</h6>
                         <p class="{% if analysis.insights.data_quality.reliability == 'High' %}text-success{% elif analysis.insights.data_quality.reliability == 'Medium' %}text-warning{% else %}text-danger{% endif %}">
-                            {{ analysis.insights.data_quality.reliability }}
+                            {{ analysis.insights.data_quality.reliability or 'Low' }}
                         </p>
                     </div>
                     <div class="col-md-4">
                         <h6>Rental Sample Size</h6>
-                        <p>{{ analysis.insights.data_quality.rental_sample_size }} flats</p>
+                        <p>{{ analysis.insights.data_quality.rental_sample_size or 0 }} flats</p>
                     </div>
                     <div class="col-md-4">
                         <h6>Sales Sample Size</h6>
-                        <p>{{ analysis.insights.data_quality.sales_sample_size }} flats</p>
+                        <p>{{ analysis.insights.data_quality.sales_sample_size or 0 }} flats</p>
                     </div>
                 </div>
             </div>

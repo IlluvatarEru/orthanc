@@ -1,8 +1,8 @@
 """
-JK (Residential Complex) Analytics Module
+JK Analytics Module
 
-This module provides functions to analyze residential complex data
-including rental yields, price statistics, and market analysis.
+This module provides comprehensive analytics for residential complexes (JK)
+including rental and sales statistics, yield analysis, and market insights.
 """
 
 import sqlite3
@@ -10,22 +10,145 @@ import statistics
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from db.enhanced_database import EnhancedFlatDatabase
+from scrapers.search_scraper import scrape_and_save_search_results_with_pagination
 
 
 class JKAnalytics:
     """
     Analytics class for residential complex (JK) data analysis.
+    
+    Provides methods to analyze rental and sales data, calculate yields,
+    and generate market insights for investment decisions.
     """
     
     def __init__(self, db_path: str = "flats.db"):
         """
         Initialize analytics with database connection.
         
-        :param db_path: str, path to database file
+        :param db_path: str, path to SQLite database file
         """
-        self.db_path = db_path
         self.db = EnhancedFlatDatabase(db_path)
     
+    def fetch_rental_data_if_needed(self, complex_name: str, area_max: float = 100.0) -> bool:
+        """
+        Fetch rental data from Krisha if database is empty for this complex.
+        
+        :param complex_name: str, name of the residential complex
+        :param area_max: float, maximum area in square meters
+        :return: bool, True if data was fetched or already exists
+        """
+        self.db.connect()
+        
+        try:
+            # Check if we have rental data for this complex
+            cursor = self.db.conn.execute("""
+                SELECT COUNT(DISTINCT flat_id) 
+                FROM rental_flats 
+                WHERE residential_complex LIKE ? 
+                AND area <= ?
+            """, (f'%{complex_name}%', area_max))
+            
+            rental_count = cursor.fetchone()[0]
+            
+            if rental_count > 0:
+                print(f"✅ Found {rental_count} rental flats in database for {complex_name}")
+                return True
+            
+            print(f"⚠️ No rental data found for {complex_name}. Fetching from Krisha...")
+            
+            # Try to find complex ID by searching for the complex name
+            from scrapers.complex_scraper import search_complex_by_name
+            complex_info = search_complex_by_name(complex_name)
+            
+            if complex_info and complex_info.get('complex_id'):
+                complex_id = complex_info['complex_id']
+                print(f"🔍 Found complex ID: {complex_id}")
+                
+                # Construct rental search URL
+                rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}"
+                
+                # Fetch rental data
+                print(f"📥 Fetching rental data from: {rental_url}")
+                scraped_flats = scrape_and_save_search_results_with_pagination(
+                    rental_url, 
+                    max_pages=5, 
+                    max_flats=None, 
+                    delay=1.0
+                )
+                
+                if scraped_flats:
+                    print(f"✅ Successfully fetched {len(scraped_flats)} rental flats for {complex_name}")
+                    return True
+                else:
+                    print(f"❌ Failed to fetch rental data for {complex_name}")
+                    return False
+            else:
+                print(f"❌ Could not find complex ID for {complex_name}")
+                return False
+                
+        finally:
+            self.db.disconnect()
+    
+    def fetch_sales_data_if_needed(self, complex_name: str, area_max: float = 100.0) -> bool:
+        """
+        Fetch sales data from Krisha if database is empty for this complex.
+        
+        :param complex_name: str, name of the residential complex
+        :param area_max: float, maximum area in square meters
+        :return: bool, True if data was fetched or already exists
+        """
+        self.db.connect()
+        
+        try:
+            # Check if we have sales data for this complex
+            cursor = self.db.conn.execute("""
+                SELECT COUNT(DISTINCT flat_id) 
+                FROM sales_flats 
+                WHERE residential_complex LIKE ? 
+                AND area <= ?
+            """, (f'%{complex_name}%', area_max))
+            
+            sales_count = cursor.fetchone()[0]
+            
+            if sales_count > 0:
+                print(f"✅ Found {sales_count} sales flats in database for {complex_name}")
+                return True
+            
+            print(f"⚠️ No sales data found for {complex_name}. Fetching from Krisha...")
+            
+            # Try to find complex ID by searching for the complex name
+            from scrapers.complex_scraper import search_complex_by_name
+            complex_info = search_complex_by_name(complex_name)
+            
+            if complex_info and complex_info.get('complex_id'):
+                complex_id = complex_info['complex_id']
+                print(f"🔍 Found complex ID: {complex_id}")
+                
+                # Construct sales search URL
+                sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}"
+                
+                # Fetch sales data
+                print(f"📥 Fetching sales data from: {sales_url}")
+                scraped_flats = scrape_and_save_search_results_with_pagination(
+                    sales_url, 
+                    max_pages=5, 
+                    max_flats=None, 
+                    delay=1.0
+                )
+                
+                if scraped_flats:
+                    print(f"✅ Successfully fetched {len(scraped_flats)} sales flats for {complex_name}")
+                    return True
+                else:
+                    print(f"❌ Failed to fetch sales data for {complex_name}")
+                    return False
+            else:
+                print(f"❌ Could not find complex ID for {complex_name}")
+                return False
+                
+        finally:
+            self.db.disconnect()
+
     def get_jk_rental_stats(self, complex_name: str, area_max: float = 100.0, 
                            query_date: Optional[str] = None) -> Dict:
         """
@@ -38,6 +161,9 @@ class JKAnalytics:
         """
         if query_date is None:
             query_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # First, try to fetch data if needed
+        self.fetch_rental_data_if_needed(complex_name, area_max)
         
         self.db.connect()
         
@@ -136,6 +262,9 @@ class JKAnalytics:
         """
         if query_date is None:
             query_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # First, try to fetch data if needed
+        self.fetch_sales_data_if_needed(complex_name, area_max)
         
         self.db.connect()
         
@@ -275,6 +404,16 @@ class JKAnalytics:
             else:
                 analysis_result['sales_stats'] = {'count': 0, 'error': sales_stats.get('error', 'No sales data')}
             
+            # Add basic insights structure for error cases
+            analysis_result['insights'] = {
+                'price_per_sqm': {'rental': None, 'sales': None},
+                'market_position': {'rental_competitiveness': 'N/A', 'investment_potential': 'N/A'},
+                'data_quality': {
+                    'rental_sample_size': rental_count,
+                    'sales_sample_size': sales_count,
+                    'reliability': 'Low'
+                }
+            }
             return analysis_result
         
         # Add market insights (only if both types of data are available)
@@ -387,6 +526,10 @@ class JKAnalytics:
         """
         if query_date is None:
             query_date = datetime.now().strftime('%Y-%m-%d')
+        
+        # First, try to fetch data if needed
+        self.fetch_rental_data_if_needed(complex_name, area_max)
+        self.fetch_sales_data_if_needed(complex_name, area_max)
         
         self.db.connect()
         
@@ -518,120 +661,71 @@ class JKAnalytics:
                     bucket_analysis[bucket_key]['sales_prices'].append(price)
                     bucket_analysis[bucket_key]['sales_areas'].append(area)
             
-            # Calculate yield analysis for each bucket
-            bucket_yields = []
-            total_rental_count = 0
-            total_sales_count = 0
-            all_yields = []  # For overall statistics
-            
+            # Calculate statistics for each bucket
             for bucket_key, bucket_data in bucket_analysis.items():
-                rental_count = len(bucket_data['rental_flats'])
-                sales_count = len(bucket_data['sales_flats'])
-                total_rental_count += rental_count
-                total_sales_count += sales_count
+                rental_count = len(bucket_data['rental_prices'])
+                sales_count = len(bucket_data['sales_prices'])
                 
+                # Calculate rental statistics
+                if rental_count > 0:
+                    bucket_data['rental_count'] = rental_count
+                    bucket_data['rental_stats'] = {
+                        'min_price': min(bucket_data['rental_prices']),
+                        'max_price': max(bucket_data['rental_prices']),
+                        'avg_price': sum(bucket_data['rental_prices']) / rental_count,
+                        'median_price': statistics.median(bucket_data['rental_prices']),
+                        'avg_area': sum(bucket_data['rental_areas']) / rental_count
+                    }
+                else:
+                    bucket_data['rental_count'] = 0
+                    bucket_data['rental_stats'] = None
+                
+                # Calculate sales statistics
+                if sales_count > 0:
+                    bucket_data['sales_count'] = sales_count
+                    bucket_data['sales_stats'] = {
+                        'min_price': min(bucket_data['sales_prices']),
+                        'max_price': max(bucket_data['sales_prices']),
+                        'avg_price': sum(bucket_data['sales_prices']) / sales_count,
+                        'median_price': statistics.median(bucket_data['sales_prices']),
+                        'avg_area': sum(bucket_data['sales_areas']) / sales_count
+                    }
+                else:
+                    bucket_data['sales_count'] = 0
+                    bucket_data['sales_stats'] = None
+                
+                # Calculate yield if both rental and sales data are available
                 if rental_count > 0 and sales_count > 0:
-                    # Calculate statistics for this bucket
-                    rental_median = statistics.median(bucket_data['rental_prices'])
-                    sales_median = statistics.median(bucket_data['sales_prices'])
-                    rental_avg = sum(bucket_data['rental_prices']) / len(bucket_data['rental_prices'])
-                    sales_avg = sum(bucket_data['sales_prices']) / len(bucket_data['sales_prices'])
+                    avg_rental_price = bucket_data['rental_stats']['avg_price']
+                    avg_sales_price = bucket_data['sales_stats']['avg_price']
                     
-                    # Calculate yields for each rental-sales pair
-                    bucket_yields_list = []
-                    for rental_price in bucket_data['rental_prices']:
-                        for sales_price in bucket_data['sales_prices']:
-                            if sales_price > 0:
-                                yield_rate = (rental_price * 12) / sales_price * 100
-                                bucket_yields_list.append(yield_rate)
+                    # Annual rental income
+                    annual_rental_income = avg_rental_price * 12
                     
-                    # Calculate yield statistics for this bucket
-                    if bucket_yields_list:
-                        bucket_yield_min = min(bucket_yields_list)
-                        bucket_yield_max = max(bucket_yields_list)
-                        bucket_yield_median = statistics.median(bucket_yields_list)
-                        bucket_yield_mean = sum(bucket_yields_list) / len(bucket_yields_list)
-                        all_yields.extend(bucket_yields_list)
-                    else:
-                        bucket_yield_min = bucket_yield_max = bucket_yield_median = bucket_yield_mean = 0
+                    # Rental yield
+                    rental_yield = (annual_rental_income / avg_sales_price) * 100
                     
-                    # Calculate yields
-                    median_yield = (rental_median * 12) / sales_median if sales_median > 0 else 0
-                    avg_yield = (rental_avg * 12) / sales_avg if sales_avg > 0 else 0
-                    
-                    bucket_yields.append({
-                        'bucket_key': bucket_key,
-                        'rooms': bucket_data['rooms'],
-                        'area_bucket': bucket_data['area_bucket'],
-                        'rental_count': rental_count,
-                        'sales_count': sales_count,
-                        'rental_median': rental_median,
-                        'sales_median': sales_median,
-                        'rental_avg': rental_avg,
-                        'sales_avg': sales_avg,
-                        'median_yield_percent': median_yield * 100,
-                        'avg_yield_percent': avg_yield * 100,
-                        'yield_min': bucket_yield_min,
-                        'yield_max': bucket_yield_max,
-                        'yield_median': bucket_yield_median,
-                        'yield_mean': bucket_yield_mean,
-                        'yields': bucket_yields_list,  # Add the yields array for box plot
-                        'rental_areas': bucket_data['rental_areas'],
-                        'sales_areas': bucket_data['sales_areas']
-                    })
-                elif rental_count > 0 or sales_count > 0:
-                    # Only one type of data available
-                    bucket_yields.append({
-                        'bucket_key': bucket_key,
-                        'rooms': bucket_data['rooms'],
-                        'area_bucket': bucket_data['area_bucket'],
-                        'rental_count': rental_count,
-                        'sales_count': sales_count,
-                        'rental_median': statistics.median(bucket_data['rental_prices']) if rental_count > 0 else 0,
-                        'sales_median': statistics.median(bucket_data['sales_prices']) if sales_count > 0 else 0,
-                        'rental_avg': sum(bucket_data['rental_prices']) / len(bucket_data['rental_prices']) if rental_count > 0 else 0,
-                        'sales_avg': sum(bucket_data['sales_prices']) / len(bucket_data['sales_prices']) if sales_count > 0 else 0,
-                        'median_yield_percent': 0,
-                        'avg_yield_percent': 0,
-                        'yield_min': 0,
-                        'yield_max': 0,
-                        'yield_median': 0,
-                        'yield_mean': 0,
-                        'yields': [],  # Empty yields array for incomplete buckets
-                        'rental_areas': bucket_data['rental_areas'],
-                        'sales_areas': bucket_data['sales_areas']
-                    })
+                    bucket_data['yield_analysis'] = {
+                        'annual_rental_income': annual_rental_income,
+                        'rental_yield': rental_yield,
+                        'yield_min': (min(bucket_data['rental_prices']) * 12 / max(bucket_data['sales_prices'])) * 100,
+                        'yield_max': (max(bucket_data['rental_prices']) * 12 / min(bucket_data['sales_prices'])) * 100
+                    }
+                else:
+                    bucket_data['yield_analysis'] = None
             
-            # Calculate overall statistics
-            valid_buckets = [b for b in bucket_yields if b['rental_count'] > 0 and b['sales_count'] > 0]
-            
-            if valid_buckets and all_yields:
-                overall_median_yield = statistics.median([b['median_yield_percent'] for b in valid_buckets])
-                overall_yield_min = min(all_yields)
-                overall_yield_max = max(all_yields)
-                overall_yield_median = statistics.median(all_yields)
-                overall_yield_mean = sum(all_yields) / len(all_yields)
-            else:
-                overall_median_yield = overall_yield_min = overall_yield_max = overall_yield_median = overall_yield_mean = 0
-            
-            return {
+            result = {
                 'complex_name': complex_name,
                 'query_date': query_date,
                 'area_max': area_max,
-                'bucket_analysis': bucket_yields,
-                'overall_stats': {
-                    'total_rental_count': total_rental_count,
-                    'total_sales_count': total_sales_count,
-                    'valid_buckets': len(valid_buckets),
-                    'overall_median_yield': overall_median_yield,
-                    'overall_yield_min': overall_yield_min,
-                    'overall_yield_max': overall_yield_max,
-                    'overall_yield_median': overall_yield_median,
-                    'overall_yield_mean': overall_yield_mean
-                },
-                'area_buckets': area_buckets
+                'bucket_analysis': bucket_analysis,
+                'total_rental_flats': len(rental_data),
+                'total_sales_flats': len(sales_data)
             }
+            return result
             
+        except Exception as e:
+            raise
         finally:
             self.db.disconnect()
 

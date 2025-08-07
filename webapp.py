@@ -235,23 +235,28 @@ def analyze_jk(complex_name):
                 else:
                     flash(f"Failed to scrape data for {complex_name}. You can try the 'Refresh Analysis' button later.", 'warning')
             
-            # Get comprehensive analysis
+            # Get comprehensive analysis (this will automatically fetch data if needed)
             analysis = analytics.get_jk_comprehensive_analysis(complex_name, area_max, query_date)
             
-            # Get bucket-based analysis for more accurate yield calculation
+            # Get bucket-based analysis for more accurate yield calculation (this will also auto-fetch if needed)
             bucket_analysis = analytics.get_bucket_analysis(complex_name, area_max, query_date)
             
             # Debug logging
             print(f"=== DEBUG: Bucket Analysis for {complex_name} ===")
             print(f"Total buckets: {len(bucket_analysis['bucket_analysis'])}")
-            valid_buckets = [b for b in bucket_analysis['bucket_analysis'] if b['rental_count'] > 0 and b['sales_count'] > 0]
+            valid_buckets = [b for b in bucket_analysis['bucket_analysis'].values() if b.get('rental_count', 0) > 0 and b.get('sales_count', 0) > 0]
             print(f"Valid buckets: {len(valid_buckets)}")
             if valid_buckets:
-                min_yield = min([b['yield_min'] for b in valid_buckets])
-                max_yield = max([b['yield_max'] for b in valid_buckets])
-                print(f"Yield range: {min_yield:.1f}% - {max_yield:.1f}%")
-                for i, bucket in enumerate(valid_buckets[:3]):  # Show first 3 buckets
-                    print(f"  Bucket {i+1}: {bucket['rooms']}BR {bucket['area_bucket']} - Min: {bucket['yield_min']:.1f}%, Max: {bucket['yield_max']:.1f}%")
+                # Filter buckets that have yield analysis
+                buckets_with_yield = [b for b in valid_buckets if b.get('yield_analysis') is not None]
+                if buckets_with_yield:
+                    min_yield = min([b['yield_analysis']['yield_min'] for b in buckets_with_yield])
+                    max_yield = max([b['yield_analysis']['yield_max'] for b in buckets_with_yield])
+                    print(f"Yield range: {min_yield:.1f}% - {max_yield:.1f}%")
+                    for i, bucket in enumerate(buckets_with_yield[:3]):  # Show first 3 buckets
+                        print(f"  Bucket {i+1}: {bucket['rooms']}BR {bucket['area_bucket']} - Min: {bucket['yield_analysis']['yield_min']:.1f}%, Max: {bucket['yield_analysis']['yield_max']:.1f}%")
+                else:
+                    print("No buckets with yield analysis available")
             print("=== END DEBUG ===")
             
             # Check data sufficiency and show appropriate warnings
@@ -279,7 +284,16 @@ def analyze_jk(complex_name):
                     'area_max': area_max,
                     'rental_stats': {'count': rental_count, 'error': 'Insufficient data'},
                     'sales_stats': {'count': sales_count, 'error': 'Insufficient data'},
-                    'error': 'Insufficient data for reliable analysis'
+                    'error': 'Insufficient data for reliable analysis',
+                    'insights': {
+                        'price_per_sqm': {'rental': None, 'sales': None},
+                        'market_position': {'rental_competitiveness': 'N/A', 'investment_potential': 'N/A'},
+                        'data_quality': {
+                            'rental_sample_size': rental_count,
+                            'sales_sample_size': sales_count,
+                            'reliability': 'Low'
+                        }
+                    }
                 }
             elif 'error' in analysis and rental_count == 0 and sales_count == 0:
                 # No data at all - show empty analysis
@@ -290,7 +304,16 @@ def analyze_jk(complex_name):
                     'area_max': area_max,
                     'rental_stats': {'count': 0, 'error': 'No data available'},
                     'sales_stats': {'count': 0, 'error': 'No data available'},
-                    'error': 'No data available'
+                    'error': 'No data available',
+                    'insights': {
+                        'price_per_sqm': {'rental': None, 'sales': None},
+                        'market_position': {'rental_competitiveness': 'N/A', 'investment_potential': 'N/A'},
+                        'data_quality': {
+                            'rental_sample_size': 0,
+                            'sales_sample_size': 0,
+                            'reliability': 'Low'
+                        }
+                    }
                 }
             
             # Always render the template, even with insufficient data
@@ -755,9 +778,41 @@ def estimate_flat():
                                     print(f"📊 Sales stats: {sales_stats}")
                                     print(f"📊 Investment analysis: {investment_analysis}")
                                     
+                                    # Convert FlatInfo to dictionary for template compatibility
+                                    flat_info_dict = {
+                                        'flat_id': flat_info.flat_id,
+                                        'price': flat_info.price,
+                                        'area': flat_info.area,
+                                        'residential_complex': flat_info.residential_complex,
+                                        'floor': flat_info.floor,
+                                        'total_floors': flat_info.total_floors,
+                                        'construction_year': flat_info.construction_year,
+                                        'parking': flat_info.parking,
+                                        'description': flat_info.description,
+                                        'is_rental': flat_info.is_rental
+                                    }
+                                    
+                                    # Convert investment_analysis to dictionary
+                                    investment_analysis_dict = {
+                                        'annual_rental_income': investment_analysis.annual_rental_income,
+                                        'rental_yield': investment_analysis.rental_yield,
+                                        'price_vs_median': investment_analysis.price_vs_median,
+                                        'recommendation': investment_analysis.recommendation,
+                                        'discount_scenarios': [
+                                            {
+                                                'discount': scenario.discount,
+                                                'discounted_price': scenario.discounted_price,
+                                                'savings': scenario.savings,
+                                                'yield_rate': scenario.yield_rate,
+                                                'price_vs_median': scenario.price_vs_median
+                                            }
+                                            for scenario in investment_analysis.discount_scenarios
+                                        ]
+                                    }
+                                    
                                     return render_template('estimate_result.html', 
                                                         flat_info=flat_info_dict,
-                                                        investment_analysis=investment_analysis,
+                                                        investment_analysis=investment_analysis_dict,
                                                         rental_stats=rental_stats,
                                                         sales_stats=sales_stats,
                                                         area_tolerance=area_tolerance)
