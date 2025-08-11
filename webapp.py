@@ -636,6 +636,22 @@ def estimate_flat():
                             'is_rental': flat_info.is_rental
                         }
                         
+                        # Pre-format stats for robust template rendering
+                        rental_stats_fmt = {
+                            'count': rental_stats['count'],
+                            'min_price': f"{int(rental_stats['min_price']):,}",
+                            'max_price': f"{int(rental_stats['max_price']):,}",
+                            'avg_price': f"{rental_stats['avg_price']:.0f}",
+                            'median_price': f"{int(rental_stats['median_price']):,}"
+                        }
+                        sales_stats_fmt = {
+                            'count': sales_stats['count'],
+                            'min_price': f"{int(sales_stats['min_price']):,}",
+                            'max_price': f"{int(sales_stats['max_price']):,}",
+                            'avg_price': f"{sales_stats['avg_price']:.0f}",
+                            'median_price': f"{int(sales_stats['median_price']):,}"
+                        }
+                        
                         print(f"🔍 flat_info_dict created: {flat_info_dict}")
                         
                         try:
@@ -644,6 +660,8 @@ def estimate_flat():
                                                 investment_analysis=investment_analysis_dict,
                                                 rental_stats=rental_stats,
                                                 sales_stats=sales_stats,
+                                                rental_stats_fmt=rental_stats_fmt,
+                                                sales_stats_fmt=sales_stats_fmt,
                                                 area_tolerance=area_tolerance)
                         except Exception as e:
                             print(f"❌ Template rendering error: {e}")
