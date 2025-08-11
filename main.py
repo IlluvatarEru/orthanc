@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 """
 Main entry point for Orthanc Capital Krisha.kz Scraper.
 
@@ -14,18 +14,21 @@ import argparse
 import re
 from pathlib import Path
 
-# Add the project root to Python path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add the module src directories to Python path
+sys.path.insert(0, str(Path(__file__).parent / "cli" / "src"))
+sys.path.insert(0, str(Path(__file__).parent / "analytics" / "src"))
+sys.path.insert(0, str(Path(__file__).parent / "db" / "src"))
+sys.path.insert(0, str(Path(__file__).parent / "scrapers" / "src"))
 
-from cli.scheduler import ScraperScheduler
-from analytics.jk_analytics import JKAnalytics
-from db.enhanced_database import EnhancedFlatDatabase
-from scrapers.complex_scraper import update_complex_database
-from scrapers.search_scraper import scrape_and_save_search_results
+from scheduler import ScraperScheduler
+from jk_analytics import JKAnalytics
+from enhanced_database import EnhancedFlatDatabase
+from complex_scraper import update_complex_database
+from search_scraper import scrape_and_save_search_results
 import toml
 
 
-def load_recommendation_thresholds(config_path: str = "config/config.toml") -> dict:
+def load_recommendation_thresholds(config_path: str = "config/src/config.toml") -> dict:
     """
     Load recommendation thresholds from config file.
     
@@ -58,7 +61,7 @@ def load_recommendation_thresholds(config_path: str = "config/config.toml") -> d
         }
 
 
-def load_analysis_config(config_path: str = "config/config.toml") -> dict:
+def load_analysis_config(config_path: str = "config/src/config.toml") -> dict:
     """
     Load analysis configuration from config file.
     

@@ -247,6 +247,24 @@
                 <h4 class="mb-0"><i class="fas fa-chart-line me-2"></i>Investment Analysis</h4>
             </div>
             <div class="card-body">
+                {% if investment_analysis.insufficient_data %}
+                <!-- Insufficient Data Warning -->
+                <div class="alert alert-warning" role="alert">
+                    <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Limited Data Available</h5>
+                    <p class="mb-0">{{ investment_analysis.message }}</p>
+                    <hr>
+                    <p class="mb-0">
+                        <strong>Recommendation:</strong> {{ investment_analysis.recommendation }}
+                    </p>
+                    <p class="mb-0 mt-2">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            To get a complete investment analysis, we need both rental and sales data for similar flats in this area.
+                            Consider expanding your search area or waiting for more data to become available.
+                        </small>
+                    </p>
+                </div>
+                {% else %}
                 <div class="row">
                     <div class="col-md-3 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
@@ -291,8 +309,10 @@
         </div>
     </div>
 </div>
+                {% endif %}
 
 <!-- Discount Scenarios -->
+{% if not investment_analysis.insufficient_data %}
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
@@ -362,6 +382,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 {% else %}
 <div class="row mb-4">
