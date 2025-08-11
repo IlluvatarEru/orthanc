@@ -184,17 +184,8 @@
                         <div class="text-center">
                             <h5 class="text-white">Overall Median Yield</h5>
                             <h3 class="text-info">
-                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
-                                {% if valid_buckets %}
-                                    {% set yields = valid_buckets|map(attribute='yield_analysis.rental_yield')|list %}
-                                    {% set median_yield = yields|sort|list %}
-                                    {% set median_index = (median_yield|length // 2) %}
-                                    {% if median_yield|length % 2 == 0 %}
-                                        {% set median = (median_yield[median_index - 1] + median_yield[median_index]) / 2 %}
-                                    {% else %}
-                                        {% set median = median_yield[median_index] %}
-                                    {% endif %}
-                                    {{ "{:.1f}%".format(median) }}
+                                {% if bucket_overall_stats and bucket_overall_stats.median_yield is not none %}
+                                    {{ "{:.1f}%".format(bucket_overall_stats.median_yield) }}
                                 {% else %}
                                     N/A
                                 {% endif %}
@@ -205,11 +196,8 @@
                         <div class="text-center">
                             <h5 class="text-white">Overall Mean Yield</h5>
                             <h3 class="text-info">
-                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
-                                {% if valid_buckets %}
-                                    {% set yields = valid_buckets|map(attribute='yield_analysis.rental_yield')|list %}
-                                    {% set mean_yield = (yields|sum) / (yields|length) %}
-                                    {{ "{:.1f}%".format(mean_yield) }}
+                                {% if bucket_overall_stats and bucket_overall_stats.mean_yield is not none %}
+                                    {{ "{:.1f}%".format(bucket_overall_stats.mean_yield) }}
                                 {% else %}
                                     N/A
                                 {% endif %}
@@ -220,11 +208,8 @@
                         <div class="text-center">
                             <h5 class="text-white">Yield Range</h5>
                             <h3 class="text-info">
-                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
-                                {% if valid_buckets %}
-                                    {% set min_yield = valid_buckets|map(attribute='yield_analysis.yield_min')|min %}
-                                    {% set max_yield = valid_buckets|map(attribute='yield_analysis.yield_max')|max %}
-                                    {{ "{:.1f}%".format(min_yield) }} - {{ "{:.1f}%".format(max_yield) }}
+                                {% if bucket_overall_stats and bucket_overall_stats.yield_range %}
+                                    {{ "{:.1f}%".format(bucket_overall_stats.yield_range[0]) }} - {{ "{:.1f}%".format(bucket_overall_stats.yield_range[1]) }}
                                 {% else %}
                                     N/A
                                 {% endif %}
@@ -235,8 +220,7 @@
                         <div class="text-center">
                             <h5 class="text-white">Valid Buckets</h5>
                             <h3 class="text-info">
-                                {% set valid_buckets = bucket_analysis.bucket_analysis|selectattr('yield_analysis', 'defined')|list %}
-                                {{ valid_buckets|length }}
+                                {{ bucket_overall_stats.valid_buckets_count if bucket_overall_stats else 0 }}
                             </h3>
                         </div>
                     </div>

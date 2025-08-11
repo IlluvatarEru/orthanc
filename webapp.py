@@ -138,6 +138,64 @@ def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
         return False
 
 
+def calculate_bucket_overall_stats(bucket_analysis):
+    """
+    Calculate overall statistics from bucket analysis for template display.
+    
+    :param bucket_analysis: dict, bucket analysis data
+    :return: dict, overall statistics
+    """
+    if not bucket_analysis or 'bucket_analysis' not in bucket_analysis:
+        return {
+            'median_yield': None,
+            'mean_yield': None,
+            'yield_range': None,
+            'valid_buckets_count': 0
+        }
+    
+    # Get valid buckets (those with both rental and sales data)
+    valid_buckets = []
+    for bucket in bucket_analysis['bucket_analysis'].values():
+        if (bucket.get('rental_count', 0) > 0 and 
+            bucket.get('sales_count', 0) > 0 and 
+            bucket.get('yield_analysis') is not None):
+            valid_buckets.append(bucket)
+    
+    if not valid_buckets:
+        return {
+            'median_yield': None,
+            'mean_yield': None,
+            'yield_range': None,
+            'valid_buckets_count': 0
+        }
+    
+    # Calculate statistics
+    yields = [bucket['yield_analysis']['rental_yield'] for bucket in valid_buckets]
+    yield_mins = [bucket['yield_analysis']['yield_min'] for bucket in valid_buckets]
+    yield_maxs = [bucket['yield_analysis']['yield_max'] for bucket in valid_buckets]
+    
+    # Mean yield
+    mean_yield = sum(yields) / len(yields)
+    
+    # Median yield
+    sorted_yields = sorted(yields)
+    if len(sorted_yields) % 2 == 0:
+        median_yield = (sorted_yields[len(sorted_yields) // 2 - 1] + sorted_yields[len(sorted_yields) // 2]) / 2
+    else:
+        median_yield = sorted_yields[len(sorted_yields) // 2]
+    
+    # Yield range
+    min_yield = min(yield_mins)
+    max_yield = max(yield_maxs)
+    
+    return {
+        'median_yield': median_yield,
+        'mean_yield': mean_yield,
+        'yield_range': (min_yield, max_yield),
+        'valid_buckets_count': len(valid_buckets)
+    }
+
+
 @app.route('/')
 def index(db_path='flats.db'):
     """Dashboard home page."""
@@ -250,9 +308,28 @@ def analyze_jk(complex_name, db_path='flats.db'):
             # Get bucket-based analysis for more accurate yield calculation (this will also auto-fetch if needed)
             bucket_analysis = analytics.get_bucket_analysis(complex_name, area_max, query_date)
 
+            # Calculate overall bucket statistics for template
+            bucket_overall_stats = calculate_bucket_overall_stats(bucket_analysis)
+
             # Debug logging
             print(f"=== DEBUG: Bucket Analysis for {complex_name} ===")
+            print(f"Bucket analysis keys: {list(bucket_analysis.keys())}")
             print(f"Total buckets: {len(bucket_analysis['bucket_analysis'])}")
+            print(f"Bucket analysis structure: {type(bucket_analysis['bucket_analysis'])}")
+            print(f"Overall stats: {bucket_overall_stats}")
+            
+            # Print first few buckets for debugging
+            bucket_items = list(bucket_analysis['bucket_analysis'].items())
+            for i, (key, bucket) in enumerate(bucket_items[:3]):
+                print(f"Bucket {i+1} ({key}):")
+                print(f"  - rental_count: {bucket.get('rental_count', 'N/A')}")
+                print(f"  - sales_count: {bucket.get('sales_count', 'N/A')}")
+                print(f"  - yield_analysis: {bucket.get('yield_analysis', 'N/A')}")
+                if bucket.get('yield_analysis'):
+                    print(f"  - rental_yield: {bucket['yield_analysis'].get('rental_yield', 'N/A')}")
+                    print(f"  - yield_min: {bucket['yield_analysis'].get('yield_min', 'N/A')}")
+                    print(f"  - yield_max: {bucket['yield_analysis'].get('yield_max', 'N/A')}")
+            
             valid_buckets = [b for b in bucket_analysis['bucket_analysis'].values() if
                              b.get('rental_count', 0) > 0 and b.get('sales_count', 0) > 0]
             print(f"Valid buckets: {len(valid_buckets)}")
@@ -335,7 +412,8 @@ def analyze_jk(complex_name, db_path='flats.db'):
                                    rental_flats=rental_flats,
                                    sales_flats=sales_flats,
                                    data_warnings=data_warnings,
-                                   bucket_analysis=bucket_analysis)
+                                   bucket_analysis=bucket_analysis,
+                                   bucket_overall_stats=bucket_overall_stats)
         finally:
             db.disconnect()
 
