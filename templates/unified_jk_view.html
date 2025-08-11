@@ -560,11 +560,34 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('Box plot data:', boxPlotData);
         
-        // Transform data for Chart.js box plot
-        const chartData = boxPlotData.map(bucket => ({
-            label: `${bucket.rooms}BR ${bucket.area_bucket}`,
-            data: bucket.yields || []
-        })).filter(item => item.data.length > 0);
+        // Convert object to array and generate yield data for each bucket
+        const chartData = Object.values(boxPlotData)
+            .filter(bucket => bucket.rental_count > 0 && bucket.sales_count > 0 && bucket.yield_analysis)
+            .map(bucket => {
+                // Generate yield data points for this bucket
+                const yields = [];
+                
+                // Add yield data points based on rental and sales prices
+                if (bucket.rental_prices && bucket.sales_prices) {
+                    for (const rentalPrice of bucket.rental_prices) {
+                        for (const salesPrice of bucket.sales_prices) {
+                            if (salesPrice > 0) {
+                                const yield = (rentalPrice * 12 / salesPrice) * 100;
+                                yields.push(yield);
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    label: `${bucket.rooms}BR ${bucket.area_bucket}`,
+                    data: yields,
+                    rental_count: bucket.rental_count,
+                    sales_count: bucket.sales_count,
+                    avg_yield: bucket.yield_analysis ? bucket.yield_analysis.rental_yield : null
+                };
+            })
+            .filter(item => item.data.length > 0);
         
         console.log('Chart data:', chartData);
         
@@ -1064,10 +1087,33 @@ favoriteButtons.forEach(function(button) {
         console.log('Box plot data:', boxPlotData);
         
         // Transform data for Plotly box plot
-        const chartData = boxPlotData.map(bucket => ({
-            label: `${bucket.rooms}BR ${bucket.area_bucket}`,
-            data: bucket.yields || []
-        })).filter(item => item.data.length > 0);
+        const chartData = Object.values(boxPlotData)
+            .filter(bucket => bucket.rental_count > 0 && bucket.sales_count > 0 && bucket.yield_analysis)
+            .map(bucket => {
+                // Generate yield data points for this bucket
+                const yields = [];
+                
+                // Add yield data points based on rental and sales prices
+                if (bucket.rental_prices && bucket.sales_prices) {
+                    for (const rentalPrice of bucket.rental_prices) {
+                        for (const salesPrice of bucket.sales_prices) {
+                            if (salesPrice > 0) {
+                                const yield = (rentalPrice * 12 / salesPrice) * 100;
+                                yields.push(yield);
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    label: `${bucket.rooms}BR ${bucket.area_bucket}`,
+                    data: yields,
+                    rental_count: bucket.rental_count,
+                    sales_count: bucket.sales_count,
+                    avg_yield: bucket.yield_analysis ? bucket.yield_analysis.rental_yield : null
+                };
+            })
+            .filter(item => item.data.length > 0);
         
         console.log('Chart data:', chartData);
         
