@@ -184,6 +184,7 @@ def extract_flat_urls_from_search_page(url: str) -> List[str]:
                     # Convert relative URL to absolute
                     flat_urls.append(urljoin('https://krisha.kz', match))
         
+        print(f"found  {len(flat_urls)} flat urls")
         # Remove duplicates while preserving order
         unique_urls = []
         seen = set()

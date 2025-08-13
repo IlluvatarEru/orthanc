@@ -717,13 +717,68 @@ class JKAnalytics:
                 else:
                     bucket_data['yield_analysis'] = None
 
+            # Calculate overall statistics across all buckets
+            all_yields = []
+            all_rental_prices = []
+            all_sales_prices = []
+            
+            for bucket_data in bucket_analysis.values():
+                if bucket_data['yield_analysis']:
+                    all_yields.append(bucket_data['yield_analysis']['rental_yield'])
+                
+                if bucket_data['rental_prices']:
+                    all_rental_prices.extend(bucket_data['rental_prices'])
+                
+                if bucket_data['sales_prices']:
+                    all_sales_prices.extend(bucket_data['sales_prices'])
+            
+            # Calculate overall statistics
+            overall_stats = {}
+            
+            if all_yields:
+                overall_stats['median_yield'] = statistics.median(all_yields)
+                overall_stats['mean_yield'] = statistics.mean(all_yields)
+                overall_stats['yield_range'] = {
+                    'min': min(all_yields),
+                    'max': max(all_yields)
+                }
+            else:
+                overall_stats['median_yield'] = None
+                overall_stats['mean_yield'] = None
+                overall_stats['yield_range'] = None
+            
+            if all_rental_prices:
+                overall_stats['overall_rental_stats'] = {
+                    'median_price': statistics.median(all_rental_prices),
+                    'mean_price': statistics.mean(all_rental_prices),
+                    'price_range': {
+                        'min': min(all_rental_prices),
+                        'max': max(all_rental_prices)
+                    }
+                }
+            else:
+                overall_stats['overall_rental_stats'] = None
+            
+            if all_sales_prices:
+                overall_stats['overall_sales_stats'] = {
+                    'median_price': statistics.median(all_sales_prices),
+                    'mean_price': statistics.mean(all_sales_prices),
+                    'price_range': {
+                        'min': min(all_sales_prices),
+                        'max': max(all_sales_prices)
+                    }
+                }
+            else:
+                overall_stats['overall_sales_stats'] = None
+
             result = {
                 'complex_name': complex_name,
                 'query_date': query_date,
                 'area_max': area_max,
                 'bucket_analysis': bucket_analysis,
                 'total_rental_flats': len(rental_data),
-                'total_sales_flats': len(sales_data)
+                'total_sales_flats': len(sales_data),
+                'overall_stats': overall_stats
             }
             return result
 
