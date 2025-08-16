@@ -21,7 +21,7 @@ from common.src.krisha_scraper import FlatInfo
 from db.src.enhanced_database import EnhancedFlatDatabase
 from scrapers.src.complex_scraper import search_complexes_by_name_deduplicated, search_complexes_by_name, \
     search_complex_by_name, get_all_residential_complexes
-from scrapers.src.search_scraper import scrape_and_save_search_results_with_pagination
+from scrapers.src.search_scraper import scrape_complex_data
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 app = Flask(__name__)
@@ -85,64 +85,6 @@ def load_analysis_config(config_path: str = "config/src/config.toml") -> dict:
         return {
             'default_area_tolerance': 10.0
         }
-
-
-def scrape_complex_data(complex_name: str, complex_id: str = None, only_rentals=False, only_sales=False) -> bool:
-    """
-    Automatically scrape rental and sales data for a complex.
-    
-    :param complex_name: str, name of the complex
-    :param complex_id: str, complex ID (optional)
-    :return: bool, True if scraping was successful
-    """
-    try:
-        logging.info(f"Auto-scraping data for {complex_name} {'(only_rentals)' if only_rentals else ''} {'(only_sales)' if only_sales else ''}")
-
-        # Construct search URLs for rental and sales
-        if complex_id:
-            rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}"
-            sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}"
-            logging.info(f"   Using complex ID {complex_id} for targeted scraping")
-        else:
-            # Fallback to generic search if no complex_id
-            rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[live.square][to]=35"
-            sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[live.square][to]=35"
-            logging.info(f"   No complex ID found, using generic search")
-        if only_sales:
-            rental_flats = []
-        else:
-            # Scrape rental data with pagination (reduced limits for better reliability)
-            logging.info(f"   Scraping rental data from: {rental_url}")
-            try:
-                rental_flats = scrape_and_save_search_results_with_pagination(rental_url, max_pages=3, max_flats=20,
-                                                                              delay=1.0)
-                logging.info(f"   Scraped {len(rental_flats)} rental flats")
-            except Exception as rental_error:
-                logging.info(f"   Error scraping rental data: {rental_error}")
-                rental_flats = []
-
-        if only_rentals:
-            sales_flats = []
-        else:
-            # Scrape sales data with pagination (reduced limits for better reliability)
-            logging.info(f"   Scraping sales data from: {sales_url}")
-            try:
-                sales_flats = scrape_and_save_search_results_with_pagination(sales_url, max_pages=3, max_flats=20,
-                                                                             delay=1.0)
-                logging.info(f"   Scraped {len(sales_flats)} sales flats")
-            except Exception as sales_error:
-                logging.info(f"   Error scraping sales data: {sales_error}")
-                sales_flats = []
-
-        total_scraped = len(rental_flats) + len(sales_flats)
-        logging.info(f"Successfully scraped {total_scraped} flats for {complex_name}")
-
-        return total_scraped > 0
-
-    except Exception as e:
-        logging.info(f"Error scraping data for {complex_name}: {e}")
-        traceback.print_exc()
-        return False
 
 
 def calculate_bucket_overall_stats(bucket_analysis):

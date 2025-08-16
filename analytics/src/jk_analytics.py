@@ -50,7 +50,7 @@ class JKAnalytics:
             """, (f'%{complex_name}%', area_max))
 
             rental_count = cursor.fetchone()[0]
-
+            # todo:a ctually always fetch all data even if there is smthg in db
             if rental_count > 0:
                 logging.info(f"Found {rental_count} rental flats in database for {complex_name}")
                 return True
