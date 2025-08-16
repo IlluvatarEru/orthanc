@@ -5,11 +5,12 @@ Provides a web interface for:
 - Searching and analyzing residential complexes (JK)
 - Estimating investment potential for individual flats
 """
+import logging
 import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import unquote
-import logging
+
 import toml
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
@@ -86,7 +87,7 @@ def load_analysis_config(config_path: str = "config/src/config.toml") -> dict:
         }
 
 
-def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
+def scrape_complex_data(complex_name: str, complex_id: str = None, only_rentals=False, only_sales=False) -> bool:
     """
     Automatically scrape rental and sales data for a complex.
     
@@ -95,7 +96,7 @@ def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
     :return: bool, True if scraping was successful
     """
     try:
-        logging.info(f"Auto-scraping data for {complex_name}...")
+        logging.info(f"Auto-scraping data for {complex_name} {'(only_rentals)' if only_rentals else ''} {'(only_sales)' if only_sales else ''}")
 
         # Construct search URLs for rental and sales
         if complex_id:
@@ -107,26 +108,31 @@ def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
             rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[live.square][to]=35"
             sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[live.square][to]=35"
             logging.info(f"   No complex ID found, using generic search")
-
-        # Scrape rental data with pagination (reduced limits for better reliability)
-        logging.info(f"   Scraping rental data from: {rental_url}")
-        try:
-            rental_flats = scrape_and_save_search_results_with_pagination(rental_url, max_pages=3, max_flats=20,
-                                                                          delay=1.0)
-            logging.info(f"   Scraped {len(rental_flats)} rental flats")
-        except Exception as rental_error:
-            logging.info(f"   Error scraping rental data: {rental_error}")
+        if only_sales:
             rental_flats = []
+        else:
+            # Scrape rental data with pagination (reduced limits for better reliability)
+            logging.info(f"   Scraping rental data from: {rental_url}")
+            try:
+                rental_flats = scrape_and_save_search_results_with_pagination(rental_url, max_pages=3, max_flats=20,
+                                                                              delay=1.0)
+                logging.info(f"   Scraped {len(rental_flats)} rental flats")
+            except Exception as rental_error:
+                logging.info(f"   Error scraping rental data: {rental_error}")
+                rental_flats = []
 
-        # Scrape sales data with pagination (reduced limits for better reliability)
-        logging.info(f"   Scraping sales data from: {sales_url}")
-        try:
-            sales_flats = scrape_and_save_search_results_with_pagination(sales_url, max_pages=3, max_flats=20,
-                                                                         delay=1.0)
-            logging.info(f"   Scraped {len(sales_flats)} sales flats")
-        except Exception as sales_error:
-            logging.info(f"   Error scraping sales data: {sales_error}")
+        if only_rentals:
             sales_flats = []
+        else:
+            # Scrape sales data with pagination (reduced limits for better reliability)
+            logging.info(f"   Scraping sales data from: {sales_url}")
+            try:
+                sales_flats = scrape_and_save_search_results_with_pagination(sales_url, max_pages=3, max_flats=20,
+                                                                             delay=1.0)
+                logging.info(f"   Scraped {len(sales_flats)} sales flats")
+            except Exception as sales_error:
+                logging.info(f"   Error scraping sales data: {sales_error}")
+                sales_flats = []
 
         total_scraped = len(rental_flats) + len(sales_flats)
         logging.info(f"Successfully scraped {total_scraped} flats for {complex_name}")
@@ -153,15 +159,15 @@ def calculate_bucket_overall_stats(bucket_analysis):
             'yield_range': None,
             'valid_buckets_count': 0
         }
-    
+
     # Get valid buckets (those with both rental and sales data)
     valid_buckets = []
     for bucket in bucket_analysis['bucket_analysis'].values():
-        if (bucket.get('rental_count', 0) > 0 and 
-            bucket.get('sales_count', 0) > 0 and 
-            bucket.get('yield_analysis') is not None):
+        if (bucket.get('rental_count', 0) > 0 and
+                bucket.get('sales_count', 0) > 0 and
+                bucket.get('yield_analysis') is not None):
             valid_buckets.append(bucket)
-    
+
     if not valid_buckets:
         return {
             'median_yield': None,
@@ -169,26 +175,26 @@ def calculate_bucket_overall_stats(bucket_analysis):
             'yield_range': None,
             'valid_buckets_count': 0
         }
-    
+
     # Calculate statistics
     yields = [bucket['yield_analysis']['rental_yield'] for bucket in valid_buckets]
     yield_mins = [bucket['yield_analysis']['yield_min'] for bucket in valid_buckets]
     yield_maxs = [bucket['yield_analysis']['yield_max'] for bucket in valid_buckets]
-    
+
     # Mean yield
     mean_yield = sum(yields) / len(yields)
-    
+
     # Median yield
     sorted_yields = sorted(yields)
     if len(sorted_yields) % 2 == 0:
         median_yield = (sorted_yields[len(sorted_yields) // 2 - 1] + sorted_yields[len(sorted_yields) // 2]) / 2
     else:
         median_yield = sorted_yields[len(sorted_yields) // 2]
-    
+
     # Yield range
     min_yield = min(yield_mins)
     max_yield = max(yield_maxs)
-    
+
     return {
         'median_yield': median_yield,
         'mean_yield': mean_yield,
@@ -318,11 +324,11 @@ def analyze_jk(complex_name, db_path='flats.db'):
             logging.info(f"Total buckets: {len(bucket_analysis['bucket_analysis'])}")
             logging.info(f"Bucket analysis structure: {type(bucket_analysis['bucket_analysis'])}")
             logging.info(f"Overall stats: {bucket_overall_stats}")
-            
+
             # Print first few buckets for debugging
             bucket_items = list(bucket_analysis['bucket_analysis'].items())
             for i, (key, bucket) in enumerate(bucket_items[:3]):
-                logging.info(f"Bucket {i+1} ({key}):")
+                logging.info(f"Bucket {i + 1} ({key}):")
                 logging.info(f"  - rental_count: {bucket.get('rental_count', 'N/A')}")
                 logging.info(f"  - sales_count: {bucket.get('sales_count', 'N/A')}")
                 logging.info(f"  - yield_analysis: {bucket.get('yield_analysis', 'N/A')}")
@@ -330,7 +336,7 @@ def analyze_jk(complex_name, db_path='flats.db'):
                     logging.info(f"  - rental_yield: {bucket['yield_analysis'].get('rental_yield', 'N/A')}")
                     logging.info(f"  - yield_min: {bucket['yield_analysis'].get('yield_min', 'N/A')}")
                     logging.info(f"  - yield_max: {bucket['yield_analysis'].get('yield_max', 'N/A')}")
-            
+
             valid_buckets = [b for b in bucket_analysis['bucket_analysis'].values() if
                              b.get('rental_count', 0) > 0 and b.get('sales_count', 0) > 0]
             logging.info(f"Valid buckets: {len(valid_buckets)}")
@@ -514,7 +520,12 @@ def estimate_flat():
     try:
         result = analyze_flat_investment(flat_id, area_tolerance)
         if result:
-            return result
+            if result[:5] == "error":
+                flash(f'Error analyzing flat {flat_id}: {result}', 'error')
+                return render_template('estimate_flat.html', default_area_tolerance=default_area_tolerance,
+                                       flat_id=flat_id)
+            else:
+                return result
         else:
             flash(f'Error analyzing flat {flat_id}', 'error')
             return render_template('estimate_flat.html', default_area_tolerance=default_area_tolerance, flat_id=flat_id)
@@ -523,7 +534,7 @@ def estimate_flat():
         return render_template('estimate_flat.html', default_area_tolerance=default_area_tolerance, flat_id=flat_id)
 
 
-def analyze_flat_investment(flat_id: str, area_tolerance: float):
+def analyze_flat_investment(flat_id: str, area_tolerance: float, min_flats=3):
     """
     Analyze investment potential for a specific flat.
 
@@ -542,9 +553,9 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
         similar_rentals, similar_sales = get_similar_properties(flat_info, area_tolerance)
 
         # If insufficient data, try to scrape more
-        if len(similar_rentals) < 3 or len(similar_sales) < 3:
+        if len(similar_rentals) < min_flats or len(similar_sales) < min_flats:
             if flat_info.residential_complex:
-                flash(
+                logging.info(
                     f'Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats. Automatically fetching latest data from Krisha.kz...',
                     'warning')
 
@@ -552,9 +563,15 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
                 complex_info = search_complex_by_name(flat_info.residential_complex)
                 complex_id = complex_info.get('complex_id') if complex_info else None
 
-                if scrape_complex_data(flat_info.residential_complex, complex_id):
-                    flash(f"Successfully scraped data for {flat_info.residential_complex}. Re-analyzing...",
-                          'success')
+                only_rentals = len(similar_sales) >= min_flats
+                only_sales = len(similar_rentals) >= min_flats
+
+                if scrape_complex_data(complex_name=flat_info.residential_complex,
+                                       complex_id=complex_id,
+                                       only_rentals=only_rentals,
+                                       only_sales=only_sales):
+                    logging.info(f"Successfully scraped data for {flat_info.residential_complex}. Re-analyzing...",
+                                 'success')
                     # Re-query similar properties
                     similar_rentals, similar_sales = get_similar_properties(flat_info, area_tolerance)
 
@@ -562,11 +579,9 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
         if similar_rentals and similar_sales:
             return calculate_and_render_investment_analysis(flat_info, similar_rentals, similar_sales, area_tolerance)
         else:
-            flash(
-                f'Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.',
-                'error')
-            return None
-
+            msg = f'Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats. Try a higher area tolerance. We need at least {min_flats} in each category.'
+            logging.info(msg, 'error')
+            return f"error: {msg}"
     except Exception as e:
         logging.info(f"Error in analyze_flat_investment: {e}")
         traceback.print_exc()

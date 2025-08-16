@@ -8,7 +8,7 @@ This script provides access to all the main functionality:
 - Analyzing residential complexes
 - Database management
 """
-
+import logging
 import sys
 import argparse
 import re
