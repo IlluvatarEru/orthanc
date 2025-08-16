@@ -7,7 +7,7 @@ from argparse import ArgumentParser
 from db.src.database import FlatDatabase
 from scrapers.src.scraper_with_db import scrape_and_save, scrape_multiple_flats, get_database_summary, \
     search_flats_in_db
-
+import logging
 
 def scrape_single_flat(url: str, db_path: str = "flats.db"):
     """
@@ -16,16 +16,16 @@ def scrape_single_flat(url: str, db_path: str = "flats.db"):
     :param url: str, URL of the flat to scrape
     :param db_path: str, database file path
     """
-    print(f"Scraping flat: {url}")
+    logging.info(f"Scraping flat: {url}")
     flat_info = scrape_and_save(url, db_path)
 
     if flat_info:
-        print(f"✅ Successfully scraped flat {flat_info.flat_id}")
-        print(f"   Price: {flat_info.price:,} tenge")
-        print(f"   Area: {flat_info.area} m²")
-        print(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
+        logging.info(f"Successfully scraped flat {flat_info.flat_id}")
+        logging.info(f"   Price: {flat_info.price:,} tenge")
+        logging.info(f"   Area: {flat_info.area} m²")
+        logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
     else:
-        print("❌ Failed to scrape flat")
+        logging.info("Failed to scrape flat")
 
 
 def scrape_from_file(file_path: str, db_path: str = "flats.db", delay: float = 2.0):
@@ -40,13 +40,13 @@ def scrape_from_file(file_path: str, db_path: str = "flats.db", delay: float = 2
         with open(file_path, 'r') as f:
             urls = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
 
-        print(f"Found {len(urls)} URLs in {file_path}")
+        logging.info(f"Found {len(urls)} URLs in {file_path}")
         scrape_multiple_flats(urls, db_path, delay)
 
     except FileNotFoundError:
-        print(f"❌ File not found: {file_path}")
+        logging.info(f"File not found: {file_path}")
     except Exception as e:
-        print(f"❌ Error reading file: {e}")
+        logging.info(f"Error reading file: {e}")
 
 
 def show_stats(db_path: str = "flats.db"):
@@ -96,7 +96,7 @@ def export_to_csv(output_file: str, db_path: str = "flats.db"):
     flats = db.get_all_flats()
 
     if not flats:
-        print("❌ No data to export")
+        logging.info("No data to export")
         return
 
     try:
@@ -112,10 +112,10 @@ def export_to_csv(output_file: str, db_path: str = "flats.db"):
                 csv_row = {field: flat.get(field, '') for field in fieldnames}
                 writer.writerow(csv_row)
 
-        print(f"✅ Exported {len(flats)} flats to {output_file}")
+        logging.info(f"Exported {len(flats)} flats to {output_file}")
 
     except Exception as e:
-        print(f"❌ Error exporting to CSV: {e}")
+        logging.info(f"Error exporting to CSV: {e}")
 
 
 def main():
@@ -183,9 +183,9 @@ def main():
             export_to_csv(args.output, args.db)
 
     except KeyboardInterrupt:
-        print("\n⚠️ Operation cancelled by user")
+        logging.info("\nOperation cancelled by user")
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logging.info(f"Error: {e}")
 
 
 if __name__ == "__main__":

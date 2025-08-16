@@ -7,7 +7,7 @@ with historical tracking and residential complex mapping.
 
 import sqlite3
 from typing import Optional, List, Dict
-
+import logging
 from common.src.krisha_scraper import FlatInfo
 
 
@@ -591,7 +591,7 @@ class EnhancedFlatDatabase:
             return True
             
         except Exception as e:
-            print(f"Error adding to favorites: {e}")
+            logging.info(f"Error adding to favorites: {e}")
             return False
 
     def remove_from_favorites(self, flat_id: str, flat_type: str) -> bool:
@@ -614,7 +614,7 @@ class EnhancedFlatDatabase:
             return True
             
         except Exception as e:
-            print(f"Error removing from favorites: {e}")
+            logging.info(f"Error removing from favorites: {e}")
             return False
 
     def get_favorites(self) -> List[dict]:
@@ -655,7 +655,7 @@ class EnhancedFlatDatabase:
             return favorites
             
         except Exception as e:
-            print(f"Error getting favorites: {e}")
+            logging.info(f"Error getting favorites: {e}")
             return []
 
     def is_favorite(self, flat_id: str, flat_type: str) -> bool:
@@ -677,7 +677,7 @@ class EnhancedFlatDatabase:
             return cursor.fetchone() is not None
             
         except Exception as e:
-            print(f"Error checking favorite status: {e}")
+            logging.info(f"Error checking favorite status: {e}")
             return False
 
     def get_flat_count(self, flat_type: str) -> int:
@@ -701,7 +701,7 @@ class EnhancedFlatDatabase:
             return result[0] if result else 0
             
         except Exception as e:
-            print(f"Error getting flat count: {e}")
+            logging.info(f"Error getting flat count: {e}")
             return 0
 
     def get_complex_count(self) -> int:
@@ -718,7 +718,7 @@ class EnhancedFlatDatabase:
             return result[0] if result else 0
             
         except Exception as e:
-            print(f"Error getting complex count: {e}")
+            logging.info(f"Error getting complex count: {e}")
             return 0
 
     def move_flat_to_correct_table(self, flat_id: str, correct_type: str) -> bool:
@@ -752,7 +752,7 @@ class EnhancedFlatDatabase:
             
             flat_data = cursor.fetchone()
             if not flat_data:
-                print(f"Flat {flat_id} not found in source table")
+                logging.info(f"Flat {flat_id} not found in source table")
                 return False
             
             # Insert into correct table
@@ -801,7 +801,7 @@ class EnhancedFlatDatabase:
             return success
             
         except Exception as e:
-            print(f"Error moving flat {flat_id}: {e}")
+            logging.info(f"Error moving flat {flat_id}: {e}")
             return False
 
 
@@ -848,16 +848,16 @@ def main():
     
     stats = db.get_historical_statistics(start_date, end_date)
     
-    print("Enhanced Database Statistics:")
-    print(f"Date range: {start_date} to {end_date}")
-    print(f"Total rentals: {stats['rental_stats']['total_rentals']}")
-    print(f"Total sales: {stats['sales_stats']['total_sales']}")
+    logging.info("Enhanced Database Statistics:")
+    logging.info(f"Date range: {start_date} to {end_date}")
+    logging.info(f"Total rentals: {stats['rental_stats']['total_rentals']}")
+    logging.info(f"Total sales: {stats['sales_stats']['total_sales']}")
     
     if stats['rental_stats']['total_rentals'] > 0:
-        print(f"Rental price range: {stats['rental_stats']['min_rental_price']:,} - {stats['rental_stats']['max_rental_price']:,} tenge")
+        logging.info(f"Rental price range: {stats['rental_stats']['min_rental_price']:,} - {stats['rental_stats']['max_rental_price']:,} tenge")
     
     if stats['sales_stats']['total_sales'] > 0:
-        print(f"Sales price range: {stats['sales_stats']['min_sales_price']:,} - {stats['sales_stats']['max_sales_price']:,} tenge")
+        logging.info(f"Sales price range: {stats['sales_stats']['min_sales_price']:,} - {stats['sales_stats']['max_sales_price']:,} tenge")
 
 
 if __name__ == "__main__":

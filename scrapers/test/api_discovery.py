@@ -9,7 +9,7 @@ import re
 import json
 from urllib.parse import urlparse, parse_qs
 from typing import List, Dict, Optional
-
+import logging
 
 def analyze_search_page(url: str) -> Dict:
     """
@@ -18,7 +18,7 @@ def analyze_search_page(url: str) -> Dict:
     :param url: str, search page URL
     :return: Dict, discovered API endpoints and parameters
     """
-    print(f"🔍 Analyzing search page: {url}")
+    logging.info(f"Analyzing search page: {url}")
     
     # Headers to mimic browser
     headers = {
@@ -55,7 +55,7 @@ def analyze_search_page(url: str) -> Dict:
         }
         
     except Exception as e:
-        print(f"❌ Error analyzing page: {e}")
+        logging.info(f"Error analyzing page: {e}")
         return {'error': str(e)}
 
 
@@ -174,7 +174,7 @@ def test_api_endpoints(endpoints: List[str], search_params: Dict) -> List[Dict]:
     
     for endpoint in endpoints:
         try:
-            print(f"🧪 Testing endpoint: {endpoint}")
+            logging.info(f"Testing endpoint: {endpoint}")
             
             # Try different HTTP methods
             for method in ['GET', 'POST']:
@@ -205,13 +205,13 @@ def test_api_endpoints(endpoints: List[str], search_params: Dict) -> List[Dict]:
                                 result['json_error'] = True
                         
                         results.append(result)
-                        print(f"✅ {method} {endpoint} - Status: {response.status_code}")
+                        logging.info(f"{method} {endpoint} - Status: {response.status_code}")
                         
                 except requests.exceptions.RequestException as e:
-                    print(f"❌ {method} {endpoint} - Error: {e}")
+                    logging.info(f"{method} {endpoint} - Error: {e}")
                     
         except Exception as e:
-            print(f"❌ Error testing {endpoint}: {e}")
+            logging.info(f"Error testing {endpoint}: {e}")
     
     return results
 
@@ -268,53 +268,53 @@ def main():
     # Test URL from your query
     test_url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1&das[live.square][to]=35&das[map.complex]=2758"
     
-    print("🔍 Krisha.kz API Discovery Tool")
-    print("=" * 50)
+    logging.info("Krisha.kz API Discovery Tool")
+    logging.info("=" * 50)
     
     # Analyze the search page
     analysis = analyze_search_page(test_url)
     
     if 'error' in analysis:
-        print(f"❌ Analysis failed: {analysis['error']}")
+        logging.info(f"Analysis failed: {analysis['error']}")
         return
     
-    print(f"\n📊 Analysis Results:")
-    print(f"HTML Length: {analysis['html_length']:,} characters")
-    print(f"URL Parameters: {analysis['url_params']}")
+    logging.info(f"\nAnalysis Results:")
+    logging.info(f"HTML Length: {analysis['html_length']:,} characters")
+    logging.info(f"URL Parameters: {analysis['url_params']}")
     
     if analysis['api_endpoints']:
-        print(f"\n🔗 Found {len(analysis['api_endpoints'])} API endpoints:")
+        logging.info(f"\nFound {len(analysis['api_endpoints'])} API endpoints:")
         for endpoint in analysis['api_endpoints']:
-            print(f"   - {endpoint}")
+            logging.info(f"   - {endpoint}")
     
     if analysis['js_data']:
-        print(f"\n📜 JavaScript Data Found:")
+        logging.info(f"\n📜 JavaScript Data Found:")
         for key, value in analysis['js_data'].items():
-            print(f"   - {key}: {type(value).__name__}")
+            logging.info(f"   - {key}: {type(value).__name__}")
     
     # Test discovered endpoints
     if analysis['api_endpoints']:
-        print(f"\n🧪 Testing {len(analysis['api_endpoints'])} endpoints...")
+        logging.info(f"\nTesting {len(analysis['api_endpoints'])} endpoints...")
         test_results = test_api_endpoints(analysis['api_endpoints'], analysis['url_params'])
         
-        print(f"\n✅ Successful API calls:")
+        logging.info(f"\nSuccessful API calls:")
         for result in test_results:
             if result['status_code'] == 200:
-                print(f"   {result['method']} {result['endpoint']}")
+                logging.info(f"   {result['method']} {result['endpoint']}")
                 if result['is_json'] and 'json_keys' in result:
-                    print(f"      JSON keys: {result['json_keys']}")
+                    logging.info(f"      JSON keys: {result['json_keys']}")
     
     # Generate potential API calls
-    print(f"\n🔧 Generated API calls:")
+    logging.info(f"\n🔧 Generated API calls:")
     api_calls = generate_api_calls(analysis['url_params'])
     for call in api_calls:
-        print(f"   - {call}")
+        logging.info(f"   - {call}")
     
-    print(f"\n💡 Next Steps:")
-    print("1. Test the generated API calls manually")
-    print("2. Check browser Network tab for actual API calls")
-    print("3. Look for XHR/Fetch requests in browser dev tools")
-    print("4. Monitor network traffic while loading the search page")
+    logging.info(f"\n💡 Next Steps:")
+    logging.info("1. Test the generated API calls manually")
+    logging.info("2. Check browser Network tab for actual API calls")
+    logging.info("3. Look for XHR/Fetch requests in browser dev tools")
+    logging.info("4. Monitor network traffic while loading the search page")
 
 
 if __name__ == "__main__":

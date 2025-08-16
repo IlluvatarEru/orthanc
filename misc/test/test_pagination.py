@@ -2,61 +2,62 @@
 """
 Test script for pagination functionality.
 """
-from scrapers.src.search_scraper import detect_pagination_info, generate_page_urls
-
+from scrapers.src.search_scraper import detect_pagination_info, generate_page_urls, analyze_search_page, \
+    scrape_search_results_with_pagination
+import logging
 
 def test_pagination_detection():
     """Test pagination detection."""
-    print("🧪 Testing Pagination Detection")
-    print("=" * 50)
+    logging.info("Testing Pagination Detection")
+    logging.info("=" * 50)
     
     # Test URL with broader search to get more results
     test_url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1"
     
-    print(f"🔍 Testing URL: {test_url}")
+    logging.info(f"Testing URL: {test_url}")
     
     # Detect pagination
     pagination_info = detect_pagination_info(test_url)
     
-    print(f"\n📊 Pagination Information:")
+    logging.info(f"\nPagination Information:")
     for key, value in pagination_info.items():
-        print(f"   {key}: {value}")
+        logging.info(f"   {key}: {value}")
     
     if pagination_info['has_pagination']:
-        print(f"\n✅ Pagination detected!")
-        print(f"   Will generate URLs for up to {pagination_info['max_page_found']} pages")
+        logging.info(f"\nPagination detected!")
+        logging.info(f"   Will generate URLs for up to {pagination_info['max_page_found']} pages")
         
         # Generate page URLs
         page_urls = generate_page_urls(test_url, min(5, pagination_info['max_page_found']))
         
-        print(f"\n📄 Generated {len(page_urls)} page URLs:")
+        logging.info(f"\nGenerated {len(page_urls)} page URLs:")
         for i, url in enumerate(page_urls, 1):
-            print(f"   Page {i}: {url}")
+            logging.info(f"   Page {i}: {url}")
     else:
-        print(f"\n❌ No pagination detected - single page scraping")
+        logging.info(f"\nNo pagination detected - single page scraping")
     
     return pagination_info
 
 
 def test_paginated_scraping():
     """Test paginated scraping."""
-    print("\n🧪 Testing Paginated Scraping")
-    print("=" * 50)
+    logging.info("\nTesting Paginated Scraping")
+    logging.info("=" * 50)
     
     # Test URL with broader search to get more results
     test_url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1"
     
-    print(f"🔍 Testing URL: {test_url}")
+    logging.info(f"Testing URL: {test_url}")
     
     # Analyze the search page first
     analysis = analyze_search_page(test_url)
     
-    print(f"\n📊 Search Page Analysis:")
-    print(f"   Total flats found: {analysis['total_flats_found']}")
-    print(f"   Pagination info: {analysis['pagination_info']}")
+    logging.info(f"\nSearch Page Analysis:")
+    logging.info(f"   Total flats found: {analysis['total_flats_found']}")
+    logging.info(f"   Pagination info: {analysis['pagination_info']}")
     
     # Test paginated scraping (limit to 2 pages and 10 flats for testing)
-    print(f"\n🏠 Starting paginated scraping (max 2 pages, max 10 flats)...")
+    logging.info(f"\nStarting paginated scraping (max 2 pages, max 10 flats)...")
     
     try:
         scraped_flats = scrape_search_results_with_pagination(
@@ -66,28 +67,28 @@ def test_paginated_scraping():
             delay=1.0  # Faster delay for testing
         )
         
-        print(f"\n✅ Paginated scraping completed!")
-        print(f"   Successfully scraped {len(scraped_flats)} flats")
+        logging.info(f"\nPaginated scraping completed!")
+        logging.info(f"   Successfully scraped {len(scraped_flats)} flats")
         
         if scraped_flats:
-            print(f"\n📋 Sample scraped flats:")
+            logging.info(f"\nSample scraped flats:")
             for i, flat in enumerate(scraped_flats[:3], 1):  # Show first 3
-                print(f"   {i}. Flat {flat.flat_id}")
-                print(f"      Price: {flat.price:,} tenge")
-                print(f"      Area: {flat.area} m²")
-                print(f"      Complex: {flat.residential_complex or 'N/A'}")
+                logging.info(f"   {i}. Flat {flat.flat_id}")
+                logging.info(f"      Price: {flat.price:,} tenge")
+                logging.info(f"      Area: {flat.area} m²")
+                logging.info(f"      Complex: {flat.residential_complex or 'N/A'}")
         
         return scraped_flats
         
     except Exception as e:
-        print(f"❌ Error during paginated scraping: {e}")
+        logging.info(f"Error during paginated scraping: {e}")
         return []
 
 
 def test_url_generation():
     """Test URL generation for pagination."""
-    print("\n🧪 Testing URL Generation")
-    print("=" * 50)
+    logging.info("\nTesting URL Generation")
+    logging.info("=" * 50)
     
     # Test different URL formats
     test_urls = [
@@ -97,20 +98,20 @@ def test_url_generation():
     ]
     
     for i, test_url in enumerate(test_urls, 1):
-        print(f"\n🔗 Test URL {i}: {test_url}")
+        logging.info(f"\nTest URL {i}: {test_url}")
         
         # Generate page URLs
         page_urls = generate_page_urls(test_url, 3)
         
-        print(f"   Generated {len(page_urls)} page URLs:")
+        logging.info(f"   Generated {len(page_urls)} page URLs:")
         for j, url in enumerate(page_urls, 1):
-            print(f"     Page {j}: {url}")
+            logging.info(f"     Page {j}: {url}")
 
 
 def main():
     """Main test function."""
-    print("🏠 Krisha.kz Pagination Test")
-    print("=" * 50)
+    logging.info("Krisha.kz Pagination Test")
+    logging.info("=" * 50)
     
     # Test URL generation
     test_url_generation()
@@ -121,9 +122,9 @@ def main():
     # Test paginated scraping
     scraped_flats = test_paginated_scraping()
     
-    print(f"\n✅ Pagination test completed!")
-    print(f"   Pagination detected: {pagination_info['has_pagination']}")
-    print(f"   Flats scraped: {len(scraped_flats)}")
+    logging.info(f"\nPagination test completed!")
+    logging.info(f"   Pagination detected: {pagination_info['has_pagination']}")
+    logging.info(f"   Flats scraped: {len(scraped_flats)}")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ This module combines scraping functionality with database storage.
 """
 import time
 from typing import Optional, List
-
+import logging
 from common.src.krisha_scraper import FlatInfo, scrape_flat_info
 from db.src.database import save_flat_to_db, FlatDatabase
 
@@ -26,14 +26,14 @@ def scrape_and_save(url: str, db_path: str = "flats.db") -> Optional[FlatInfo]:
         success = save_flat_to_db(flat_info, url, db_path)
         
         if success:
-            print(f"✅ Successfully scraped and saved flat {flat_info.flat_id}")
+            logging.info(f"Successfully scraped and saved flat {flat_info.flat_id}")
             return flat_info
         else:
-            print(f"⚠️ Failed to save flat {flat_info.flat_id} to database")
+            logging.info(f"Failed to save flat {flat_info.flat_id} to database")
             return flat_info
             
     except Exception as e:
-        print(f"❌ Error scraping {url}: {e}")
+        logging.info(f"Error scraping {url}: {e}")
         return None
 
 
@@ -48,10 +48,10 @@ def scrape_multiple_flats(urls: List[str], db_path: str = "flats.db", delay: flo
     """
     results = []
     
-    print(f"Starting to scrape {len(urls)} flats...")
+    logging.info(f"Starting to scrape {len(urls)} flats...")
     
     for i, url in enumerate(urls, 1):
-        print(f"\n[{i}/{len(urls)}] Processing: {url}")
+        logging.info(f"\n[{i}/{len(urls)}] Processing: {url}")
         
         flat_info = scrape_and_save(url, db_path)
         if flat_info:
@@ -61,7 +61,7 @@ def scrape_multiple_flats(urls: List[str], db_path: str = "flats.db", delay: flo
         if i < len(urls):
             time.sleep(delay)
     
-    print(f"\n✅ Completed! Successfully scraped {len(results)}/{len(urls)} flats")
+    logging.info(f"\nCompleted! Successfully scraped {len(results)}/{len(urls)} flats")
     return results
 
 
@@ -74,18 +74,18 @@ def get_database_summary(db_path: str = "flats.db") -> None:
     db = FlatDatabase(db_path)
     stats = db.get_statistics()
     
-    print("\n📊 Database Summary:")
-    print("=" * 50)
-    print(f"Total flats: {stats['total_flats']}")
-    print(f"Recent flats (7 days): {stats['recent_flats']}")
+    logging.info("\nDatabase Summary:")
+    logging.info("=" * 50)
+    logging.info(f"Total flats: {stats['total_flats']}")
+    logging.info(f"Recent flats (7 days): {stats['recent_flats']}")
     
     if stats['price_stats']['count'] > 0:
-        print(f"Price range: {stats['price_stats']['min_price']:,} - {stats['price_stats']['max_price']:,} tenge")
-        print(f"Average price: {stats['price_stats']['avg_price']:,.0f} tenge")
+        logging.info(f"Price range: {stats['price_stats']['min_price']:,} - {stats['price_stats']['max_price']:,} tenge")
+        logging.info(f"Average price: {stats['price_stats']['avg_price']:,.0f} tenge")
     
     if stats['area_stats']['min_area'] is not None:
-        print(f"Area range: {stats['area_stats']['min_area']:.1f} - {stats['area_stats']['max_area']:.1f} m²")
-        print(f"Average area: {stats['area_stats']['avg_area']:.1f} m²")
+        logging.info(f"Area range: {stats['area_stats']['min_area']:.1f} - {stats['area_stats']['max_area']:.1f} m²")
+        logging.info(f"Average area: {stats['area_stats']['avg_area']:.1f} m²")
 
 
 def search_flats_in_db(min_price: Optional[int] = None,
@@ -116,17 +116,17 @@ def search_flats_in_db(min_price: Optional[int] = None,
         limit=limit
     )
     
-    print(f"\n🔍 Search Results ({len(results)} flats):")
-    print("=" * 50)
+    logging.info(f"\nSearch Results ({len(results)} flats):")
+    logging.info("=" * 50)
     
     for i, flat in enumerate(results, 1):
-        print(f"\n{i}. Flat ID: {flat['flat_id']}")
-        print(f"   💰 Price: {flat['price']:,} tenge")
-        print(f"   📏 Area: {flat['area']} m²")
-        print(f"   🏢 Residential Complex: {flat['residential_complex'] or 'N/A'}")
-        print(f"   🏠 Floor: {flat['floor']}/{flat['total_floors'] if flat['floor'] else 'N/A'}")
-        print(f"   🏗️ Construction Year: {flat['construction_year'] or 'N/A'}")
-        print(f"   📅 Scraped: {flat['scraped_at']}")
+        logging.info(f"\n{i}. Flat ID: {flat['flat_id']}")
+        logging.info(f"   💰 Price: {flat['price']:,} tenge")
+        logging.info(f"   📏 Area: {flat['area']} m²")
+        logging.info(f"   🏢 Residential Complex: {flat['residential_complex'] or 'N/A'}")
+        logging.info(f"   Floor: {flat['floor']}/{flat['total_floors'] if flat['floor'] else 'N/A'}")
+        logging.info(f"   🏗️ Construction Year: {flat['construction_year'] or 'N/A'}")
+        logging.info(f"   📅 Scraped: {flat['scraped_at']}")
 
 
 def main():
@@ -139,8 +139,8 @@ def main():
         # Add more URLs here
     ]
     
-    print("🏠 Krisha.kz Scraper with Database")
-    print("=" * 50)
+    logging.info("Krisha.kz Scraper with Database")
+    logging.info("=" * 50)
     
     # Initialize database
     db = FlatDatabase()
@@ -152,7 +152,7 @@ def main():
     get_database_summary()
     
     # Example search
-    print("\n" + "=" * 50)
+    logging.info("\n" + "=" * 50)
     search_flats_in_db(min_price=30000000, max_price=50000000, limit=5)
 
 

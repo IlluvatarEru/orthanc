@@ -8,9 +8,9 @@ import re
 from datetime import datetime
 from sqlite3 import Row, connect
 from typing import Optional
-
+import logging
 import requests
-
+import logging
 
 class CurrencyManager:
     """
@@ -138,7 +138,7 @@ class CurrencyManager:
             return rates
 
         except Exception as e:
-            print(f"Error fetching exchange rates from mig.kz: {e}")
+            logging.info(f"Error fetching exchange rates from mig.kz: {e}")
             return {}
 
     def update_exchange_rates(self) -> bool:
@@ -151,7 +151,7 @@ class CurrencyManager:
             rates = self.fetch_mig_exchange_rates()
 
             if not rates:
-                print("No exchange rates fetched")
+                logging.info("No exchange rates fetched")
                 return False
 
             self.connect()
@@ -165,11 +165,11 @@ class CurrencyManager:
             self.conn.commit()
             self.disconnect()
 
-            print(f"Updated exchange rates: {rates}")
+            logging.info(f"Updated exchange rates: {rates}")
             return True
 
         except Exception as e:
-            print(f"Error updating exchange rates: {e}")
+            logging.info(f"Error updating exchange rates: {e}")
             return False
 
     def get_latest_rate(self, currency: str) -> Optional[float]:
@@ -195,7 +195,7 @@ class CurrencyManager:
             return float(result['rate']) if result else None
 
         except Exception as e:
-            print(f"Error getting latest rate for {currency}: {e}")
+            logging.info(f"Error getting latest rate for {currency}: {e}")
             return None
 
     def convert_kzt_to_eur(self, kzt_amount: float) -> Optional[float]:

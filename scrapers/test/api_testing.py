@@ -9,7 +9,7 @@ import json
 import time
 from typing import List, Dict, Optional
 
-
+import logging
 def test_search_api_endpoints(search_params: Dict) -> List[Dict]:
     """
     Test various search API endpoints with the given parameters.
@@ -107,7 +107,7 @@ def test_search_api_endpoints(search_params: Dict) -> List[Dict]:
     ]
     
     for i, test in enumerate(test_endpoints, 1):
-        print(f"\n🧪 Test {i}: {test['method']} {test['url']}")
+        logging.info(f"\nTest {i}: {test['method']} {test['url']}")
         
         try:
             if test['method'] == 'GET':
@@ -147,19 +147,19 @@ def test_search_api_endpoints(search_params: Dict) -> List[Dict]:
             results.append(result)
             
             if response.status_code == 200:
-                print(f"✅ Status: {response.status_code}")
+                logging.info(f"Status: {response.status_code}")
                 if result['is_json']:
-                    print(f"   JSON keys: {result.get('json_keys', [])}")
+                    logging.info(f"   JSON keys: {result.get('json_keys', [])}")
                 else:
-                    print(f"   Content type: {result['content_type']}")
+                    logging.info(f"   Content type: {result['content_type']}")
             else:
-                print(f"❌ Status: {response.status_code}")
+                logging.info(f"Status: {response.status_code}")
             
             # Add delay between requests
             time.sleep(1)
             
         except Exception as e:
-            print(f"❌ Error: {e}")
+            logging.info(f"Error: {e}")
             results.append({
                 'url': test['url'],
                 'method': test['method'],
@@ -231,7 +231,7 @@ def test_ajax_endpoints(search_params: Dict) -> List[Dict]:
     ]
     
     for i, test in enumerate(ajax_endpoints, 1):
-        print(f"\n🧪 AJAX Test {i}: {test['method']} {test['url']}")
+        logging.info(f"\nAJAX Test {i}: {test['method']} {test['url']}")
         
         try:
             response = requests.post(
@@ -262,18 +262,18 @@ def test_ajax_endpoints(search_params: Dict) -> List[Dict]:
             results.append(result)
             
             if response.status_code == 200:
-                print(f"✅ Status: {response.status_code}")
+                logging.info(f"Status: {response.status_code}")
                 if result['is_json']:
-                    print(f"   JSON keys: {result.get('json_keys', [])}")
+                    logging.info(f"   JSON keys: {result.get('json_keys', [])}")
                 else:
-                    print(f"   Content type: {result['content_type']}")
+                    logging.info(f"   Content type: {result['content_type']}")
             else:
-                print(f"❌ Status: {response.status_code}")
+                logging.info(f"Status: {response.status_code}")
             
             time.sleep(1)
             
         except Exception as e:
-            print(f"❌ Error: {e}")
+            logging.info(f"Error: {e}")
             results.append({
                 'url': test['url'],
                 'method': test['method'],
@@ -289,33 +289,33 @@ def analyze_results(results: List[Dict]) -> None:
     
     :param results: List[Dict], test results
     """
-    print(f"\n📊 Analysis Results:")
-    print("=" * 50)
+    logging.info(f"\nAnalysis Results:")
+    logging.info("=" * 50)
     
     successful_apis = [r for r in results if r.get('status_code') == 200 and r.get('is_json')]
     
     if successful_apis:
-        print(f"✅ Found {len(successful_apis)} successful JSON APIs:")
+        logging.info(f"Found {len(successful_apis)} successful JSON APIs:")
         for api in successful_apis:
-            print(f"\n🔗 {api['method']} {api['url']}")
-            print(f"   JSON keys: {api.get('json_keys', [])}")
-            print(f"   Sample: {api.get('json_sample', '')[:100]}...")
+            logging.info(f"\n{api['method']} {api['url']}")
+            logging.info(f"   JSON keys: {api.get('json_keys', [])}")
+            logging.info(f"   Sample: {api.get('json_sample', '')[:100]}...")
     else:
-        print("❌ No successful JSON APIs found")
+        logging.info("No successful JSON APIs found")
     
     # Check for HTML responses that might contain data
     html_responses = [r for r in results if r.get('status_code') == 200 and 'html' in r.get('content_type', '').lower()]
     
     if html_responses:
-        print(f"\n📄 Found {len(html_responses)} HTML responses:")
+        logging.info(f"\nFound {len(html_responses)} HTML responses:")
         for resp in html_responses:
-            print(f"   {resp['method']} {resp['url']}")
+            logging.info(f"   {resp['method']} {resp['url']}")
     
-    print(f"\n💡 Recommendations:")
-    print("1. Check browser Network tab while loading the search page")
-    print("2. Look for XHR/Fetch requests in browser dev tools")
-    print("3. Monitor network traffic for AJAX calls")
-    print("4. The API might be using a different endpoint structure")
+    logging.info(f"\n💡 Recommendations:")
+    logging.info("1. Check browser Network tab while loading the search page")
+    logging.info("2. Look for XHR/Fetch requests in browser dev tools")
+    logging.info("3. Monitor network traffic for AJAX calls")
+    logging.info("4. The API might be using a different endpoint structure")
 
 
 def main():
@@ -329,28 +329,28 @@ def main():
         'das[map.complex]': '2758'
     }
     
-    print("🧪 Krisha.kz API Testing Tool")
-    print("=" * 50)
-    print(f"Testing search parameters: {search_params}")
+    logging.info("Krisha.kz API Testing Tool")
+    logging.info("=" * 50)
+    logging.info(f"Testing search parameters: {search_params}")
     
     # Test regular API endpoints
-    print(f"\n🔍 Testing API endpoints...")
+    logging.info(f"\nTesting API endpoints...")
     api_results = test_search_api_endpoints(search_params)
     
     # Test AJAX endpoints
-    print(f"\n🔍 Testing AJAX endpoints...")
+    logging.info(f"\nTesting AJAX endpoints...")
     ajax_results = test_ajax_endpoints(search_params)
     
     # Analyze all results
     all_results = api_results + ajax_results
     analyze_results(all_results)
     
-    print(f"\n🎯 Next Steps:")
-    print("1. Open browser dev tools (F12)")
-    print("2. Go to Network tab")
-    print("3. Load the search page: https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1&das[live.square][to]=35&das[map.complex]=2758")
-    print("4. Look for XHR/Fetch requests that return JSON data")
-    print("5. Copy the request URL and parameters")
+    logging.info(f"\n🎯 Next Steps:")
+    logging.info("1. Open browser dev tools (F12)")
+    logging.info("2. Go to Network tab")
+    logging.info("3. Load the search page: https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1&das[live.square][to]=35&das[map.complex]=2758")
+    logging.info("4. Look for XHR/Fetch requests that return JSON data")
+    logging.info("5. Copy the request URL and parameters")
 
 
 if __name__ == "__main__":

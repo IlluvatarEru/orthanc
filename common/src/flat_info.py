@@ -4,7 +4,7 @@ from flask import flash
 
 from common.src.krisha_scraper import FlatInfo, scrape_flat_info
 from db.src.enhanced_database import EnhancedFlatDatabase, save_sales_flat_to_db
-
+import logging
 
 def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flats.db") -> FlatInfo:
     """
@@ -13,10 +13,10 @@ def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flat
     :param flat_id: str, flat ID
     :return: FlatInfo object or None if error
     """
-    print(f"flat_id = -{flat_id}- of type {type(flat_id)}")
+    logging.info(f"flat_id = -{flat_id}- of type {type(flat_id)}")
     db = EnhancedFlatDatabase(db_path)
     rental_count = db.get_flat_count('rental')
-    print(f"rental_count = {rental_count}")
+    logging.info(f"rental_count = {rental_count}")
     try:
         db.connect()
 
@@ -29,14 +29,14 @@ def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flat
             ORDER BY query_date DESC 
             LIMIT 1
         """
-        print(q)
+        logging.info(q)
         cursor = db.conn.execute(q)
 
         existing_flat = cursor.fetchone()
-        print(existing_flat)
+        logging.info(existing_flat)
 
         if existing_flat:
-            print(f"📋 Using existing flat data from database for {flat_id}")
+            logging.info(f"Using existing flat data from database for {flat_id}")
             return FlatInfo(
                 flat_id=existing_flat[0],
                 price=existing_flat[1],
@@ -51,7 +51,7 @@ def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flat
             )
         else:
             # Scrape fresh data from web
-            print(f"🌐 Scraping fresh flat data for {flat_id}")
+            logging.info(f"🌐 Scraping fresh flat data for {flat_id}")
             flat_url = f"https://krisha.kz/a/show/{flat_id}"
 
             try:
@@ -60,7 +60,7 @@ def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flat
                 # Check if flat is for rent
                 if flat_info.is_rental:
                     if flash_to_frontend:
-                        flash(f'❌ Error: Flat ID {flat_id} is for rent (Аренда). Please provide the ID of a flat for sale.',
+                        flash(f'Error: Flat ID {flat_id} is for rent (Аренда). Please provide the ID of a flat for sale.',
                           'error')
                     return None
 
@@ -70,9 +70,9 @@ def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flat
                 return flat_info
 
             except Exception as e:
-                print(f"❌ Error scraping flat {flat_id}: {e}")
+                logging.info(f"Error scraping flat {flat_id}: {e}")
                 if flash_to_frontend:
-                    flash(f'❌ Error: Could not scrape flat {flat_id}. Please check if the flat ID is correct.', 'error')
+                    flash(f'Error: Could not scrape flat {flat_id}. Please check if the flat ID is correct.', 'error')
                 return None
 
     finally:

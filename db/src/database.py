@@ -8,7 +8,7 @@ import sqlite3
 from typing import Optional, List
 
 from common.src.krisha_scraper import FlatInfo
-
+import logging
 
 class FlatDatabase:
     """
@@ -353,19 +353,19 @@ def main():
     
     # Example: Get statistics
     stats = db.get_statistics()
-    print("Database Statistics:")
-    print(f"Total flats: {stats['total_flats']}")
-    print(f"Recent flats (7 days): {stats['recent_flats']}")
+    logging.info("Database Statistics:")
+    logging.info(f"Total flats: {stats['total_flats']}")
+    logging.info(f"Recent flats (7 days): {stats['recent_flats']}")
     
     if stats['price_stats']['min_price'] is not None:
-        print(f"Price range: {stats['price_stats']['min_price']:,} - {stats['price_stats']['max_price']:,} tenge")
+        logging.info(f"Price range: {stats['price_stats']['min_price']:,} - {stats['price_stats']['max_price']:,} tenge")
     else:
-        print("Price range: No data available")
+        logging.info("Price range: No data available")
     
     if stats['area_stats']['min_area'] is not None:
-        print(f"Area range: {stats['area_stats']['min_area']:.1f} - {stats['area_stats']['max_area']:.1f} m²")
+        logging.info(f"Area range: {stats['area_stats']['min_area']:.1f} - {stats['area_stats']['max_area']:.1f} m²")
     else:
-        print("Area range: No data available")
+        logging.info("Area range: No data available")
 
 
 if __name__ == "__main__":

@@ -10,7 +10,7 @@ import re
 
 import requests
 
-
+import logging
 @dataclass
 class FlatInfo:
     """
@@ -323,19 +323,19 @@ def main():
     
     try:
         flat_info = scrape_flat_info(url)
-        print("Extracted flat information:")
-        print(f"Flat ID: {flat_info.flat_id}")
-        print(f"Price: {flat_info.price:,} tenge")
-        print(f"Area: {flat_info.area} m²")
-        print(f"Residential Complex: {flat_info.residential_complex}")
-        print(f"Floor: {flat_info.floor}/{flat_info.total_floors}")
-        print(f"Construction Year: {flat_info.construction_year}")
-        print(f"Parking: {flat_info.parking}")
-        print(f"Description: {flat_info.description[:200]}...")
-        print(f"Is Rental: {flat_info.is_rental}")
+        logging.info("Extracted flat information:")
+        logging.info(f"Flat ID: {flat_info.flat_id}")
+        logging.info(f"Price: {flat_info.price:,} tenge")
+        logging.info(f"Area: {flat_info.area} m²")
+        logging.info(f"Residential Complex: {flat_info.residential_complex}")
+        logging.info(f"Floor: {flat_info.floor}/{flat_info.total_floors}")
+        logging.info(f"Construction Year: {flat_info.construction_year}")
+        logging.info(f"Parking: {flat_info.parking}")
+        logging.info(f"Description: {flat_info.description[:200]}...")
+        logging.info(f"Is Rental: {flat_info.is_rental}")
         
     except Exception as e:
-        print(f"Error scraping flat info: {e}")
+        logging.info(f"Error scraping flat info: {e}")
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ def load_recommendation_thresholds(config_path: str = "config/src/config.toml") 
             'fair_deal_discount': recommendations.get('fair_deal_discount', 5.0)
         }
     except Exception as e:
-        print(f"Warning: Could not load recommendation thresholds: {e}")
+        logging.info(f"Warning: Could not load recommendation thresholds: {e}")
         # Return default values
         return {
             'strong_buy_yield': 20.0,
@@ -77,7 +77,7 @@ def load_analysis_config(config_path: str = "config/src/config.toml") -> dict:
             'default_area_tolerance': analysis.get('default_area_tolerance', 10.0)
         }
     except Exception as e:
-        print(f"Warning: Could not load analysis config: {e}")
+        logging.info(f"Warning: Could not load analysis config: {e}")
         # Return default values
         return {
             'default_area_tolerance': 10.0
@@ -93,27 +93,27 @@ def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
     :return: bool, True if scraping was successful
     """
     try:
-        print(f"🔄 Auto-scraping data for {complex_name}...")
+        logging.info(f"Auto-scraping data for {complex_name}...")
         
         # Construct search URLs for rental and sales
         rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}" if complex_id else f"https://krisha.kz/arenda/kvartiry/almaty/?das[live.square][to]=35"
         sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}" if complex_id else f"https://krisha.kz/prodazha/kvartiry/almaty/?das[live.square][to]=35"
         
         # Scrape rental data
-        print(f"   📥 Scraping rental data...")
+        logging.info(f"   Scraping rental data...")
         rental_flats = scrape_and_save_search_results(rental_url, max_flats=20, delay=1.0)
         
         # Scrape sales data
-        print(f"   📥 Scraping sales data...")
+        logging.info(f"   Scraping sales data...")
         sales_flats = scrape_and_save_search_results(sales_url, max_flats=20, delay=1.0)
         
         total_scraped = len(rental_flats) + len(sales_flats)
-        print(f"✅ Successfully scraped {total_scraped} flats for {complex_name}")
+        logging.info(f"Successfully scraped {total_scraped} flats for {complex_name}")
         
         return total_scraped > 0
         
     except Exception as e:
-        print(f"❌ Error scraping data for {complex_name}: {e}")
+        logging.info(f"Error scraping data for {complex_name}: {e}")
         return False
 
 
@@ -213,11 +213,11 @@ Examples:
         elif args.command == 'estimate':
             handle_estimate(args)
         else:
-            print(f"Unknown command: {args.command}")
+            logging.info(f"Unknown command: {args.command}")
             parser.print_help()
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logging.info(f"Error: {e}")
         sys.exit(1)
 
 
@@ -228,27 +228,27 @@ def handle_schedule(args):
     if args.query_name and args.query_type:
         # Run single query
         scraped_count = scheduler.run_single_query(args.query_type, args.query_name)
-        print(f"✅ Scraped {scraped_count} flats from query '{args.query_name}'")
+        logging.info(f"Scraped {scraped_count} flats from query '{args.query_name}'")
     
     elif args.all:
         # Run all queries
         summary = scheduler.run_all_queries()
-        print(f"\n📊 Summary:")
-        print(f"   Total flats scraped: {summary['total_flats']}")
-        print(f"   Rental flats: {summary['total_rental_flats']}")
-        print(f"   Sales flats: {summary['total_sales_flats']}")
-        print(f"   Duration: {summary['duration_seconds']:.2f} seconds")
+        logging.info(f"\nSummary:")
+        logging.info(f"   Total flats scraped: {summary['total_flats']}")
+        logging.info(f"   Rental flats: {summary['total_rental_flats']}")
+        logging.info(f"   Sales flats: {summary['total_sales_flats']}")
+        logging.info(f"   Duration: {summary['duration_seconds']:.2f} seconds")
     
     else:
         # Show available queries
-        print("Available queries:")
-        print("\nRental queries:")
+        logging.info("Available queries:")
+        logging.info("\nRental queries:")
         for query in scheduler.config.get('rental_queries', []):
-            print(f"   - {query['name']}")
+            logging.info(f"   - {query['name']}")
         
-        print("\nSales queries:")
+        logging.info("\nSales queries:")
         for query in scheduler.config.get('sales_queries', []):
-            print(f"   - {query['name']}")
+            logging.info(f"   - {query['name']}")
 
 
 def handle_analyze(args):
@@ -259,9 +259,9 @@ def handle_analyze(args):
 
 def handle_update_complexes():
     """Handle update-complexes command."""
-    print("🔄 Updating residential complex database...")
+    logging.info("Updating residential complex database...")
     count = update_complex_database()
-    print(f"✅ Updated {count} residential complexes")
+    logging.info(f"Updated {count} residential complexes")
 
 
 def handle_stats(args):
@@ -274,16 +274,16 @@ def handle_stats(args):
     
     stats = db.get_historical_statistics(start_date, end_date)
     
-    print(f"📊 Database Statistics ({args.days} days):")
-    print(f"   Date range: {start_date} to {end_date}")
-    print(f"   Total rentals: {stats['rental_stats']['total_rentals']}")
-    print(f"   Total sales: {stats['sales_stats']['total_sales']}")
+    logging.info(f"Database Statistics ({args.days} days):")
+    logging.info(f"   Date range: {start_date} to {end_date}")
+    logging.info(f"   Total rentals: {stats['rental_stats']['total_rentals']}")
+    logging.info(f"   Total sales: {stats['sales_stats']['total_sales']}")
     
     if stats['rental_stats']['total_rentals'] > 0:
-        print(f"   Rental price range: {stats['rental_stats']['min_rental_price']:,} - {stats['rental_stats']['max_rental_price']:,} tenge")
+        logging.info(f"   Rental price range: {stats['rental_stats']['min_rental_price']:,} - {stats['rental_stats']['max_rental_price']:,} tenge")
     
     if stats['sales_stats']['total_sales'] > 0:
-        print(f"   Sales price range: {stats['sales_stats']['min_sales_price']:,} - {stats['sales_stats']['max_sales_price']:,} tenge")
+        logging.info(f"   Sales price range: {stats['sales_stats']['min_sales_price']:,} - {stats['sales_stats']['max_sales_price']:,} tenge")
 
 
 def handle_search(args):
@@ -302,9 +302,9 @@ def handle_search(args):
         criteria['type'] = args.type
     
     # For now, just show that search is available
-    print("🔍 Search functionality available")
-    print("   Use the CLI tools directly for advanced search:")
-    print("   python cli/cli_tool.py search --min-price 300000 --max-price 600000")
+    logging.info("Search functionality available")
+    logging.info("   Use the CLI tools directly for advanced search:")
+    logging.info("   python cli/cli_tool.py search --min-price 300000 --max-price 600000")
 
 
 def handle_estimate(args):
@@ -314,11 +314,11 @@ def handle_estimate(args):
     from datetime import datetime
     import statistics
     
-    print(f"🏠 Analyzing flat {args.flat_id} for investment potential...")
+    logging.info(f"Analyzing flat {args.flat_id} for investment potential...")
     
     # 1. Scrape and save flat info to DB
     flat_url = f"https://krisha.kz/a/show/{args.flat_id}"
-    print(f"📥 Scraping flat info from: {flat_url}")
+    logging.info(f"Scraping flat info from: {flat_url}")
     
     try:
         flat_info = scrape_flat_info(flat_url)
@@ -328,23 +328,23 @@ def handle_estimate(args):
         success = save_sales_flat_to_db(flat_info, flat_url, query_date)
         
         if success:
-            print(f"✅ Flat info saved to database")
+            logging.info(f"Flat info saved to database")
         else:
-            print(f"⚠️ Flat info already exists in database")
+            logging.info(f"Flat info already exists in database")
         
-        print(f"📊 Flat Details:")
-        print(f"   Price: {flat_info.price:,} tenge")
-        print(f"   Area: {flat_info.area} m²")
-        print(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
-        print(f"   Floor: {flat_info.floor or 'N/A'}")
-        print(f"   Construction Year: {flat_info.construction_year or 'N/A'}")
+        logging.info(f"Flat Details:")
+        logging.info(f"   Price: {flat_info.price:,} tenge")
+        logging.info(f"   Area: {flat_info.area} m²")
+        logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
+        logging.info(f"   Floor: {flat_info.floor or 'N/A'}")
+        logging.info(f"   Construction Year: {flat_info.construction_year or 'N/A'}")
         
     except Exception as e:
-        print(f"❌ Error scraping flat: {e}")
+        logging.info(f"Error scraping flat: {e}")
         return
     
     # 2. Find similar rentals
-    print(f"\n🔍 Finding similar rental flats...")
+    logging.info(f"\nFinding similar rental flats...")
     db = EnhancedFlatDatabase()
     db.connect()
     
@@ -375,7 +375,7 @@ def handle_estimate(args):
         
         similar_rentals = list(rental_data.values())
         
-        print(f"   Found {len(similar_rentals)} unique similar rental flats")
+        logging.info(f"   Found {len(similar_rentals)} unique similar rental flats")
         
         if similar_rentals:
             rental_prices = [r[0] for r in similar_rentals]
@@ -390,12 +390,12 @@ def handle_estimate(args):
                 'avg_area': sum(rental_areas) / len(rental_areas)
             }
             
-            print(f"   Rental price range: {rental_stats['min_price']:,} - {rental_stats['max_price']:,} tenge")
-            print(f"   Average rental price: {rental_stats['avg_price']:,.0f} tenge")
-            print(f"   Median rental price: {rental_stats['median_price']:,.0f} tenge")
+            logging.info(f"   Rental price range: {rental_stats['min_price']:,} - {rental_stats['max_price']:,} tenge")
+            logging.info(f"   Average rental price: {rental_stats['avg_price']:,.0f} tenge")
+            logging.info(f"   Median rental price: {rental_stats['median_price']:,.0f} tenge")
         
         # 3. Find similar sales
-        print(f"\n💰 Finding similar sales flats...")
+        logging.info(f"\n💰 Finding similar sales flats...")
         
         cursor = db.conn.execute("""
             SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
@@ -415,7 +415,7 @@ def handle_estimate(args):
         
         similar_sales = list(sales_data.values())
         
-        print(f"   Found {len(similar_sales)} unique similar sales flats")
+        logging.info(f"   Found {len(similar_sales)} unique similar sales flats")
         
         if similar_sales:
             sales_prices = [s[0] for s in similar_sales]
@@ -430,17 +430,17 @@ def handle_estimate(args):
                 'avg_area': sum(sales_areas) / len(sales_areas)
             }
             
-            print(f"   Sales price range: {sales_stats['min_price']:,} - {sales_stats['max_price']:,} tenge")
-            print(f"   Average sales price: {sales_stats['avg_price']:,.0f} tenge")
-            print(f"   Median sales price: {sales_stats['median_price']:,.0f} tenge")
+            logging.info(f"   Sales price range: {sales_stats['min_price']:,} - {sales_stats['max_price']:,} tenge")
+            logging.info(f"   Average sales price: {sales_stats['avg_price']:,.0f} tenge")
+            logging.info(f"   Median sales price: {sales_stats['median_price']:,.0f} tenge")
         
         # 4. Calculate investment insights
-        print(f"\n📈 Investment Analysis:")
-        print("=" * 50)
+        logging.info(f"\n📈 Investment Analysis:")
+        logging.info("=" * 50)
         
         # If insufficient data, try to scrape more data for the complex
         if (not similar_rentals or len(similar_rentals) < 5) or (not similar_sales or len(similar_sales) < 5):
-            print(f"⚠️ Insufficient data for analysis. Attempting to scrape more data for {flat_info.residential_complex or 'this complex'}...")
+            logging.info(f"Insufficient data for analysis. Attempting to scrape more data for {flat_info.residential_complex or 'this complex'}...")
             
             # Try to find complex ID
             from scrapers.complex_scraper import search_complex_by_name
@@ -449,7 +449,7 @@ def handle_estimate(args):
             
             # Scrape data for this complex
             if scrape_complex_data(flat_info.residential_complex or 'Unknown', complex_id):
-                print(f"✅ Successfully scraped additional data. Re-analyzing...")
+                logging.info(f"Successfully scraped additional data. Re-analyzing...")
                 
                 # Re-query similar properties
                 cursor = db.conn.execute("""
@@ -515,9 +515,9 @@ def handle_estimate(args):
                 else:
                     sales_stats = None
                 
-                print(f"   Found {len(similar_rentals)} rental flats and {len(similar_sales)} sales flats after scraping")
+                logging.info(f"   Found {len(similar_rentals)} rental flats and {len(similar_sales)} sales flats after scraping")
             else:
-                print(f"❌ Failed to scrape additional data")
+                logging.info(f"Failed to scrape additional data")
         
         if similar_rentals and similar_sales:
             # Load recommendation thresholds
@@ -535,63 +535,63 @@ def handle_estimate(args):
             price_vs_median = ((current_price - median_sales) / median_sales) * 100
             price_vs_avg = ((current_price - sales_stats['avg_price']) / sales_stats['avg_price']) * 100
             
-            print(f"💡 Investment Potential:")
-            print(f"   Expected annual rental income: {annual_rental_income:,.0f} tenge")
-            print(f"   Rental yield: {rental_yield:.2f}%")
+            logging.info(f"💡 Investment Potential:")
+            logging.info(f"   Expected annual rental income: {annual_rental_income:,.0f} tenge")
+            logging.info(f"   Rental yield: {rental_yield:.2f}%")
             
-            print(f"\n💰 Price Analysis:")
-            print(f"   Your price: {current_price:,} tenge")
-            print(f"   Median similar sales: {median_sales:,} tenge")
-            print(f"   Average similar sales: {sales_stats['avg_price']:,.0f} tenge")
+            logging.info(f"\n💰 Price Analysis:")
+            logging.info(f"   Your price: {current_price:,} tenge")
+            logging.info(f"   Median similar sales: {median_sales:,} tenge")
+            logging.info(f"   Average similar sales: {sales_stats['avg_price']:,.0f} tenge")
             
             # Price rating based on configurable thresholds
             if price_vs_median < thresholds['excellent_deal_discount']:
                 price_rating = "🔥 Excellent deal (significantly below median)"
             elif price_vs_median < thresholds['good_deal_discount']:
-                price_rating = "✅ Good deal (below median)"
+                price_rating = "Good deal (below median)"
             elif price_vs_median < thresholds['fair_deal_discount']:
                 price_rating = "⚖️ Fair price (around median)"
             else:
-                price_rating = "❌ Expensive (above median)"
+                price_rating = "Expensive (above median)"
             
-            print(f"   Price vs median: {price_vs_median:+.1f}% ({price_rating})")
+            logging.info(f"   Price vs median: {price_vs_median:+.1f}% ({price_rating})")
             
             # Yield rating based on configurable thresholds
             if rental_yield > thresholds['strong_buy_yield']:
                 yield_rating = f"🚀 Excellent yield (>{thresholds['strong_buy_yield']}%)"
             elif rental_yield > thresholds['buy_yield']:
-                yield_rating = f"✅ Good yield ({thresholds['buy_yield']}-{thresholds['strong_buy_yield']}%)"
+                yield_rating = f"Good yield ({thresholds['buy_yield']}-{thresholds['strong_buy_yield']}%)"
             elif rental_yield > thresholds['consider_yield']:
                 yield_rating = f"⚖️ Moderate yield ({thresholds['consider_yield']}-{thresholds['buy_yield']}%)"
             else:
-                yield_rating = f"❌ Low yield (<{thresholds['consider_yield']}%)"
+                yield_rating = f"Low yield (<{thresholds['consider_yield']}%)"
             
-            print(f"   Yield rating: {yield_rating}")
+            logging.info(f"   Yield rating: {yield_rating}")
             
             # Overall recommendation based on configurable thresholds
-            print(f"\n🎯 Overall Recommendation:")
+            logging.info(f"\n🎯 Overall Recommendation:")
             if rental_yield > thresholds['strong_buy_yield']:
-                print(f"   🚀 STRONG BUY - Excellent yield (>{thresholds['strong_buy_yield']}%)")
+                logging.info(f"   🚀 STRONG BUY - Excellent yield (>{thresholds['strong_buy_yield']}%)")
             elif rental_yield > thresholds['buy_yield'] and price_vs_median < 0:
-                print(f"   ✅ BUY - Good yield (>{thresholds['buy_yield']}%) + good price")
+                logging.info(f"   BUY - Good yield (>{thresholds['buy_yield']}%) + good price")
             elif rental_yield > thresholds['consider_yield'] and price_vs_median < thresholds['fair_deal_discount']:
-                print(f"   ⚖️ CONSIDER - Moderate potential (>{thresholds['consider_yield']}% yield)")
+                logging.info(f"   ⚖️ CONSIDER - Moderate potential (>{thresholds['consider_yield']}% yield)")
             else:
-                print(f"   ❌ PASS - Low investment potential (<{thresholds['consider_yield']}% yield)")
+                logging.info(f"   PASS - Low investment potential (<{thresholds['consider_yield']}% yield)")
             
             # Discount-based return analysis
-            print(f"\n💰 Discount Analysis:")
-            print("=" * 30)
+            logging.info(f"\n💰 Discount Analysis:")
+            logging.info("=" * 30)
             
             for discount in [10, 20]:
                 discounted_price = current_price * (1 - discount / 100)
                 discounted_yield = (annual_rental_income / discounted_price) * 100
                 savings = current_price - discounted_price
                 
-                print(f"\n📉 {discount}% Discount Scenario:")
-                print(f"   Discounted price: {discounted_price:,.0f} tenge")
-                print(f"   Savings: {savings:,.0f} tenge")
-                print(f"   Rental yield: {discounted_yield:.2f}%")
+                logging.info(f"\n📉 {discount}% Discount Scenario:")
+                logging.info(f"   Discounted price: {discounted_price:,.0f} tenge")
+                logging.info(f"   Savings: {savings:,.0f} tenge")
+                logging.info(f"   Rental yield: {discounted_yield:.2f}%")
                 
                 # Yield rating for discount scenario
                 if discounted_yield > thresholds['strong_buy_yield']:
@@ -599,41 +599,41 @@ def handle_estimate(args):
                 elif discounted_yield > thresholds['buy_yield']:
                     yield_rating = f"🔥 Very good yield ({thresholds['buy_yield']}-{thresholds['strong_buy_yield']}%)"
                 elif discounted_yield > thresholds['consider_yield']:
-                    yield_rating = f"✅ Good yield ({thresholds['consider_yield']}-{thresholds['buy_yield']}%)"
+                    yield_rating = f"Good yield ({thresholds['consider_yield']}-{thresholds['buy_yield']}%)"
                 else:
-                    yield_rating = f"❌ Low yield (<{thresholds['consider_yield']}%)"
+                    yield_rating = f"Low yield (<{thresholds['consider_yield']}%)"
                 
-                print(f"   Yield rating: {yield_rating}")
+                logging.info(f"   Yield rating: {yield_rating}")
                 
                 # Price comparison with discount
                 price_vs_median_discounted = ((discounted_price - median_sales) / median_sales) * 100
                 if price_vs_median_discounted < thresholds['excellent_deal_discount']:
                     price_rating = "🔥 Excellent deal (significantly below median)"
                 elif price_vs_median_discounted < thresholds['good_deal_discount']:
-                    price_rating = "✅ Very good deal (well below median)"
+                    price_rating = "Very good deal (well below median)"
                 elif price_vs_median_discounted < thresholds['fair_deal_discount']:
                     price_rating = "⚖️ Good deal (below median)"
                 else:
-                    price_rating = "⚠️ Above median price"
+                    price_rating = "Above median price"
                 
-                print(f"   Price vs median: {price_vs_median_discounted:+.1f}% ({price_rating})")
+                logging.info(f"   Price vs median: {price_vs_median_discounted:+.1f}% ({price_rating})")
                 
                 # Recommendation for this discount level
                 if discounted_yield > thresholds['strong_buy_yield'] and price_vs_median_discounted < thresholds['excellent_deal_discount']:
-                    print(f"   💡 Recommendation: 🚀 STRONG BUY with {discount}% discount")
+                    logging.info(f"   💡 Recommendation: 🚀 STRONG BUY with {discount}% discount")
                 elif discounted_yield > thresholds['buy_yield'] and price_vs_median_discounted < thresholds['good_deal_discount']:
-                    print(f"   💡 Recommendation: ✅ BUY with {discount}% discount")
+                    logging.info(f"   💡 Recommendation: BUY with {discount}% discount")
                 elif discounted_yield > thresholds['consider_yield']:
-                    print(f"   💡 Recommendation: ⚖️ CONSIDER with {discount}% discount")
+                    logging.info(f"   💡 Recommendation: ⚖️ CONSIDER with {discount}% discount")
                 else:
-                    print(f"   💡 Recommendation: ❌ PASS even with {discount}% discount")
+                    logging.info(f"   💡 Recommendation: PASS even with {discount}% discount")
                 
         else:
-            print("   ⚠️ Insufficient data for analysis")
+            logging.info("   Insufficient data for analysis")
             if not similar_rentals:
-                print("   - No similar rental data found")
+                logging.info("   - No similar rental data found")
             if not similar_sales:
-                print("   - No similar sales data found")
+                logging.info("   - No similar sales data found")
     
     finally:
         db.disconnect()

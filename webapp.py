@@ -9,7 +9,7 @@ import traceback
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import unquote
-
+import logging
 import toml
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
@@ -22,6 +22,7 @@ from scrapers.src.complex_scraper import search_complexes_by_name_deduplicated, 
     search_complex_by_name, get_all_residential_complexes
 from scrapers.src.search_scraper import scrape_and_save_search_results_with_pagination
 
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 app = Flask(__name__)
 app.secret_key = 'orthanc_capital_2024'  # For flash messages
 
@@ -50,7 +51,7 @@ def load_recommendation_thresholds(config_path: str = "config/src/config.toml") 
             'fair_deal_discount': recommendations.get('fair_deal_discount', 5.0)
         }
     except Exception as e:
-        print(f"Warning: Could not load recommendation thresholds: {e}")
+        logging.info(f"Warning: Could not load recommendation thresholds: {e}")
         # Return default values
         return {
             'strong_buy_yield': 20.0,
@@ -78,7 +79,7 @@ def load_analysis_config(config_path: str = "config/src/config.toml") -> dict:
             'default_area_tolerance': analysis.get('default_area_tolerance', 10.0)
         }
     except Exception as e:
-        print(f"Warning: Could not load analysis config: {e}")
+        logging.info(f"Warning: Could not load analysis config: {e}")
         # Return default values
         return {
             'default_area_tolerance': 10.0
@@ -94,46 +95,46 @@ def scrape_complex_data(complex_name: str, complex_id: str = None) -> bool:
     :return: bool, True if scraping was successful
     """
     try:
-        print(f"🔄 Auto-scraping data for {complex_name}...")
+        logging.info(f"Auto-scraping data for {complex_name}...")
 
         # Construct search URLs for rental and sales
         if complex_id:
             rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}"
             sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}"
-            print(f"   🔗 Using complex ID {complex_id} for targeted scraping")
+            logging.info(f"   Using complex ID {complex_id} for targeted scraping")
         else:
             # Fallback to generic search if no complex_id
             rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[live.square][to]=35"
             sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[live.square][to]=35"
-            print(f"   ⚠️ No complex ID found, using generic search")
+            logging.info(f"   No complex ID found, using generic search")
 
         # Scrape rental data with pagination (reduced limits for better reliability)
-        print(f"   📥 Scraping rental data from: {rental_url}")
+        logging.info(f"   Scraping rental data from: {rental_url}")
         try:
             rental_flats = scrape_and_save_search_results_with_pagination(rental_url, max_pages=3, max_flats=20,
                                                                           delay=1.0)
-            print(f"   ✅ Scraped {len(rental_flats)} rental flats")
+            logging.info(f"   Scraped {len(rental_flats)} rental flats")
         except Exception as rental_error:
-            print(f"   ❌ Error scraping rental data: {rental_error}")
+            logging.info(f"   Error scraping rental data: {rental_error}")
             rental_flats = []
 
         # Scrape sales data with pagination (reduced limits for better reliability)
-        print(f"   📥 Scraping sales data from: {sales_url}")
+        logging.info(f"   Scraping sales data from: {sales_url}")
         try:
             sales_flats = scrape_and_save_search_results_with_pagination(sales_url, max_pages=3, max_flats=20,
                                                                          delay=1.0)
-            print(f"   ✅ Scraped {len(sales_flats)} sales flats")
+            logging.info(f"   Scraped {len(sales_flats)} sales flats")
         except Exception as sales_error:
-            print(f"   ❌ Error scraping sales data: {sales_error}")
+            logging.info(f"   Error scraping sales data: {sales_error}")
             sales_flats = []
 
         total_scraped = len(rental_flats) + len(sales_flats)
-        print(f"✅ Successfully scraped {total_scraped} flats for {complex_name}")
+        logging.info(f"Successfully scraped {total_scraped} flats for {complex_name}")
 
         return total_scraped > 0
 
     except Exception as e:
-        print(f"❌ Error scraping data for {complex_name}: {e}")
+        logging.info(f"Error scraping data for {complex_name}: {e}")
         traceback.print_exc()
         return False
 
@@ -312,40 +313,40 @@ def analyze_jk(complex_name, db_path='flats.db'):
             bucket_overall_stats = calculate_bucket_overall_stats(bucket_analysis)
 
             # Debug logging
-            print(f"=== DEBUG: Bucket Analysis for {complex_name} ===")
-            print(f"Bucket analysis keys: {list(bucket_analysis.keys())}")
-            print(f"Total buckets: {len(bucket_analysis['bucket_analysis'])}")
-            print(f"Bucket analysis structure: {type(bucket_analysis['bucket_analysis'])}")
-            print(f"Overall stats: {bucket_overall_stats}")
+            logging.info(f"=== DEBUG: Bucket Analysis for {complex_name} ===")
+            logging.info(f"Bucket analysis keys: {list(bucket_analysis.keys())}")
+            logging.info(f"Total buckets: {len(bucket_analysis['bucket_analysis'])}")
+            logging.info(f"Bucket analysis structure: {type(bucket_analysis['bucket_analysis'])}")
+            logging.info(f"Overall stats: {bucket_overall_stats}")
             
             # Print first few buckets for debugging
             bucket_items = list(bucket_analysis['bucket_analysis'].items())
             for i, (key, bucket) in enumerate(bucket_items[:3]):
-                print(f"Bucket {i+1} ({key}):")
-                print(f"  - rental_count: {bucket.get('rental_count', 'N/A')}")
-                print(f"  - sales_count: {bucket.get('sales_count', 'N/A')}")
-                print(f"  - yield_analysis: {bucket.get('yield_analysis', 'N/A')}")
+                logging.info(f"Bucket {i+1} ({key}):")
+                logging.info(f"  - rental_count: {bucket.get('rental_count', 'N/A')}")
+                logging.info(f"  - sales_count: {bucket.get('sales_count', 'N/A')}")
+                logging.info(f"  - yield_analysis: {bucket.get('yield_analysis', 'N/A')}")
                 if bucket.get('yield_analysis'):
-                    print(f"  - rental_yield: {bucket['yield_analysis'].get('rental_yield', 'N/A')}")
-                    print(f"  - yield_min: {bucket['yield_analysis'].get('yield_min', 'N/A')}")
-                    print(f"  - yield_max: {bucket['yield_analysis'].get('yield_max', 'N/A')}")
+                    logging.info(f"  - rental_yield: {bucket['yield_analysis'].get('rental_yield', 'N/A')}")
+                    logging.info(f"  - yield_min: {bucket['yield_analysis'].get('yield_min', 'N/A')}")
+                    logging.info(f"  - yield_max: {bucket['yield_analysis'].get('yield_max', 'N/A')}")
             
             valid_buckets = [b for b in bucket_analysis['bucket_analysis'].values() if
                              b.get('rental_count', 0) > 0 and b.get('sales_count', 0) > 0]
-            print(f"Valid buckets: {len(valid_buckets)}")
+            logging.info(f"Valid buckets: {len(valid_buckets)}")
             if valid_buckets:
                 # Filter buckets that have yield analysis
                 buckets_with_yield = [b for b in valid_buckets if b.get('yield_analysis') is not None]
                 if buckets_with_yield:
                     min_yield = min([b['yield_analysis']['yield_min'] for b in buckets_with_yield])
                     max_yield = max([b['yield_analysis']['yield_max'] for b in buckets_with_yield])
-                    print(f"Yield range: {min_yield:.1f}% - {max_yield:.1f}%")
+                    logging.info(f"Yield range: {min_yield:.1f}% - {max_yield:.1f}%")
                     for i, bucket in enumerate(buckets_with_yield[:3]):  # Show first 3 buckets
-                        print(
+                        logging.info(
                             f"  Bucket {i + 1}: {bucket['rooms']}BR {bucket['area_bucket']} - Min: {bucket['yield_analysis']['yield_min']:.1f}%, Max: {bucket['yield_analysis']['yield_max']:.1f}%")
                 else:
-                    print("No buckets with yield analysis available")
-            print("=== END DEBUG ===")
+                    logging.info("No buckets with yield analysis available")
+            logging.info("=== END DEBUG ===")
 
             # Check data sufficiency and show appropriate warnings
             rental_count = len(rental_flats)
@@ -429,7 +430,7 @@ def refresh_analysis(complex_name):
         # Decode the complex name from URL
         complex_name = unquote(complex_name)
 
-        print(f"🔄 Refreshing analysis for {complex_name}")
+        logging.info(f"Refreshing analysis for {complex_name}")
 
         # Get complex information
         complex_info = search_complex_by_name(complex_name)
@@ -440,9 +441,9 @@ def refresh_analysis(complex_name):
         complex_id = complex_info.get('complex_id') if complex_info else None
 
         # Scrape fresh data for this complex
-        print(f"🔄 Scraping fresh data for {complex_name}")
+        logging.info(f"Scraping fresh data for {complex_name}")
         if scrape_complex_data(complex_name, complex_id):
-            print(f"✅ Successfully scraped fresh data for {complex_name}")
+            logging.info(f"Successfully scraped fresh data for {complex_name}")
 
             # Get analysis parameters (use same as analyze_jk)
             area_max = float(request.args.get('area_max', 1000.0))  # Match analyze_jk default
@@ -454,7 +455,7 @@ def refresh_analysis(complex_name):
             if 'error' in analysis:
                 return jsonify({'success': False, 'error': f'Analysis failed: {analysis["error"]}'}), 500
 
-            print(f"✅ Successfully refreshed analysis for {complex_name}")
+            logging.info(f"Successfully refreshed analysis for {complex_name}")
             response_data = {
                 'success': True,
                 'message': f'Successfully refreshed analysis for {complex_name}',
@@ -466,7 +467,7 @@ def refresh_analysis(complex_name):
             return jsonify({'success': False, 'error': f'Failed to scrape data for {complex_name}'}), 500
 
     except Exception as e:
-        print(f"❌ Error refreshing analysis for {complex_name}: {str(e)}")
+        logging.info(f"Error refreshing analysis for {complex_name}: {str(e)}")
         return jsonify({'success': False, 'error': f'Error refreshing analysis: {str(e)}'}), 500
 
 
@@ -515,10 +516,10 @@ def estimate_flat():
         if result:
             return result
         else:
-            flash(f'❌ Error analyzing flat {flat_id}', 'error')
+            flash(f'Error analyzing flat {flat_id}', 'error')
             return render_template('estimate_flat.html', default_area_tolerance=default_area_tolerance, flat_id=flat_id)
     except Exception as e:
-        flash(f'❌ Error analyzing flat {flat_id}: {str(e)}', 'error')
+        flash(f'Error analyzing flat {flat_id}: {str(e)}', 'error')
         return render_template('estimate_flat.html', default_area_tolerance=default_area_tolerance, flat_id=flat_id)
 
 
@@ -532,7 +533,7 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
     """
     try:
         # Get or scrape flat information
-        print(f"type={type(flat_id)} for {flat_id}")
+        logging.info(f"type={type(flat_id)} for {flat_id}")
         flat_info = get_flat_info(flat_id)
         if not flat_info:
             return None
@@ -544,7 +545,7 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
         if len(similar_rentals) < 3 or len(similar_sales) < 3:
             if flat_info.residential_complex:
                 flash(
-                    f'⚠️ Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats. Automatically fetching latest data from Krisha.kz...',
+                    f'Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats. Automatically fetching latest data from Krisha.kz...',
                     'warning')
 
                 # Try to scrape more data
@@ -552,7 +553,7 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
                 complex_id = complex_info.get('complex_id') if complex_info else None
 
                 if scrape_complex_data(flat_info.residential_complex, complex_id):
-                    flash(f"✅ Successfully scraped data for {flat_info.residential_complex}. Re-analyzing...",
+                    flash(f"Successfully scraped data for {flat_info.residential_complex}. Re-analyzing...",
                           'success')
                     # Re-query similar properties
                     similar_rentals, similar_sales = get_similar_properties(flat_info, area_tolerance)
@@ -562,12 +563,12 @@ def analyze_flat_investment(flat_id: str, area_tolerance: float):
             return calculate_and_render_investment_analysis(flat_info, similar_rentals, similar_sales, area_tolerance)
         else:
             flash(
-                f'❌ Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.',
+                f'Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.',
                 'error')
             return None
 
     except Exception as e:
-        print(f"❌ Error in analyze_flat_investment: {e}")
+        logging.info(f"Error in analyze_flat_investment: {e}")
         traceback.print_exc()
         return None
 
@@ -597,7 +598,7 @@ def get_similar_properties(flat_info: FlatInfo, area_tolerance: float, db_path='
             AND area BETWEEN {area_min} AND {area_max}
             ORDER BY flat_id, query_date DESC
         """
-        print(q)
+        logging.info(q)
         cursor = db.conn.execute(q)
 
         rental_data = {}
@@ -607,7 +608,7 @@ def get_similar_properties(flat_info: FlatInfo, area_tolerance: float, db_path='
                 rental_data[flat_id] = row[1:]
 
         similar_rentals = list(rental_data.values())
-        print(len(similar_rentals))
+        logging.info(len(similar_rentals))
 
         # Query similar sales
         cursor = db.conn.execute("""
@@ -625,7 +626,7 @@ def get_similar_properties(flat_info: FlatInfo, area_tolerance: float, db_path='
                 sales_data[flat_id] = row[1:]
 
         similar_sales = list(sales_data.values())
-        print(len(similar_sales))
+        logging.info(len(similar_sales))
 
         return similar_rentals, similar_sales
 
@@ -678,11 +679,11 @@ def calculate_and_render_investment_analysis(flat_info: FlatInfo, similar_rental
     if rental_yield > 20:
         recommendation = "🚀 STRONG BUY"
     elif rental_yield > 8 and price_vs_median < 0:
-        recommendation = "✅ BUY"
+        recommendation = "BUY"
     elif rental_yield > 5:
         recommendation = "⚖️ CONSIDER"
     else:
-        recommendation = "❌ PASS"
+        recommendation = "PASS"
 
     # Create investment analysis object
     investment_analysis = InvestmentAnalysis(
@@ -838,17 +839,17 @@ def add_to_favorites(db_path='flats.db'):
     """API endpoint to add a flat to favorites."""
     try:
         data = request.get_json()
-        print(f"🔍 API /api/favorites/add received data: {data}")
+        logging.info(f"API /api/favorites/add received data: {data}")
 
         flat_id = data.get('flat_id')
         flat_type = data.get('flat_type')  # 'rental' or 'sale'
         notes = data.get('notes', '')
         flat_data = data.get('flat_data')  # Direct flat data from frontend
 
-        print(f"🔍 Parsed values: flat_id={flat_id}, flat_type={flat_type}, flat_data={flat_data}")
+        logging.info(f"Parsed values: flat_id={flat_id}, flat_type={flat_type}, flat_data={flat_data}")
 
         if not flat_id or not flat_type:
-            print(f"❌ Error: Missing flat_id or flat_type. flat_id='{flat_id}', flat_type='{flat_type}'")
+            logging.info(f"Error: Missing flat_id or flat_type. flat_id='{flat_id}', flat_type='{flat_type}'")
             return jsonify({'success': False, 'error': 'Missing flat_id or flat_type'}), 400
 
         db = EnhancedFlatDatabase(db_path)
@@ -942,15 +943,15 @@ def check_favorite_status(db_path='flats.db'):
     """API endpoint to check if a flat is in favorites."""
     try:
         data = request.get_json()
-        print(f"🔍 API /api/favorites/check received data: {data}")
+        logging.info(f"API /api/favorites/check received data: {data}")
 
         flat_id = data.get('flat_id')
         flat_type = data.get('flat_type')
 
-        print(f"🔍 Parsed values: flat_id={flat_id}, flat_type={flat_type}")
+        logging.info(f"Parsed values: flat_id={flat_id}, flat_type={flat_type}")
 
         if not flat_id or not flat_type:
-            print(f"❌ Error: Missing flat_id or flat_type. flat_id='{flat_id}', flat_type='{flat_type}'")
+            logging.info(f"Error: Missing flat_id or flat_type. flat_id='{flat_id}', flat_type='{flat_type}'")
             return jsonify({'success': False, 'error': 'Missing flat_id or flat_type'}), 400
 
         db = EnhancedFlatDatabase(db_path)

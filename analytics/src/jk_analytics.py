@@ -8,7 +8,7 @@ including rental and sales statistics, yield analysis, and market insights.
 import statistics
 from datetime import datetime
 from typing import Dict, Optional
-
+import logging
 from db.src.enhanced_database import EnhancedFlatDatabase
 from scrapers.src.complex_scraper import search_complex_by_name
 from scrapers.src.search_scraper import scrape_and_save_search_results_with_pagination
@@ -52,23 +52,23 @@ class JKAnalytics:
             rental_count = cursor.fetchone()[0]
 
             if rental_count > 0:
-                print(f"✅ Found {rental_count} rental flats in database for {complex_name}")
+                logging.info(f"Found {rental_count} rental flats in database for {complex_name}")
                 return True
 
-            print(f"⚠️ No rental data found for {complex_name}. Fetching from Krisha...")
+            logging.info(f"No rental data found for {complex_name}. Fetching from Krisha...")
 
             # Try to find complex ID by searching for the complex name
             complex_info = search_complex_by_name(complex_name)
 
             if complex_info and complex_info.get('complex_id'):
                 complex_id = complex_info['complex_id']
-                print(f"🔍 Found complex ID: {complex_id}")
+                logging.info(f"Found complex ID: {complex_id}")
 
                 # Construct rental search URL
                 rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}"
 
                 # Fetch rental data
-                print(f"📥 Fetching rental data from: {rental_url}")
+                logging.info(f"Fetching rental data from: {rental_url}")
                 scraped_flats = scrape_and_save_search_results_with_pagination(
                     rental_url,
                     max_pages=5,
@@ -77,13 +77,13 @@ class JKAnalytics:
                 )
 
                 if scraped_flats:
-                    print(f"✅ Successfully fetched {len(scraped_flats)} rental flats for {complex_name}")
+                    logging.info(f"Successfully fetched {len(scraped_flats)} rental flats for {complex_name}")
                     return True
                 else:
-                    print(f"❌ Failed to fetch rental data for {complex_name}")
+                    logging.info(f"Failed to fetch rental data for {complex_name}")
                     return False
             else:
-                print(f"❌ Could not find complex ID for {complex_name}")
+                logging.info(f"Could not find complex ID for {complex_name}")
                 return False
 
         finally:
@@ -111,23 +111,23 @@ class JKAnalytics:
             sales_count = cursor.fetchone()[0]
 
             if sales_count > 0:
-                print(f"✅ Found {sales_count} sales flats in database for {complex_name}")
+                logging.info(f"Found {sales_count} sales flats in database for {complex_name}")
                 return True
 
-            print(f"⚠️ No sales data found for {complex_name}. Fetching from Krisha...")
+            logging.info(f"No sales data found for {complex_name}. Fetching from Krisha...")
 
             # Try to find complex ID by searching for the complex name
             complex_info = search_complex_by_name(complex_name)
 
             if complex_info and complex_info.get('complex_id'):
                 complex_id = complex_info['complex_id']
-                print(f"🔍 Found complex ID: {complex_id}")
+                logging.info(f"Found complex ID: {complex_id}")
 
                 # Construct sales search URL
                 sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}"
 
                 # Fetch sales data
-                print(f"📥 Fetching sales data from: {sales_url}")
+                logging.info(f"Fetching sales data from: {sales_url}")
                 scraped_flats = scrape_and_save_search_results_with_pagination(
                     sales_url,
                     max_pages=5,
@@ -136,13 +136,13 @@ class JKAnalytics:
                 )
 
                 if scraped_flats:
-                    print(f"✅ Successfully fetched {len(scraped_flats)} sales flats for {complex_name}")
+                    logging.info(f"Successfully fetched {len(scraped_flats)} sales flats for {complex_name}")
                     return True
                 else:
-                    print(f"❌ Failed to fetch sales data for {complex_name}")
+                    logging.info(f"Failed to fetch sales data for {complex_name}")
                     return False
             else:
-                print(f"❌ Could not find complex ID for {complex_name}")
+                logging.info(f"Could not find complex ID for {complex_name}")
                 return False
 
         finally:
@@ -474,46 +474,46 @@ class JKAnalytics:
         analysis = self.get_jk_comprehensive_analysis(complex_name, area_max, query_date)
 
         if 'error' in analysis:
-            print(f"❌ Error analyzing {complex_name}: {analysis['error']}")
+            logging.info(f"Error analyzing {complex_name}: {analysis['error']}")
             return
 
-        print(f"🏢 Analysis for {analysis['complex_name']}")
-        print(f"   Date: {analysis['query_date']}")
-        print(f"   Area limit: ≤{analysis['area_max']} m²")
-        print("=" * 60)
+        logging.info(f"🏢 Analysis for {analysis['complex_name']}")
+        logging.info(f"   Date: {analysis['query_date']}")
+        logging.info(f"   Area limit: ≤{analysis['area_max']} m²")
+        logging.info("=" * 60)
 
         # Rental statistics
         rental = analysis['rental_stats']
-        print(f"📊 Rental Statistics ({rental['count']} flats):")
-        print(f"   Price range: {rental['price_stats']['min']:,} - {rental['price_stats']['max']:,} tenge")
-        print(f"   Average price: {rental['price_stats']['avg']:,.0f} tenge")
-        print(f"   Median price: {rental['price_stats']['median']:,.0f} tenge")
-        print(f"   Area range: {rental['area_stats']['min']:.1f} - {rental['area_stats']['max']:.1f} m²")
-        print(f"   Average area: {rental['area_stats']['avg']:.1f} m²")
+        logging.info(f"Rental Statistics ({rental['count']} flats):")
+        logging.info(f"   Price range: {rental['price_stats']['min']:,} - {rental['price_stats']['max']:,} tenge")
+        logging.info(f"   Average price: {rental['price_stats']['avg']:,.0f} tenge")
+        logging.info(f"   Median price: {rental['price_stats']['median']:,.0f} tenge")
+        logging.info(f"   Area range: {rental['area_stats']['min']:.1f} - {rental['area_stats']['max']:.1f} m²")
+        logging.info(f"   Average area: {rental['area_stats']['avg']:.1f} m²")
 
         # Sales statistics
         sales = analysis['sales_stats']
-        print(f"\n💰 Sales Statistics ({sales['count']} flats):")
-        print(f"   Price range: {sales['price_stats']['min']:,} - {sales['price_stats']['max']:,} tenge")
-        print(f"   Average price: {sales['price_stats']['avg']:,.0f} tenge")
-        print(f"   Median price: {sales['price_stats']['median']:,.0f} tenge")
-        print(f"   Area range: {sales['area_stats']['min']:.1f} - {sales['area_stats']['max']:.1f} m²")
-        print(f"   Average area: {sales['area_stats']['avg']:.1f} m²")
+        logging.info(f"\n💰 Sales Statistics ({sales['count']} flats):")
+        logging.info(f"   Price range: {sales['price_stats']['min']:,} - {sales['price_stats']['max']:,} tenge")
+        logging.info(f"   Average price: {sales['price_stats']['avg']:,.0f} tenge")
+        logging.info(f"   Median price: {sales['price_stats']['median']:,.0f} tenge")
+        logging.info(f"   Area range: {sales['area_stats']['min']:.1f} - {sales['area_stats']['max']:.1f} m²")
+        logging.info(f"   Average area: {sales['area_stats']['avg']:.1f} m²")
 
         # Market insights
         insights = analysis['insights']
-        print(f"\n💡 Market Insights:")
-        print(f"   Rental price per m²: {insights['price_per_sqm']['rental']:,.0f} tenge")
-        print(f"   Sales price per m²: {insights['price_per_sqm']['sales']:,.0f} tenge")
-        print(f"   Investment potential: {insights['market_position']['investment_potential']}")
-        print(f"   Data reliability: {insights['data_quality']['reliability']}")
+        logging.info(f"\n💡 Market Insights:")
+        logging.info(f"   Rental price per m²: {insights['price_per_sqm']['rental']:,.0f} tenge")
+        logging.info(f"   Sales price per m²: {insights['price_per_sqm']['sales']:,.0f} tenge")
+        logging.info(f"   Investment potential: {insights['market_position']['investment_potential']}")
+        logging.info(f"   Data reliability: {insights['data_quality']['reliability']}")
 
         # You can also get raw data for further analysis
-        print(f"\n📋 Raw Data Example:")
+        logging.info(f"\nRaw Data Example:")
         yield_data = self.get_jk_comprehensive_analysis("Meridian", area_max=35.0)
         if 'error' not in yield_data:
-            print(f"   Rental sample size: {yield_data['insights']['data_quality']['rental_sample_size']}")
-            print(f"   Sales sample size: {yield_data['insights']['data_quality']['sales_sample_size']}")
+            logging.info(f"   Rental sample size: {yield_data['insights']['data_quality']['rental_sample_size']}")
+            logging.info(f"   Sales sample size: {yield_data['insights']['data_quality']['sales_sample_size']}")
 
     def get_bucket_analysis(self, complex_name: str, area_max: float = 100.0,
                             query_date: Optional[str] = None) -> Dict:
@@ -795,17 +795,17 @@ def main():
     analytics = JKAnalytics()
 
     # Analyze Meridian Apartments
-    print("🔍 JK Analytics Example")
-    print("=" * 60)
+    logging.info("JK Analytics Example")
+    logging.info("=" * 60)
 
     analytics.print_jk_analysis("Meridian", area_max=35.0)
 
     # You can also get raw data for further analysis
-    print(f"\n📋 Raw Data Example:")
+    logging.info(f"\nRaw Data Example:")
     yield_data = analytics.get_jk_comprehensive_analysis("Meridian", area_max=35.0)
     if 'error' not in yield_data:
-        print(f"   Rental sample size: {yield_data['insights']['data_quality']['rental_sample_size']}")
-        print(f"   Sales sample size: {yield_data['insights']['data_quality']['sales_sample_size']}")
+        logging.info(f"   Rental sample size: {yield_data['insights']['data_quality']['rental_sample_size']}")
+        logging.info(f"   Sales sample size: {yield_data['insights']['data_quality']['sales_sample_size']}")
 
 
 if __name__ == "__main__":

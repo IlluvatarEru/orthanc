@@ -5,7 +5,7 @@ This tool scrapes flat listings from search pages by extracting URLs
 and then scraping individual flat information.
 """
 from datetime import datetime
-
+import logging
 import requests
 import re
 import time
@@ -23,7 +23,7 @@ def detect_pagination_info(url: str) -> Dict:
     :param url: str, search page URL
     :return: Dict, pagination information
     """
-    print(f"🔍 Detecting pagination for: {url}")
+    logging.info(f"Detecting pagination for: {url}")
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
@@ -99,7 +99,7 @@ def detect_pagination_info(url: str) -> Dict:
         }
         
     except Exception as e:
-        print(f"❌ Error detecting pagination: {e}")
+        logging.info(f"Error detecting pagination: {e}")
         return {
             'total_results': None,
             'current_page': 1,
@@ -148,7 +148,7 @@ def extract_flat_urls_from_search_page(url: str) -> List[str]:
     :param url: str, search page URL
     :return: List[str], list of flat URLs
     """
-    print(f"🔍 Extracting flat URLs from: {url}")
+    logging.info(f"Extracting flat URLs from: {url}")
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
@@ -184,7 +184,7 @@ def extract_flat_urls_from_search_page(url: str) -> List[str]:
                     # Convert relative URL to absolute
                     flat_urls.append(urljoin('https://krisha.kz', match))
         
-        print(f"found  {len(flat_urls)} flat urls")
+        logging.info(f"found  {len(flat_urls)} flat urls")
         # Remove duplicates while preserving order
         unique_urls = []
         seen = set()
@@ -193,11 +193,11 @@ def extract_flat_urls_from_search_page(url: str) -> List[str]:
                 unique_urls.append(url)
                 seen.add(url)
         
-        print(f"✅ Found {len(unique_urls)} unique flat URLs")
+        logging.info(f"Found {len(unique_urls)} unique flat URLs")
         return unique_urls
         
     except Exception as e:
-        print(f"❌ Error extracting URLs: {e}")
+        logging.info(f"Error extracting URLs: {e}")
         return []
 
 
@@ -211,16 +211,16 @@ def scrape_search_results_with_pagination(search_url: str, max_pages: int = 5, m
     :param delay: float, delay between requests
     :return: List[FlatInfo], list of scraped flat information
     """
-    print(f"🏠 Starting paginated scraping from: {search_url}")
+    logging.info(f"Starting paginated scraping from: {search_url}")
     
     # Detect pagination information
     pagination_info = detect_pagination_info(search_url)
     
     if pagination_info['has_pagination']:
-        print(f"📄 Pagination detected:")
-        print(f"   Total results: {pagination_info['total_results']}")
-        print(f"   Max page found: {pagination_info['max_page_found']}")
-        print(f"   Estimated pages: {pagination_info['estimated_pages']}")
+        logging.info(f"Pagination detected:")
+        logging.info(f"   Total results: {pagination_info['total_results']}")
+        logging.info(f"   Max page found: {pagination_info['max_page_found']}")
+        logging.info(f"   Estimated pages: {pagination_info['estimated_pages']}")
         
         # Determine how many pages to scrape
         # Prioritize max_page_found as it's more accurate than estimated_pages
@@ -230,7 +230,7 @@ def scrape_search_results_with_pagination(search_url: str, max_pages: int = 5, m
         if pagination_info['estimated_pages'] and pagination_info['estimated_pages'] > pagination_info['max_page_found']:
             pages_to_scrape = min(pages_to_scrape, pagination_info['estimated_pages'])
         
-        print(f"📊 Will scrape {pages_to_scrape} pages")
+        logging.info(f"Will scrape {pages_to_scrape} pages")
         
         # Generate page URLs
         page_urls = generate_page_urls(search_url, pages_to_scrape)
@@ -239,13 +239,13 @@ def scrape_search_results_with_pagination(search_url: str, max_pages: int = 5, m
         
         # Extract URLs from each page
         for i, page_url in enumerate(page_urls, 1):
-            print(f"\n📄 Scraping page {i}/{len(page_urls)}: {page_url}")
+            logging.info(f"\nScraping page {i}/{len(page_urls)}: {page_url}")
             
             page_urls = extract_flat_urls_from_search_page(page_url)
             all_flat_urls.extend(page_urls)
             
-            print(f"   Found {len(page_urls)} flats on this page")
-            print(f"   Total flats so far: {len(all_flat_urls)}")
+            logging.info(f"   Found {len(page_urls)} flats on this page")
+            logging.info(f"   Total flats so far: {len(all_flat_urls)}")
             
             # Add delay between pages
             if i < len(page_urls):
@@ -259,43 +259,43 @@ def scrape_search_results_with_pagination(search_url: str, max_pages: int = 5, m
                 unique_urls.append(url)
                 seen.add(url)
         
-        print(f"\n✅ Total unique flats found across {len(page_urls)} pages: {len(unique_urls)}")
+        logging.info(f"\nTotal unique flats found across {len(page_urls)} pages: {len(unique_urls)}")
         
     else:
-        print("📄 No pagination detected, scraping single page")
+        logging.info("No pagination detected, scraping single page")
         unique_urls = extract_flat_urls_from_search_page(search_url)
     
     if not unique_urls:
-        print("❌ No flat URLs found")
+        logging.info("No flat URLs found")
         return []
     
     # No limit on flats - scrape all available
-    print(f"📊 Scraping all {len(unique_urls)} available flats")
+    logging.info(f"Scraping all {len(unique_urls)} available flats")
     
-    print(f"\n🏠 Starting to scrape {len(unique_urls)} flats...")
+    logging.info(f"\nStarting to scrape {len(unique_urls)} flats...")
     
     scraped_flats = []
     
     for i, url in enumerate(unique_urls, 1):
-        print(f"\n[{i}/{len(unique_urls)}] Scraping: {url}")
+        logging.info(f"\n[{i}/{len(unique_urls)}] Scraping: {url}")
         
         try:
             flat_info = scrape_flat_info(url)
             scraped_flats.append(flat_info)
             
-            print(f"✅ Successfully scraped flat {flat_info.flat_id}")
-            print(f"   Price: {flat_info.price:,} tenge")
-            print(f"   Area: {flat_info.area} m²")
-            print(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
+            logging.info(f"Successfully scraped flat {flat_info.flat_id}")
+            logging.info(f"   Price: {flat_info.price:,} tenge")
+            logging.info(f"   Area: {flat_info.area} m²")
+            logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
             
         except Exception as e:
-            print(f"❌ Error scraping {url}: {e}")
+            logging.info(f"Error scraping {url}: {e}")
         
         # Add delay between requests
         if i < len(unique_urls):
             time.sleep(delay)
     
-    print(f"\n✅ Completed! Successfully scraped {len(scraped_flats)}/{len(unique_urls)} flats")
+    logging.info(f"\nCompleted! Successfully scraped {len(scraped_flats)}/{len(unique_urls)} flats")
     return scraped_flats
 
 
@@ -312,36 +312,36 @@ def scrape_search_results(search_url: str, max_flats: Optional[int] = None, dela
     flat_urls = extract_flat_urls_from_search_page(search_url)
     
     if not flat_urls:
-        print("❌ No flat URLs found")
+        logging.info("No flat URLs found")
         return []
     
     # No limit on flats - scrape all available
-    print(f"📊 Scraping all {len(flat_urls)} available flats")
+    logging.info(f"Scraping all {len(flat_urls)} available flats")
     
-    print(f"\n🏠 Starting to scrape {len(flat_urls)} flats...")
+    logging.info(f"\nStarting to scrape {len(flat_urls)} flats...")
     
     scraped_flats = []
     
     for i, url in enumerate(flat_urls, 1):
-        print(f"\n[{i}/{len(flat_urls)}] Scraping: {url}")
+        logging.info(f"\n[{i}/{len(flat_urls)}] Scraping: {url}")
         
         try:
             flat_info = scrape_flat_info(url)
             scraped_flats.append(flat_info)
             
-            print(f"✅ Successfully scraped flat {flat_info.flat_id}")
-            print(f"   Price: {flat_info.price:,} tenge")
-            print(f"   Area: {flat_info.area} m²")
-            print(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
+            logging.info(f"Successfully scraped flat {flat_info.flat_id}")
+            logging.info(f"   Price: {flat_info.price:,} tenge")
+            logging.info(f"   Area: {flat_info.area} m²")
+            logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
             
         except Exception as e:
-            print(f"❌ Error scraping {url}: {e}")
+            logging.info(f"Error scraping {url}: {e}")
         
         # Add delay between requests
         if i < len(flat_urls):
             time.sleep(delay)
     
-    print(f"\n✅ Completed! Successfully scraped {len(scraped_flats)}/{len(flat_urls)} flats")
+    logging.info(f"\nCompleted! Successfully scraped {len(scraped_flats)}/{len(flat_urls)} flats")
     return scraped_flats
 
 
@@ -358,16 +358,16 @@ def scrape_and_save_search_results_with_pagination(search_url: str, db_path: str
     :return: List[FlatInfo], list of scraped flat information
     """
 
-    print(f"🏠 Starting paginated scraping and saving from: {search_url}")
+    logging.info(f"Starting paginated scraping and saving from: {search_url}")
     
     # Detect pagination information
     pagination_info = detect_pagination_info(search_url)
     
     if pagination_info['has_pagination']:
-        print(f"📄 Pagination detected:")
-        print(f"   Total results: {pagination_info['total_results']}")
-        print(f"   Max page found: {pagination_info['max_page_found']}")
-        print(f"   Estimated pages: {pagination_info['estimated_pages']}")
+        logging.info(f"Pagination detected:")
+        logging.info(f"   Total results: {pagination_info['total_results']}")
+        logging.info(f"   Max page found: {pagination_info['max_page_found']}")
+        logging.info(f"   Estimated pages: {pagination_info['estimated_pages']}")
         
         # Determine how many pages to scrape
         # Prioritize max_page_found as it's more accurate than estimated_pages
@@ -377,7 +377,7 @@ def scrape_and_save_search_results_with_pagination(search_url: str, db_path: str
         if pagination_info['estimated_pages'] and pagination_info['estimated_pages'] > pagination_info['max_page_found']:
             pages_to_scrape = min(pages_to_scrape, pagination_info['estimated_pages'])
         
-        print(f"📊 Will scrape {pages_to_scrape} pages")
+        logging.info(f"Will scrape {pages_to_scrape} pages")
         
         # Generate page URLs
         page_urls = generate_page_urls(search_url, pages_to_scrape)
@@ -386,13 +386,13 @@ def scrape_and_save_search_results_with_pagination(search_url: str, db_path: str
         
         # Extract URLs from each page
         for i, page_url in enumerate(page_urls, 1):
-            print(f"\n📄 Scraping page {i}/{len(page_urls)}: {page_url}")
+            logging.info(f"\nScraping page {i}/{len(page_urls)}: {page_url}")
             
             page_urls = extract_flat_urls_from_search_page(page_url)
             all_flat_urls.extend(page_urls)
             
-            print(f"   Found {len(page_urls)} flats on this page")
-            print(f"   Total flats so far: {len(all_flat_urls)}")
+            logging.info(f"   Found {len(page_urls)} flats on this page")
+            logging.info(f"   Total flats so far: {len(all_flat_urls)}")
             
             # Add delay between pages
             if i < len(page_urls):
@@ -406,26 +406,26 @@ def scrape_and_save_search_results_with_pagination(search_url: str, db_path: str
                 unique_urls.append(url)
                 seen.add(url)
         
-        print(f"\n✅ Total unique flats found across {len(page_urls)} pages: {len(unique_urls)}")
+        logging.info(f"\nTotal unique flats found across {len(page_urls)} pages: {len(unique_urls)}")
         
     else:
-        print("📄 No pagination detected, scraping single page")
+        logging.info("No pagination detected, scraping single page")
         unique_urls = extract_flat_urls_from_search_page(search_url)
     
     if not unique_urls:
-        print("❌ No flat URLs found")
+        logging.info("No flat URLs found")
         return []
     
     # No limit on flats - scrape all available
-    print(f"📊 Scraping all {len(unique_urls)} available flats")
+    logging.info(f"Scraping all {len(unique_urls)} available flats")
     
-    print(f"\n�� Starting to scrape and save {len(unique_urls)} flats...")
+    logging.info(f"\nStarting to scrape and save {len(unique_urls)} flats...")
     
     scraped_flats = []
     query_date = datetime.now().strftime('%Y-%m-%d')
     
     for i, url in enumerate(unique_urls, 1):
-        print(f"\n[{i}/{len(unique_urls)}] Scraping: {url}")
+        logging.info(f"\n[{i}/{len(unique_urls)}] Scraping: {url}")
         
         try:
             flat_info = scrape_flat_info(url)
@@ -433,30 +433,30 @@ def scrape_and_save_search_results_with_pagination(search_url: str, db_path: str
             # Determine if it's rental or sale based on the original search URL
             if 'arenda' in search_url.lower():
                 success = save_rental_flat_to_db(flat_info, url, query_date, db_path)
-                print(f"success={success}")
+                logging.info(f"success={success}")
                 flat_type = "rental"
             else:
                 success = save_sales_flat_to_db(flat_info, url, query_date, db_path)
-                print(f"success={success}")
+                logging.info(f"success={success}")
                 flat_type = "sale"
             
             if success:
                 scraped_flats.append(flat_info)
-                print(f"✅ Successfully scraped and saved {flat_type} flat {flat_info.flat_id}")
-                print(f"   Price: {flat_info.price:,} tenge")
-                print(f"   Area: {flat_info.area} m²")
-                print(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
+                logging.info(f"Successfully scraped and saved {flat_type} flat {flat_info.flat_id}")
+                logging.info(f"   Price: {flat_info.price:,} tenge")
+                logging.info(f"   Area: {flat_info.area} m²")
+                logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
             else:
-                print(f"⚠️ Failed to save flat {flat_info.flat_id}")
+                logging.info(f"Failed to save flat {flat_info.flat_id}")
             
         except Exception as e:
-            print(f"❌ Error scraping {url}: {e}")
+            logging.info(f"Error scraping {url}: {e}")
         
         # Add delay between requests
         if i < len(unique_urls):
             time.sleep(delay)
     
-    print(f"\n✅ Completed! Successfully scraped and saved {len(scraped_flats)}/{len(unique_urls)} flats")
+    logging.info(f"\nCompleted! Successfully scraped and saved {len(scraped_flats)}/{len(unique_urls)} flats")
     return scraped_flats
 
 
@@ -475,19 +475,19 @@ def scrape_and_save_search_results(search_url: str, db_path: str = "flats.db",
     flat_urls = extract_flat_urls_from_search_page(search_url)
     
     if not flat_urls:
-        print("❌ No flat URLs found")
+        logging.info("No flat URLs found")
         return []
     
     # No limit on flats - scrape all available
-    print(f"📊 Scraping all {len(flat_urls)} available flats")
+    logging.info(f"Scraping all {len(flat_urls)} available flats")
     
-    print(f"\n�� Starting to scrape and save {len(flat_urls)} flats...")
+    logging.info(f"\nStarting to scrape and save {len(flat_urls)} flats...")
     
     scraped_flats = []
     query_date = datetime.now().strftime('%Y-%m-%d')
     
     for i, url in enumerate(flat_urls, 1):
-        print(f"\n[{i}/{len(flat_urls)}] Scraping: {url}")
+        logging.info(f"\n[{i}/{len(flat_urls)}] Scraping: {url}")
         
         try:
             flat_info = scrape_flat_info(url)
@@ -502,21 +502,21 @@ def scrape_and_save_search_results(search_url: str, db_path: str = "flats.db",
             
             if success:
                 scraped_flats.append(flat_info)
-                print(f"✅ Successfully scraped and saved {flat_type} flat {flat_info.flat_id}")
-                print(f"   Price: {flat_info.price:,} tenge")
-                print(f"   Area: {flat_info.area} m²")
-                print(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
+                logging.info(f"Successfully scraped and saved {flat_type} flat {flat_info.flat_id}")
+                logging.info(f"   Price: {flat_info.price:,} tenge")
+                logging.info(f"   Area: {flat_info.area} m²")
+                logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
             else:
-                print(f"⚠️ Failed to save flat {flat_info.flat_id}")
+                logging.info(f"Failed to save flat {flat_info.flat_id}")
             
         except Exception as e:
-            print(f"❌ Error scraping {url}: {e}")
+            logging.info(f"Error scraping {url}: {e}")
         
         # Add delay between requests
         if i < len(flat_urls):
             time.sleep(delay)
     
-    print(f"\n✅ Completed! Successfully scraped and saved {len(scraped_flats)}/{len(flat_urls)} flats")
+    logging.info(f"\nCompleted! Successfully scraped and saved {len(scraped_flats)}/{len(flat_urls)} flats")
     return scraped_flats
 
 
@@ -527,7 +527,7 @@ def analyze_search_page(search_url: str) -> Dict:
     :param search_url: str, search page URL
     :return: Dict, analysis results
     """
-    print(f"🔍 Analyzing search page: {search_url}")
+    logging.info(f"Analyzing search page: {search_url}")
     
     headers = {
         'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
@@ -557,7 +557,7 @@ def analyze_search_page(search_url: str) -> Dict:
         }
         
     except Exception as e:
-        print(f"❌ Error analyzing page: {e}")
+        logging.info(f"Error analyzing page: {e}")
         return {'error': str(e)}
 
 
@@ -568,30 +568,30 @@ def main():
     # Test search URL
     search_url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1&das[live.square][to]=35&das[map.complex]=2758"
     
-    print("🏠 Krisha.kz Search Scraper with Pagination")
-    print("=" * 50)
+    logging.info("Krisha.kz Search Scraper with Pagination")
+    logging.info("=" * 50)
     
     # Analyze the search page
     analysis = analyze_search_page(search_url)
     
     if 'error' in analysis:
-        print(f"❌ Analysis failed: {analysis['error']}")
+        logging.info(f"Analysis failed: {analysis['error']}")
         return
     
-    print(f"\n📊 Search Page Analysis:")
-    print(f"Total flats found: {analysis['total_flats_found']}")
-    print(f"Pagination info: {analysis['pagination_info']}")
-    print(f"HTML length: {analysis['html_length']:,} characters")
+    logging.info(f"\nSearch Page Analysis:")
+    logging.info(f"Total flats found: {analysis['total_flats_found']}")
+    logging.info(f"Pagination info: {analysis['pagination_info']}")
+    logging.info(f"HTML length: {analysis['html_length']:,} characters")
     
     if analysis['flat_urls']:
-        print(f"\n🔗 Sample flat URLs:")
+        logging.info(f"\nSample flat URLs:")
         for i, url in enumerate(analysis['flat_urls'], 1):
-            print(f"   {i}. {url}")
+            logging.info(f"   {i}. {url}")
     
     # Ask user if they want to scrape
-    print(f"\n💡 To scrape all flats from this search with pagination:")
-    print(f"   python search_scraper.py scrape-paginated '{search_url}'")
-    print(f"   python search_scraper.py scrape-save-paginated '{search_url}'")
+    logging.info(f"\n💡 To scrape all flats from this search with pagination:")
+    logging.info(f"   python search_scraper.py scrape-paginated '{search_url}'")
+    logging.info(f"   python search_scraper.py scrape-save-paginated '{search_url}'")
 
 
 if __name__ == "__main__":
