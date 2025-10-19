@@ -1,0 +1,942 @@
+"""
+Write and read operations for Krisha.kz database.
+
+This module provides functionality to store and retrieve flat data
+with historical tracking and residential complex mapping.
+"""
+
+import sqlite3
+from typing import Optional, List, Dict
+import logging
+from common.src.flat_info import FlatInfo
+from .table_creation import DatabaseSchema
+
+
+class FlatDatabase:
+    """
+    Database manager for storing and retrieving flat information.
+    
+    Provides methods to insert, update, query, and manage flat data
+    with separate tables for rentals and sales.
+    """
+    
+    def __init__(self, db_path: str = "flats.db"):
+        """
+        Initialize database connection.
+        
+        :param db_path: str, path to SQLite database file
+        """
+        self.db_path = db_path
+        self.conn = None
+        # Initialize database schema
+        schema = DatabaseSchema(db_path)
+        schema.initialize_database()
+    
+    def connect(self):
+        """
+        Establish database connection.
+        """
+        if self.conn is None:
+            self.conn = sqlite3.connect(self.db_path)
+            self.conn.row_factory = sqlite3.Row  # Enable dict-like access
+    
+    def disconnect(self):
+        """
+        Close database connection.
+        """
+        if self.conn:
+            self.conn.close()
+            self.conn = None
+    
+    # Rental flats operations
+    def insert_rental_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
+        """
+        Insert rental flat information into database.
+        
+        :param flat_info: FlatInfo, flat information to store
+        :param url: str, original URL of the flat
+        :param query_date: str, date when the query was made (YYYY-MM-DD)
+        :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+') - optional, uses flat_info.flat_type if not provided
+        :return: bool, True if successful
+        """
+        self.connect()
+        logging.info(f"Inserting rental flat:{flat_info}")
+        
+        # Use flat_type from parameter or from flat_info object
+        actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
+        
+        # try:
+        self.conn.execute("""
+            INSERT INTO rental_flats (
+                flat_id, price, area, flat_type, residential_complex, floor, total_floors,
+                construction_year, parking, description, url, query_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            flat_info.flat_id,
+            flat_info.price,
+            flat_info.area,
+            actual_flat_type,
+            flat_info.residential_complex,
+            flat_info.floor,
+            flat_info.total_floors,
+            flat_info.construction_year,
+            flat_info.parking,
+            flat_info.description,
+            url,
+            query_date
+        ))
+
+        self.conn.commit()
+        return True
+
+        # except sqlite3.IntegrityError as e:
+        #     logging.exception(e)
+        #     # Flat already exists for this query date, update instead
+        #     return self.update_rental_flat(flat_info, url, query_date, flat_type)
+        #
+        # finally:
+        #     self.disconnect()
+    
+    def insert_sales_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
+        """
+        Insert sales flat information into database.
+        
+        :param flat_info: FlatInfo, flat information to store
+        :param url: str, original URL of the flat
+        :param query_date: str, date when the query was made (YYYY-MM-DD)
+        :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+') - optional, uses flat_info.flat_type if not provided
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Use flat_type from parameter or from flat_info object
+        actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
+        
+        self.conn.execute("""
+            INSERT INTO sales_flats (
+                flat_id, price, area, flat_type, residential_complex, floor, total_floors,
+                construction_year, parking, description, url, query_date
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            flat_info.flat_id,
+            flat_info.price,
+            flat_info.area,
+            actual_flat_type,
+            flat_info.residential_complex,
+            flat_info.floor,
+            flat_info.total_floors,
+            flat_info.construction_year,
+            flat_info.parking,
+            flat_info.description,
+            url,
+            query_date
+        ))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    def update_rental_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
+        """
+        Update existing rental flat information.
+        
+        :param flat_info: FlatInfo, updated flat information
+        :param url: str, original URL of the flat
+        :param query_date: str, date when the query was made (YYYY-MM-DD)
+        :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+') - optional, uses flat_info.flat_type if not provided
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Use flat_type from parameter or from flat_info object
+        actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
+        
+        self.conn.execute("""
+            UPDATE rental_flats SET
+                price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
+                total_floors = ?, construction_year = ?, parking = ?,
+                description = ?, url = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE flat_id = ? AND query_date = ?
+        """, (
+            flat_info.price,
+            flat_info.area,
+            actual_flat_type,
+            flat_info.residential_complex,
+            flat_info.floor,
+            flat_info.total_floors,
+            flat_info.construction_year,
+            flat_info.parking,
+            flat_info.description,
+            url,
+            flat_info.flat_id,
+            query_date
+        ))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    def update_sales_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
+        """
+        Update existing sales flat information.
+        
+        :param flat_info: FlatInfo, updated flat information
+        :param url: str, original URL of the flat
+        :param query_date: str, date when the query was made (YYYY-MM-DD)
+        :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+') - optional, uses flat_info.flat_type if not provided
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Use flat_type from parameter or from flat_info object
+        actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
+        
+        self.conn.execute("""
+            UPDATE sales_flats SET
+                price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
+                total_floors = ?, construction_year = ?, parking = ?,
+                description = ?, url = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE flat_id = ? AND query_date = ?
+        """, (
+            flat_info.price,
+            flat_info.area,
+            actual_flat_type,
+            flat_info.residential_complex,
+            flat_info.floor,
+            flat_info.total_floors,
+            flat_info.construction_year,
+            flat_info.parking,
+            flat_info.description,
+            url,
+            flat_info.flat_id,
+            query_date
+        ))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    # Query operations
+    def get_rental_flats_by_date(self, query_date: str, limit: Optional[int] = None) -> List[dict]:
+        """
+        Retrieve rental flats for a specific query date.
+        
+        :param query_date: str, query date (YYYY-MM-DD)
+        :param limit: Optional[int], maximum number of records to return
+        :return: List[dict], list of rental flat information
+        """
+        self.connect()
+        
+        query = "SELECT * FROM rental_flats WHERE query_date = ? ORDER BY scraped_at DESC"
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        cursor = self.conn.execute(query, (query_date,))
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+    
+    def get_sales_flats_by_date(self, query_date: str, limit: Optional[int] = None) -> List[dict]:
+        """
+        Retrieve sales flats for a specific query date.
+        
+        :param query_date: str, query date (YYYY-MM-DD)
+        :param limit: Optional[int], maximum number of records to return
+        :return: List[dict], list of sales flat information
+        """
+        self.connect()
+        
+        query = "SELECT * FROM sales_flats WHERE query_date = ? ORDER BY scraped_at DESC"
+        if limit:
+            query += f" LIMIT {limit}"
+        
+        cursor = self.conn.execute(query, (query_date,))
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+    
+    def get_historical_statistics(self, start_date: str, end_date: str, jk: Optional[str] = None) -> Dict:
+        """
+        Get historical statistics for a date range.
+        
+        :param start_date: str, start date (YYYY-MM-DD)
+        :param end_date: str, end date (YYYY-MM-DD)
+        :param jk: Optional[str], residential complex name to filter by
+        :return: Dict, historical statistics
+        """
+        self.connect()
+        
+        # Build WHERE clause for JK filtering
+        jk_condition = ""
+        if jk:
+            jk_condition = " AND residential_complex = ?"
+        
+        # Rental statistics
+        cursor = self.conn.execute(f"""
+            SELECT 
+                COUNT(*) as total_rentals,
+                MIN(price) as min_rental_price,
+                MAX(price) as max_rental_price,
+                AVG(price) as avg_rental_price,
+                MIN(area) as min_rental_area,
+                MAX(area) as max_rental_area,
+                AVG(area) as avg_rental_area
+            FROM rental_flats 
+            WHERE query_date BETWEEN ? AND ?{jk_condition}
+        """, (start_date, end_date) + ((jk,) if jk else ()))
+        rental_stats = dict(cursor.fetchone())
+        
+        # Sales statistics
+        cursor = self.conn.execute(f"""
+            SELECT 
+                COUNT(*) as total_sales,
+                MIN(price) as min_sales_price,
+                MAX(price) as max_sales_price,
+                AVG(price) as avg_sales_price,
+                MIN(area) as min_sales_area,
+                MAX(area) as max_sales_area,
+                AVG(area) as avg_sales_area
+            FROM sales_flats 
+            WHERE query_date BETWEEN ? AND ?{jk_condition}
+        """, (start_date, end_date) + ((jk,) if jk else ()))
+        sales_stats = dict(cursor.fetchone())
+        
+        # Daily counts
+        cursor = self.conn.execute(f"""
+            SELECT query_date, COUNT(*) as count
+            FROM rental_flats 
+            WHERE query_date BETWEEN ? AND ?{jk_condition}
+            GROUP BY query_date
+            ORDER BY query_date
+        """, (start_date, end_date) + ((jk,) if jk else ()))
+        rental_daily = [dict(row) for row in cursor.fetchall()]
+        
+        cursor = self.conn.execute(f"""
+            SELECT query_date, COUNT(*) as count
+            FROM sales_flats 
+            WHERE query_date BETWEEN ? AND ?{jk_condition}
+            GROUP BY query_date
+            ORDER BY query_date
+        """, (start_date, end_date) + ((jk,) if jk else ()))
+        sales_daily = [dict(row) for row in cursor.fetchall()]
+        
+        result = {
+            'rental_stats': rental_stats,
+            'sales_stats': sales_stats,
+            'rental_daily': rental_daily,
+            'sales_daily': sales_daily,
+            'date_range': {'start': start_date, 'end': end_date}
+        }
+        
+        # Add JK filter info if specified
+        if jk:
+            result['residential_complex'] = jk
+        
+        self.disconnect()
+        return result
+    
+    # Residential complexes operations
+    def insert_residential_complex(self, complex_id: str, name: str, city: str = None, district: str = None) -> bool:
+        """
+        Insert residential complex information.
+        
+        :param complex_id: str, complex ID from Krisha.kz
+        :param name: str, complex name
+        :param city: str, city name
+        :param district: str, district name
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        self.conn.execute("""
+            INSERT OR REPLACE INTO residential_complexes (complex_id, name, city, district)
+            VALUES (?, ?, ?, ?)
+        """, (complex_id, name, city, district))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    def get_residential_complex_by_id(self, complex_id: str) -> Optional[dict]:
+        """
+        Get residential complex by ID.
+        
+        :param complex_id: str, complex ID
+        :return: Optional[dict], complex information
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT * FROM residential_complexes WHERE complex_id = ?
+        """, (complex_id,))
+        
+        row = cursor.fetchone()
+        result = dict(row) if row else None
+        self.disconnect()
+        return result
+    
+    def get_all_residential_complexes(self) -> List[dict]:
+        """
+        Get all residential complexes.
+        
+        :return: List[dict], list of all complexes
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT * FROM residential_complexes ORDER BY name
+        """)
+        
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+    
+    def get_flats_by_complex(self, complex_name: str, flat_type: str = 'both') -> List[dict]:
+        """
+        Get all flats for a specific residential complex.
+        
+        :param complex_name: str, name of the residential complex
+        :param flat_type: str, 'rental', 'sales', or 'both'
+        :return: List[dict], list of flats for the complex
+        """
+        self.connect()
+        flats = []
+        
+        if flat_type in ['rental', 'both']:
+            cursor = self.conn.execute("""
+                SELECT DISTINCT flat_id, price, area, residential_complex, floor, 
+                       total_floors, construction_year, parking, description, url, 
+                       query_date, scraped_at
+                FROM rental_flats 
+                WHERE residential_complex LIKE ?
+                ORDER BY flat_id, query_date DESC
+            """, (f'%{complex_name}%',))
+            
+            rental_data = {}
+            for row in cursor.fetchall():
+                flat_id = row[0]
+                if flat_id not in rental_data:
+                    rental_data[flat_id] = {
+                        'flat_id': row[0],
+                        'price': row[1],
+                        'area': row[2],
+                        'residential_complex': row[3],
+                        'floor': row[4],
+                        'total_floors': row[5],
+                        'construction_year': row[6],
+                        'parking': row[7],
+                        'description': row[8],
+                        'url': row[9],
+                        'query_date': row[10],
+                        'scraped_at': row[11],
+                        'type': 'rental'
+                    }
+            
+            flats.extend(list(rental_data.values()))
+        
+        if flat_type in ['sales', 'both']:
+            cursor = self.conn.execute("""
+                SELECT DISTINCT flat_id, price, area, residential_complex, floor, 
+                       total_floors, construction_year, parking, description, url, 
+                       query_date, scraped_at
+                FROM sales_flats 
+                WHERE residential_complex LIKE ?
+                ORDER BY flat_id, query_date DESC
+            """, (f'%{complex_name}%',))
+            
+            sales_data = {}
+            for row in cursor.fetchall():
+                flat_id = row[0]
+                if flat_id not in sales_data:
+                    sales_data[flat_id] = {
+                        'flat_id': row[0],
+                        'price': row[1],
+                        'area': row[2],
+                        'residential_complex': row[3],
+                        'floor': row[4],
+                        'total_floors': row[5],
+                        'construction_year': row[6],
+                        'parking': row[7],
+                        'description': row[8],
+                        'url': row[9],
+                        'query_date': row[10],
+                        'scraped_at': row[11],
+                        'type': 'sales'
+                    }
+            
+            flats.extend(list(sales_data.values()))
+        
+        # Sort by price (rentals first, then sales)
+        flats.sort(key=lambda x: (x['type'] == 'sales', x['price']))
+        
+        return flats
+    
+    # Favorites operations
+    def add_to_favorites(self, flat_id: str, flat_type: str, notes: str = None) -> bool:
+        """
+        Add a flat to favorites (minimal design - just store ID and type).
+        
+        :param flat_id: str, flat ID to add to favorites
+        :param flat_type: str, 'rental' or 'sale'
+        :param notes: str, optional notes about the flat
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        self.conn.execute("""
+            INSERT OR REPLACE INTO favorites (flat_id, flat_type, notes)
+            VALUES (?, ?, ?)
+        """, (flat_id, flat_type, notes))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    def remove_from_favorites(self, flat_id: str, flat_type: str) -> bool:
+        """
+        Remove a flat from favorites.
+        
+        :param flat_id: str, flat ID
+        :param flat_type: str, 'rental' or 'sale'
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        self.conn.execute("""
+            DELETE FROM favorites 
+            WHERE flat_id = ? AND flat_type = ?
+        """, (flat_id, flat_type))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    def get_favorites(self) -> List[dict]:
+        """
+        Get all favorites with current flat data using JOINs.
+        
+        :return: List[dict], list of favorite flats with current data
+        """
+        self.connect()
+        
+        # Get rental favorites with current data
+        rental_favorites = self.conn.execute("""
+            SELECT 
+                f.flat_id, f.flat_type, f.added_at, f.notes,
+                rf.price, rf.area, rf.residential_complex, rf.floor,
+                rf.total_floors, rf.construction_year, rf.parking,
+                rf.description, rf.url, rf.scraped_at
+            FROM favorites f
+            JOIN rental_flats rf ON f.flat_id = rf.flat_id
+            WHERE f.flat_type = 'rental'
+            ORDER BY f.added_at DESC
+        """).fetchall()
+        
+        # Get sales favorites with current data
+        sales_favorites = self.conn.execute("""
+            SELECT 
+                f.flat_id, f.flat_type, f.added_at, f.notes,
+                sf.price, sf.area, sf.residential_complex, sf.floor,
+                sf.total_floors, sf.construction_year, sf.parking,
+                sf.description, sf.url, sf.scraped_at
+            FROM favorites f
+            JOIN sales_flats sf ON f.flat_id = sf.flat_id
+            WHERE f.flat_type = 'sale'
+            ORDER BY f.added_at DESC
+        """).fetchall()
+        
+        # Combine and format results
+        all_favorites = []
+        for row in rental_favorites + sales_favorites:
+            all_favorites.append({
+                'flat_id': row[0],
+                'flat_type': row[1],
+                'added_at': row[2],
+                'notes': row[3],
+                'price': row[4],
+                'area': row[5],
+                'residential_complex': row[6],
+                'floor': row[7],
+                'total_floors': row[8],
+                'construction_year': row[9],
+                'parking': row[10],
+                'description': row[11],
+                'url': row[12],
+                'scraped_at': row[13]
+            })
+        
+        # Sort by added_at descending
+        all_favorites.sort(key=lambda x: x['added_at'], reverse=True)
+        
+        self.disconnect()
+        return all_favorites
+    
+    def is_favorite(self, flat_id: str, flat_type: str) -> bool:
+        """
+        Check if a flat is in favorites.
+        
+        :param flat_id: str, flat ID
+        :param flat_type: str, 'rental' or 'sale'
+        :return: bool, True if flat is in favorites
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT 1 FROM favorites 
+            WHERE flat_id = ? AND flat_type = ?
+        """, (flat_id, flat_type))
+        
+        result = cursor.fetchone() is not None
+        self.disconnect()
+        return result
+    
+    # Utility operations
+    def get_flat_count(self, flat_type: str) -> int:
+        """
+        Get count of flats by type.
+        
+        :param flat_type: str, 'rental' or 'sales'
+        :return: int, count of flats
+        """
+        self.connect()
+        
+        if flat_type == 'rental':
+            cursor = self.conn.execute("SELECT COUNT(DISTINCT flat_id) FROM rental_flats")
+        elif flat_type == 'sales':
+            cursor = self.conn.execute("SELECT COUNT(DISTINCT flat_id) FROM sales_flats")
+        else:
+            self.disconnect()
+            return 0
+        
+        result = cursor.fetchone()
+        count = result[0] if result else 0
+        self.disconnect()
+        return count
+    
+    def get_complex_count(self) -> int:
+        """
+        Get count of residential complexes.
+        
+        :return: int, count of complexes
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("SELECT COUNT(*) FROM residential_complexes")
+        result = cursor.fetchone()
+        count = result[0] if result else 0
+        self.disconnect()
+        return count
+    
+    def move_flat_to_correct_table(self, flat_id: str, correct_type: str) -> bool:
+        """
+        Move a flat from one table to another if it was incorrectly classified.
+        
+        :param flat_id: str, flat ID to move
+        :param correct_type: str, 'rental' or 'sales'
+        :return: bool, True if successful
+        """
+        self.connect()
+            
+        # Get flat data from the wrong table
+        if correct_type == 'rental':
+            # Move from sales to rental
+            cursor = self.conn.execute("""
+                SELECT flat_id, price, area, residential_complex, floor, total_floors,
+                       construction_year, parking, description, url, query_date
+                FROM sales_flats 
+                WHERE flat_id = ?
+            """, (flat_id,))
+        else:
+            # Move from rental to sales
+            cursor = self.conn.execute("""
+                SELECT flat_id, price, area, residential_complex, floor, total_floors,
+                       construction_year, parking, description, url, query_date
+                FROM rental_flats 
+                WHERE flat_id = ?
+            """, (flat_id,))
+
+        flat_data = cursor.fetchone()
+        if not flat_data:
+            logging.info(f"Flat {flat_id} not found in source table")
+            return False
+
+        # Insert into correct table
+        if correct_type == 'rental':
+            success = self.insert_rental_flat(
+                FlatInfo(
+                    flat_id=flat_data[0],
+                    price=flat_data[1],
+                    area=flat_data[2],
+                    residential_complex=flat_data[3],
+                    floor=flat_data[4],
+                    total_floors=flat_data[5],
+                    construction_year=flat_data[6],
+                    parking=flat_data[7],
+                    description=flat_data[8],
+                    is_rental=True
+                ),
+                flat_data[9],  # url
+                flat_data[10]  # query_date
+            )
+            if success:
+                # Delete from sales table
+                self.conn.execute("DELETE FROM sales_flats WHERE flat_id = ?", (flat_id,))
+        else:
+            success = self.insert_sales_flat(
+                FlatInfo(
+                    flat_id=flat_data[0],
+                    price=flat_data[1],
+                    area=flat_data[2],
+                    residential_complex=flat_data[3],
+                    floor=flat_data[4],
+                    total_floors=flat_data[5],
+                    construction_year=flat_data[6],
+                    parking=flat_data[7],
+                    description=flat_data[8],
+                    is_rental=False
+                ),
+                flat_data[9],  # url
+                flat_data[10]  # query_date
+            )
+            if success:
+                # Delete from rental table
+                self.conn.execute("DELETE FROM rental_flats WHERE flat_id = ?", (flat_id,))
+
+        self.conn.commit()
+        self.disconnect()
+        return success
+    
+    # JK Performance Snapshots
+    def create_jk_performance_snapshot(self, residential_complex: str, snapshot_date: str) -> bool:
+        """
+        Create a performance snapshot for a residential complex.
+        
+        :param residential_complex: str, name of the residential complex
+        :param snapshot_date: str, date of the snapshot (YYYY-MM-DD)
+        :return: bool, True if successful
+        """
+        self.connect()
+
+        # Get rental and sales data for the complex
+        rental_data = self.conn.execute("""
+            SELECT price, area, flat_type, (price * 12.0 / area) as yield_per_m2
+            FROM rental_flats 
+            WHERE residential_complex = ? AND query_date = ?
+        """, (residential_complex, snapshot_date)).fetchall()
+
+        sales_data = self.conn.execute("""
+            SELECT price, area, flat_type, (price / area) as price_per_m2
+            FROM sales_flats 
+            WHERE residential_complex = ? AND query_date = ?
+        """, (residential_complex, snapshot_date)).fetchall()
+
+        if not rental_data and not sales_data:
+            logging.info(f"No data found for {residential_complex} on {snapshot_date}")
+            return False
+
+        # Calculate overall statistics
+        total_rental_flats = len(rental_data)
+        total_sales_flats = len(sales_data)
+
+        # Rental yield statistics
+        rental_yields = [row[3] for row in rental_data if row[3] is not None]
+        median_rental_yield = self._calculate_median(rental_yields) if rental_yields else None
+        mean_rental_yield = sum(rental_yields) / len(rental_yields) if rental_yields else None
+        min_rental_yield = min(rental_yields) if rental_yields else None
+        max_rental_yield = max(rental_yields) if rental_yields else None
+
+        # Rental price per m2 statistics
+        rent_prices_per_m2 = [row[0] / row[1] for row in rental_data if row[1] > 0]
+        min_rent_price_per_m2 = min(rent_prices_per_m2) if rent_prices_per_m2 else None
+        max_rent_price_per_m2 = max(rent_prices_per_m2) if rent_prices_per_m2 else None
+        mean_rent_price_per_m2 = sum(rent_prices_per_m2) / len(rent_prices_per_m2) if rent_prices_per_m2 else None
+        median_rent_price_per_m2 = self._calculate_median(rent_prices_per_m2) if rent_prices_per_m2 else None
+
+        # Sales price per m2 statistics
+        sales_prices_per_m2 = [row[0] / row[1] for row in sales_data if row[1] > 0]
+        min_sales_price_per_m2 = min(sales_prices_per_m2) if sales_prices_per_m2 else None
+        max_sales_price_per_m2 = max(sales_prices_per_m2) if sales_prices_per_m2 else None
+        mean_sales_price_per_m2 = sum(sales_prices_per_m2) / len(sales_prices_per_m2) if sales_prices_per_m2 else None
+        median_sales_price_per_m2 = self._calculate_median(sales_prices_per_m2) if sales_prices_per_m2 else None
+
+        # Calculate statistics by flat type
+        flat_types = ['Studio', '1BR', '2BR', '3BR+']
+        type_stats = {}
+
+        for flat_type in flat_types:
+            rental_type_data = [row for row in rental_data if row[2] == flat_type]
+            sales_type_data = [row for row in sales_data if row[2] == flat_type]
+
+            type_stats[flat_type] = {
+                'rental_count': len(rental_type_data),
+                'sales_count': len(sales_type_data),
+                'rental_yields': [row[3] for row in rental_type_data if row[3] is not None],
+                'rental_prices_per_m2': [row[0] / row[1] for row in rental_type_data if row[1] > 0],
+                'sales_prices_per_m2': [row[0] / row[1] for row in sales_type_data if row[1] > 0]
+            }
+
+        # Insert snapshot
+        self.conn.execute("""
+            INSERT OR REPLACE INTO jk_performance_snapshots (
+                residential_complex, snapshot_date, total_rental_flats, total_sales_flats,
+                median_rental_yield, mean_rental_yield, min_rental_yield, max_rental_yield,
+                min_rent_price_per_m2, max_rent_price_per_m2, mean_rent_price_per_m2, median_rent_price_per_m2,
+                min_sales_price_per_m2, max_sales_price_per_m2, mean_sales_price_per_m2, median_sales_price_per_m2,
+                studio_rental_count, studio_sales_count, studio_median_rent_yield, studio_mean_rent_yield,
+                studio_median_rent_price_per_m2, studio_median_sales_price_per_m2,
+                onebr_rental_count, onebr_sales_count, onebr_median_rent_yield, onebr_mean_rent_yield,
+                onebr_median_rent_price_per_m2, onebr_median_sales_price_per_m2,
+                twobr_rental_count, twobr_sales_count, twobr_median_rent_yield, twobr_mean_rent_yield,
+                twobr_median_rent_price_per_m2, twobr_median_sales_price_per_m2,
+                threebr_rental_count, threebr_sales_count, threebr_median_rent_yield, threebr_mean_rent_yield,
+                threebr_median_rent_price_per_m2, threebr_median_sales_price_per_m2
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            residential_complex, snapshot_date, total_rental_flats, total_sales_flats,
+            median_rental_yield, mean_rental_yield, min_rental_yield, max_rental_yield,
+            min_rent_price_per_m2, max_rent_price_per_m2, mean_rent_price_per_m2, median_rent_price_per_m2,
+            min_sales_price_per_m2, max_sales_price_per_m2, mean_sales_price_per_m2, median_sales_price_per_m2,
+            type_stats['Studio']['rental_count'], type_stats['Studio']['sales_count'],
+            self._calculate_median(type_stats['Studio']['rental_yields']),
+            sum(type_stats['Studio']['rental_yields']) / len(type_stats['Studio']['rental_yields']) if type_stats['Studio']['rental_yields'] else None,
+            self._calculate_median(type_stats['Studio']['rental_prices_per_m2']),
+            self._calculate_median(type_stats['Studio']['sales_prices_per_m2']),
+            type_stats['1BR']['rental_count'], type_stats['1BR']['sales_count'],
+            self._calculate_median(type_stats['1BR']['rental_yields']),
+            sum(type_stats['1BR']['rental_yields']) / len(type_stats['1BR']['rental_yields']) if type_stats['1BR']['rental_yields'] else None,
+            self._calculate_median(type_stats['1BR']['rental_prices_per_m2']),
+            self._calculate_median(type_stats['1BR']['sales_prices_per_m2']),
+            type_stats['2BR']['rental_count'], type_stats['2BR']['sales_count'],
+            self._calculate_median(type_stats['2BR']['rental_yields']),
+            sum(type_stats['2BR']['rental_yields']) / len(type_stats['2BR']['rental_yields']) if type_stats['2BR']['rental_yields'] else None,
+            self._calculate_median(type_stats['2BR']['rental_prices_per_m2']),
+            self._calculate_median(type_stats['2BR']['sales_prices_per_m2']),
+            type_stats['3BR+']['rental_count'], type_stats['3BR+']['sales_count'],
+            self._calculate_median(type_stats['3BR+']['rental_yields']),
+            sum(type_stats['3BR+']['rental_yields']) / len(type_stats['3BR+']['rental_yields']) if type_stats['3BR+']['rental_yields'] else None,
+            self._calculate_median(type_stats['3BR+']['rental_prices_per_m2']),
+            self._calculate_median(type_stats['3BR+']['sales_prices_per_m2'])
+        ))
+
+        self.conn.commit()
+        logging.info(f"Created performance snapshot for {residential_complex} on {snapshot_date}")
+        return True
+    
+    def get_jk_performance_snapshots(self, residential_complex: str = None, start_date: str = None, end_date: str = None) -> List[dict]:
+        """
+        Get JK performance snapshots.
+        
+        :param residential_complex: str, filter by complex name
+        :param start_date: str, filter by start date (YYYY-MM-DD)
+        :param end_date: str, filter by end date (YYYY-MM-DD)
+        :return: List[dict], list of performance snapshots
+        """
+        self.connect()
+
+        conditions = []
+        params = []
+
+        if residential_complex:
+            conditions.append("residential_complex = ?")
+            params.append(residential_complex)
+
+        if start_date:
+            conditions.append("snapshot_date >= ?")
+            params.append(start_date)
+
+        if end_date:
+            conditions.append("snapshot_date <= ?")
+            params.append(end_date)
+
+        query = "SELECT * FROM jk_performance_snapshots"
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " ORDER BY snapshot_date DESC"
+
+        cursor = self.conn.execute(query, params)
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+            
+
+
+    def _calculate_median(self, values: List[float]) -> float:
+        """
+        Calculate median of a list of values.
+        
+        :param values: List[float], list of values
+        :return: float, median value
+        """
+        if not values:
+            return None
+        
+        sorted_values = sorted(values)
+        n = len(sorted_values)
+        
+        if n % 2 == 0:
+            return (sorted_values[n//2 - 1] + sorted_values[n//2]) / 2
+        else:
+            return sorted_values[n//2]
+
+
+# Convenience functions
+def save_rental_flat_to_db(flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None, db_path: str = "flats.db") -> bool:
+    """
+    Convenience function to save rental flat information to database.
+    
+    :param flat_info: FlatInfo, flat information to save
+    :param url: str, original URL of the flat
+    :param query_date: str, query date (YYYY-MM-DD)
+    :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+')
+    :param db_path: str, database file path
+    :return: bool, True if successful
+    """
+    db = FlatDatabase(db_path)
+    return db.insert_rental_flat(flat_info, url, query_date, flat_type)
+
+
+def save_sales_flat_to_db(flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None, db_path: str = "flats.db") -> bool:
+    """
+    Convenience function to save sales flat information to database.
+    
+    :param flat_info: FlatInfo, flat information to save
+    :param url: str, original URL of the flat
+    :param query_date: str, query date (YYYY-MM-DD)
+    :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+')
+    :param db_path: str, database file path
+    :return: bool, True if successful
+    """
+    db = FlatDatabase(db_path)
+    return db.insert_sales_flat(flat_info, url, query_date, flat_type)
+
+
+def main():
+    """
+    Example usage of the database module.
+    """
+    # Initialize database
+    db = FlatDatabase()
+    
+    # Example: Get historical statistics for the last 30 days
+    from datetime import datetime, timedelta
+    
+    end_date = datetime.now().strftime('%Y-%m-%d')
+    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
+    
+    stats = db.get_historical_statistics(start_date, end_date)
+    
+    logging.info("Database Statistics:")
+    logging.info(f"Date range: {start_date} to {end_date}")
+    logging.info(f"Total rentals: {stats['rental_stats']['total_rentals']}")
+    logging.info(f"Total sales: {stats['sales_stats']['total_sales']}")
+    
+    if stats['rental_stats']['total_rentals'] > 0:
+        logging.info(f"Rental price range: {stats['rental_stats']['min_rental_price']:,} - {stats['rental_stats']['max_rental_price']:,} tenge")
+    
+    if stats['sales_stats']['total_sales'] > 0:
+        logging.info(f"Sales price range: {stats['sales_stats']['min_sales_price']:,} - {stats['sales_stats']['max_sales_price']:,} tenge")
+
+
+if __name__ == "__main__":
+    main()
