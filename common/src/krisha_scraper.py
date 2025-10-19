@@ -4,39 +4,14 @@ Krisha.kz web scraper for extracting flat information.
 This module provides functionality to scrape flat details from Krisha.kz
 using their API endpoint.
 """
-from dataclasses import dataclass
 from typing import Optional
 import re
+import json
 
 import requests
 
 import logging
-@dataclass
-class FlatInfo:
-    """
-    Data class to store flat information extracted from Krisha.kz.
-    
-    :param flat_id: str, unique identifier of the flat from URL
-    :param price: int, price in tenge
-    :param area: float, area in square meters
-    :param residential_complex: Optional[str], name of the residential complex (JK)
-    :param floor: Optional[int], floor number where the flat is located
-    :param total_floors: Optional[int], total number of floors in the building
-    :param construction_year: Optional[int], year of construction
-    :param parking: Optional[str], parking information
-    :param description: str, full description text
-    :param is_rental: bool, True if the flat is for rent, False if for sale
-    """
-    flat_id: str
-    price: int
-    area: float
-    residential_complex: Optional[str]
-    floor: Optional[int]
-    total_floors: Optional[int]
-    construction_year: Optional[int]
-    parking: Optional[str]
-    description: str
-    is_rental: bool = False
+from .flat_info import FlatInfo
 
 
 def extract_flat_id_from_url(url: str) -> str:
@@ -265,8 +240,21 @@ def scrape_flat_info(url: str) -> FlatInfo:
     if response.status_code != 200:
         raise Exception(f"Failed to fetch data: {response.status_code}")
     
-    # Parse JSON response
-    data = response.json()
+    # Check if response has content
+    if not response.text.strip():
+        raise Exception(f"Empty response from API for flat {flat_id}")
+    
+    # Parse JSON response with error handling
+    try:
+        data = response.json()
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse JSON response for flat {flat_id}: {e}")
+        logging.error(f"Response content: {response.text[:500]}")  # Log first 500 chars
+        raise Exception(f"Invalid JSON response from API for flat {flat_id}: {e}")
+    
+    # Validate response structure
+    if not isinstance(data, dict):
+        raise Exception(f"API returned invalid data structure for flat {flat_id}")
     
     # Extract advert information
     advert = data.get('advert', {})
@@ -338,5 +326,49 @@ def main():
         logging.info(f"Error scraping flat info: {e}")
 
 
+def determine_flat_type(area: float, description: str) -> str:
+    """
+    Determine flat type based on area and description.
+    
+    :param area: float, area in square meters
+    :param description: str, flat description
+    :return: str, flat type ('Studio', '1BR', '2BR', '3BR+')
+    """
+    description_lower = description.lower()
+    
+    # Check for explicit mentions in description
+    if any(word in description_lower for word in ['студия', 'studio', 'студио']):
+        return 'Studio'
+    elif any(word in description_lower for word in ['1-комнатная', '1-комн', '1 комната', '1 комн', 'однокомнатная', 'однокомн']):
+        return '1BR'
+    elif any(word in description_lower for word in ['2-комнатная', '2-комн', '2 комнаты', '2 комн', 'двухкомнатная', 'двухкомн']):
+        return '2BR'
+    elif any(word in description_lower for word in ['3-комнатная', '3-комн', '3 комнаты', '3 комн', 'трехкомнатная', 'трехкомн', '4-комнатная', '4-комн', '4 комнаты', '4 комн', 'четырехкомнатная', 'четырехкомн']):
+        return '3BR+'
+    
+    # Fallback to area-based classification
+    if area <= 35:
+        return 'Studio'
+    elif area <= 50:
+        return '1BR'
+    elif area <= 80:
+        return '2BR'
+    else:
+        return '3BR+'
+
+
+def scrape_flat_info_with_type(url: str) -> FlatInfo:
+    """
+    Scrape flat information and determine flat type.
+    
+    :param url: str, URL of the flat to scrape
+    :return: FlatInfo, flat information with determined type
+    """
+    flat_info = scrape_flat_info(url)
+    if flat_info:
+        flat_info.flat_type = determine_flat_type(flat_info.area, flat_info.description)
+    return flat_info
+
+
 if __name__ == "__main__":
-    main() 
+    main()

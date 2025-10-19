@@ -9,7 +9,7 @@ import statistics
 from datetime import datetime
 from typing import Dict, Optional
 import logging
-from db.src.enhanced_database import EnhancedFlatDatabase
+from db.src.write_read_database import FlatDatabase
 from scrapers.src.complex_scraper import search_complex_by_name
 from scrapers.src.search_scraper import scrape_and_save_search_results_with_pagination
 
@@ -28,7 +28,7 @@ class JKAnalytics:
         
         :param db_path: str, path to SQLite database file
         """
-        self.db = EnhancedFlatDatabase(db_path)
+        self.db = FlatDatabase(db_path)
 
     def fetch_rental_data_if_needed(self, complex_name: str, area_max: float = 100.0) -> bool:
         """

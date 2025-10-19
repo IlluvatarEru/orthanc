@@ -1,5 +1,5 @@
 from webapp import get_similar_properties, load_analysis_config
-from common.src.flat_info import get_flat_info
+from db.src.flat_info_from_db import get_flat_info
 import logging
 
 def test_flat():

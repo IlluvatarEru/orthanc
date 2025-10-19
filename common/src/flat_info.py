@@ -1,79 +1,33 @@
-from datetime import datetime
+from dataclasses import dataclass
+from typing import Optional
 
-from flask import flash
 
-from common.src.krisha_scraper import FlatInfo, scrape_flat_info
-from db.src.enhanced_database import EnhancedFlatDatabase, save_sales_flat_to_db
-import logging
-
-def get_flat_info(flat_id: str, flash_to_frontend:bool=True, db_path:str = "flats.db") -> FlatInfo:
+@dataclass
+class FlatInfo:
     """
-    Get flat information from database or scrape from web.
-
-    :param flat_id: str, flat ID
-    :return: FlatInfo object or None if error
+    Data class to store flat information extracted from Krisha.kz.
+    
+    :param flat_id: str, unique identifier of the flat from URL
+    :param price: int, price in tenge
+    :param area: float, area in square meters
+    :param residential_complex: Optional[str], name of the residential complex (JK)
+    :param floor: Optional[int], floor number where the flat is located
+    :param total_floors: Optional[int], total number of floors in the building
+    :param construction_year: Optional[int], year of construction
+    :param parking: Optional[str], parking information
+    :param description: str, full description text
+    :param is_rental: bool, True if the flat is for rent, False if for sale
+    :param flat_type: Optional[str], type of flat ('Studio', '1BR', '2BR', '3BR+')
     """
-    logging.info(f"flat_id = -{flat_id}- of type {type(flat_id)}")
-    db = EnhancedFlatDatabase(db_path)
-    rental_count = db.get_flat_count('rental')
-    logging.info(f"rental_count = {rental_count}")
-    try:
-        db.connect()
+    flat_id: str
+    price: int
+    area: float
+    flat_type: str
+    residential_complex: Optional[str]
+    floor: Optional[int]
+    total_floors: Optional[int]
+    construction_year: Optional[int]
+    parking: Optional[str]
+    description: str
+    is_rental: bool = False
 
-        # Check if flat exists in database
-        q = f"""
-            SELECT flat_id, price, area, residential_complex, floor, total_floors, 
-                   construction_year, parking, description, url, query_date
-            FROM sales_flats 
-            WHERE flat_id = {flat_id}
-            ORDER BY query_date DESC 
-            LIMIT 1
-        """
-        logging.info(q)
-        cursor = db.conn.execute(q)
-
-        existing_flat = cursor.fetchone()
-        logging.info(existing_flat)
-
-        if existing_flat:
-            logging.info(f"Using existing flat data from database for {flat_id}")
-            return FlatInfo(
-                flat_id=existing_flat[0],
-                price=existing_flat[1],
-                area=existing_flat[2],
-                residential_complex=existing_flat[3],
-                floor=existing_flat[4],
-                total_floors=existing_flat[5],
-                construction_year=existing_flat[6],
-                parking=existing_flat[7],
-                description=existing_flat[8],
-                is_rental=False
-            )
-        else:
-            # Scrape fresh data from web
-            logging.info(f"🌐 Scraping fresh flat data for {flat_id}")
-            flat_url = f"https://krisha.kz/a/show/{flat_id}"
-
-            try:
-                flat_info = scrape_flat_info(flat_url)
-
-                # Check if flat is for rent
-                if flat_info.is_rental:
-                    if flash_to_frontend:
-                        flash(f'Error: Flat ID {flat_id} is for rent (Аренда). Please provide the ID of a flat for sale.',
-                          'error')
-                    return None
-
-                # Save to database
-                query_date = datetime.now().strftime('%Y-%m-%d')
-                save_sales_flat_to_db(flat_info, flat_url, query_date)
-                return flat_info
-
-            except Exception as e:
-                logging.info(f"Error scraping flat {flat_id}: {e}")
-                if flash_to_frontend:
-                    flash(f'Error: Could not scrape flat {flat_id}. Please check if the flat ID is correct.', 'error')
-                return None
-
-    finally:
-        db.disconnect()

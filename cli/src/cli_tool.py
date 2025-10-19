@@ -4,7 +4,7 @@ Command-line interface for Krisha.kz scraper and database management.
 import csv
 from argparse import ArgumentParser
 
-from db.src.database import FlatDatabase
+from db.src.write_read_database import FlatDatabase
 from scrapers.src.scraper_with_db import scrape_and_save, scrape_multiple_flats, get_database_summary, \
     search_flats_in_db
 import logging

@@ -13,8 +13,9 @@ import time
 from typing import List, Dict, Optional
 from urllib.parse import urljoin, urlparse, parse_qs, urlencode
 
-from common.src.krisha_scraper import FlatInfo, scrape_flat_info
-from db.src.enhanced_database import save_rental_flat_to_db, save_sales_flat_to_db
+from common.src.flat_info import FlatInfo
+from common.src.krisha_scraper import scrape_flat_info
+from db.src.write_read_database import save_rental_flat_to_db, save_sales_flat_to_db
 
 
 def detect_pagination_info(url: str) -> Dict:
@@ -171,9 +172,9 @@ def extract_flat_urls_from_search_page(url: str) -> List[str]:
         
         # Pattern for flat URLs: /a/show/ followed by numbers
         url_patterns = [
-            r'href=["\'](/a/show/\d+)["\']',
-            r'href=["\'](https?://krisha\.kz/a/show/\d+)["\']',
-            r'href=["\'](https?://m\.krisha\.kz/a/show/\d+)["\']',
+            r'href=["\'](/a/show/\d+(?:\?[^"\']*)?)["\']',
+            r'href=["\'](https?://krisha\.kz/a/show/\d+(?:\?[^"\']*)?)["\']',
+            r'href=["\'](https?://m\.krisha\.kz/a/show/\d+(?:\?[^"\']*)?)["\']',
         ]
         
         for pattern in url_patterns:
@@ -189,7 +190,7 @@ def extract_flat_urls_from_search_page(url: str) -> List[str]:
         # Remove duplicates while preserving order
         unique_urls = []
         seen = set()
-        for url in flat_urls[:2]:
+        for url in flat_urls:
             if url not in seen:
                 unique_urls.append(url)
                 seen.add(url)

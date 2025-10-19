@@ -1,3 +1,3 @@
 """
-Common utilities and shared components.
-""" 
+Common source modules.
+"""

@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent / "scrapers" / "src"))
 
 from scheduler import ScraperScheduler
 from jk_analytics import JKAnalytics
-from enhanced_database import EnhancedFlatDatabase
+from db.src.write_read_database import FlatDatabase
 from complex_scraper import update_complex_database
 from search_scraper import scrape_and_save_search_results
 import toml
@@ -268,7 +268,7 @@ def handle_stats(args):
     """Handle stats command."""
     from datetime import datetime, timedelta
     
-    db = EnhancedFlatDatabase()
+    db = FlatDatabase()
     end_date = datetime.now().strftime('%Y-%m-%d')
     start_date = (datetime.now() - timedelta(days=args.days)).strftime('%Y-%m-%d')
     
@@ -288,7 +288,7 @@ def handle_stats(args):
 
 def handle_search(args):
     """Handle search command."""
-    db = EnhancedFlatDatabase()
+    db = FlatDatabase()
     
     # Build search criteria
     criteria = {}
@@ -310,7 +310,7 @@ def handle_search(args):
 def handle_estimate(args):
     """Handle estimate command."""
     from common.krisha_scraper import scrape_flat_info
-    from db.enhanced_database import save_sales_flat_to_db
+    from db.src.write_read_database import save_sales_flat_to_db
     from datetime import datetime
     import statistics
     
@@ -345,7 +345,7 @@ def handle_estimate(args):
     
     # 2. Find similar rentals
     logging.info(f"\nFinding similar rental flats...")
-    db = EnhancedFlatDatabase()
+    db = FlatDatabase()
     db.connect()
     
     try:

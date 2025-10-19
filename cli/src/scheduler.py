@@ -7,7 +7,7 @@ for both rental and sales flats with historical tracking.
 import time
 from datetime import datetime
 
-from db.src.enhanced_database import EnhancedFlatDatabase
+from db.src.write_read_database import FlatDatabase
 import toml
 import logging
 
@@ -27,7 +27,7 @@ class ScraperScheduler:
         """
         self.config_path = config_path
         self.config = self.load_config()
-        self.db = EnhancedFlatDatabase(self.config['database']['path'])
+        self.db = FlatDatabase(self.config['database']['path'])
         self.setup_logging()
     
     def load_config(self) -> dict:

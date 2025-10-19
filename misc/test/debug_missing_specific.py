@@ -7,7 +7,7 @@ Debug script to test specific missing flats.
 from datetime import datetime
 
 from common.src.krisha_scraper import scrape_flat_info
-from db.src.enhanced_database import save_sales_flat_to_db
+from db.src.write_read_database import save_sales_flat_to_db
 import logging
 
 def test_missing_flats():

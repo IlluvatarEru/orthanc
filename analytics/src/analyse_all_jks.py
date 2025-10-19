@@ -21,7 +21,7 @@ import logging
 sys.path.insert(0, '.')
 from scrapers.src.search_scraper import scrape_complex_data
 
-from db.src.enhanced_database import EnhancedFlatDatabase
+from db.src.write_read_database import FlatDatabase
 from analytics.src.jk_analytics import JKAnalytics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -32,7 +32,7 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     :param db_path: str, path to the database file
     :return: List[Dict], list of all residential complexes
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = FlatDatabase(db_path)
     return db.get_all_residential_complexes()
 
 
