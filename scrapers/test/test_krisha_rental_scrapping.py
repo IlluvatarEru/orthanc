@@ -15,7 +15,7 @@ from common.src.flat_type import FLAT_TYPE_VALUES, FlatType
 # Add the project root to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from scrapers.src.rental_scrapping import scrape_rental_flat
+from scrapers.src.krisha_rental_scrapping import scrape_rental_flat
 from common.src.flat_info import FlatInfo
 
 # Test Krisha ID for rental flat

@@ -12,9 +12,9 @@ import re
 import time
 from typing import List, Dict, Optional
 from urllib.parse import urljoin, urlparse, parse_qs, urlencode
-from bs4 import BeautifulSoup
 
-from common.src.krisha_scraper import FlatInfo, scrape_flat_info
+from common.src.flat_info import FlatInfo
+from .krisha_scraper import scrape_flat_info
 from db.src.enhanced_database import save_rental_flat_to_db, save_sales_flat_to_db
 
 
@@ -144,83 +144,60 @@ def generate_page_urls(base_url: str, max_pages: int = 10) -> List[str]:
 
 
 def extract_flat_urls_from_search_page(url: str) -> List[str]:
+    """
+    Extract flat URLs from a Krisha.kz search page.
+    
+    :param url: str, search page URL
+    :return: List[str], list of flat URLs
+    """
     logging.info(f"Extracting flat URLs from: {url}")
-
+    
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Mobile Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
         'Accept-Encoding': 'gzip, deflate, br',
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
     }
-
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
-
-        # Use raw bytes content to avoid decoding issues
-        soup = BeautifulSoup(response.content, 'html.parser')
-
-        flat_urls: List[str] = []
-
-        # Prefer the exact selectors that work in your notebook, globally
-        link_selectors = [
-            'a[href^="/a/show/"]',
-            'a[href*="/a/show/"]',
-            '.offer__title a',
-            '.offer a[href*="/a/show/"]',
-            'a.a-card__title[href*="/a/show/"]',
+        
+        html_content = response.text
+        
+        # Look for flat URLs in the HTML
+        flat_urls = []
+        
+        # Pattern for flat URLs: /a/show/ followed by numbers
+        url_patterns = [
+            r'href=["\'](/a/show/\d+)["\']',
+            r'href=["\'](https?://krisha\.kz/a/show/\d+)["\']',
+            r'href=["\'](https?://m\.krisha\.kz/a/show/\d+)["\']',
         ]
-
-        # Also try scoping to the container if present (best-effort)
-        list_container = soup.select_one('.a-list.a-search-list.a-list-with-favs')
-
-        def collect_from(scope):
-            for selector in link_selectors:
-                for link in scope.select(selector):
-                    href = link.get('href')
-                    if not href or '/a/show/' not in href:
-                        continue
-                    if href.startswith('/'):
-                        href = f"https://krisha.kz{href}"
-                    elif not href.startswith('http'):
-                        href = f"https://krisha.kz/{href}"
-                    if href not in flat_urls:
-                        flat_urls.append(href)
-
-        if list_container is not None:
-            collect_from(list_container)
-        else:
-            # Try a slightly broader results list selector, still avoiding sidebar
-            alt_container = soup.select_one('.a-list.a-search-list')
-            if alt_container is not None:
-                collect_from(alt_container)
-
-        # Regex fallback in case DOM parsing misses some.
-        # Limit to the results container HTML to avoid sidebar ads.
-        if not flat_urls:
-            container_html = None
-            if list_container is not None:
-                container_html = str(list_container)
-            elif 'alt_container' in locals() and alt_container is not None:
-                container_html = str(alt_container)
-            if container_html:
-                for m in re.findall(r'href=["\'](/a/show/\d+(?:\?[^"\']*)?)["\']', container_html):
-                    absu = f"https://krisha.kz{m}"
-                    if absu not in flat_urls:
-                        flat_urls.append(absu)
-
-        # Deduplicate while preserving order
+        
+        for pattern in url_patterns:
+            matches = re.findall(pattern, html_content)
+            for match in matches:
+                if match.startswith('http'):
+                    flat_urls.append(match)
+                else:
+                    # Convert relative URL to absolute
+                    flat_urls.append(urljoin('https://krisha.kz', match))
+        
+        logging.info(f"found {len(flat_urls)} flat urls")
+        # Remove duplicates while preserving order
+        unique_urls = []
         seen = set()
-        unique = []
-        for u in flat_urls:
-            if u not in seen:
-                unique.append(u); seen.add(u)
-
-        logging.info(f"Found {len(unique)} flat URLs on search page")
-        return unique
-
+        for url in flat_urls:
+            if url not in seen:
+                unique_urls.append(url)
+                seen.add(url)
+        
+        logging.info(f"Found {len(unique_urls)} unique flat URLs")
+        return unique_urls
+        
     except Exception as e:
         logging.info(f"Error extracting URLs: {e}")
         return []

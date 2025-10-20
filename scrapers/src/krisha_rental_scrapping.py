@@ -556,60 +556,57 @@ def scrap_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     
     all_flats = []
     
-    try:
-        # Search for the complex to get its ID
-        from scrapers.src.complex_scraper import search_complex_by_name
-        complex_info = search_complex_by_name(jk_name)
-        
-        if not complex_info or not complex_info.get('complex_id'):
-            logging.error(f"Could not find complex ID for: {jk_name}")
-            return []
-        
-        complex_id = complex_info['complex_id']
-        logging.info(f"Found complex ID: {complex_id}")
-        
-        # Scrape each page
-        for page in range(1, max_pages + 1):
-            logging.info(f"Scraping page {page} for {jk_name}")
-            
-            # Construct search URL for this page
-            search_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}&page={page}"
-            
-            # Get flat URLs from this page
-            flat_urls = get_flat_urls_from_search_page(search_url)
-            
-            if not flat_urls:
-                logging.info(f"No flats found on page {page}, stopping pagination")
-                break
-            
-            logging.info(f"Found {len(flat_urls)} flats on page {page}")
-            
-            # Scrape each flat
-            for flat_url in flat_urls:
-                try:
-                    # Extract flat ID from URL
-                    flat_id = extract_flat_id_from_url(flat_url)
-                    if not flat_id:
-                        continue
-                    
-                    # Scrape the flat
-                    flat_info = scrape_rental_flat(flat_id)
-                    if flat_info:
-                        all_flats.append(flat_info)
-                        logging.info(f"Successfully scraped rental flat: {flat_id}")
-                    else:
-                        logging.warning(f"Failed to scrape rental flat: {flat_id}")
-                        
-                except Exception as e:
-                    logging.error(f"Error scraping flat from {flat_url}: {e}")
-                    continue
-        
-        logging.info(f"Completed JK rental scraping for {jk_name}. Total flats: {len(all_flats)}")
-        return all_flats
-        
-    except Exception as e:
-        logging.error(f"Error during JK rental scraping for {jk_name}: {e}")
+    # Search for the complex to get its ID
+    from scrapers.src.complex_scraper import search_complex_by_name
+    complex_info = search_complex_by_name(jk_name)
+
+    if not complex_info or not complex_info.get('complex_id'):
+        logging.error(f"Could not find complex ID for: {jk_name}")
         return []
+
+    complex_id = complex_info['complex_id']
+    logging.info(f"Found complex ID: {complex_id}")
+
+    # Scrape each page
+    for page in range(1, max_pages + 1):
+        logging.info(f"Scraping page {page} for {jk_name}")
+
+        # Construct search URL for this page
+        search_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}&page={page}"
+        logging.info(search_url)
+
+        # Get flat URLs from this page
+        flat_urls = get_flat_urls_from_search_page(search_url)
+
+        if not flat_urls:
+            logging.info(f"No flats found on page {page}, stopping pagination")
+            break
+
+        logging.info(f"Found {len(flat_urls)} flats on page {page}")
+
+        # Scrape each flat
+        for flat_url in flat_urls:
+            try:
+                # Extract flat ID from URL
+                flat_id = extract_flat_id_from_url(flat_url)
+                if not flat_id:
+                    continue
+
+                # Scrape the flat
+                flat_info = scrape_rental_flat(flat_id)
+                if flat_info:
+                    all_flats.append(flat_info)
+                    logging.info(f"Successfully scraped rental flat: {flat_id}")
+                else:
+                    logging.warning(f"Failed to scrape rental flat: {flat_id}")
+
+            except Exception as e:
+                logging.error(f"Error scraping flat from {flat_url}: {e}")
+                continue
+
+    logging.info(f"Completed JK rental scraping for {jk_name}. Total flats: {len(all_flats)}")
+    return all_flats
+
 
 
 def scrap_and_save_jk_rentals(jk_name: str, max_pages: int = 10, db_path: str = "flats.db") -> int:
@@ -684,43 +681,60 @@ def get_flat_urls_from_search_page(search_url: str) -> List[str]:
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
+            # Drop 'br' to avoid brotli when not available in tests/CI
+            'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
         }
-        
+
         response = requests.get(search_url, headers=headers, timeout=10)
         response.raise_for_status()
-        
+
+        # Prefer bytes to avoid decoding issues and rely on lxml/html5lib fallback if installed
         soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Find all flat links
-        flat_urls = []
-        
-        # Look for various link patterns
-        link_selectors = [
-            'a[href*="/a/show/"]',
-            '.offer__title a',
-            '.offer a[href*="/a/show/"]'
-        ]
-        
-        for selector in link_selectors:
-            links = soup.select(selector)
-            for link in links:
-                href = link.get('href')
-                if href and '/a/show/' in href:
-                    # Convert relative URLs to absolute
-                    if href.startswith('/'):
-                        href = f"https://krisha.kz{href}"
-                    elif not href.startswith('http'):
-                        href = f"https://krisha.kz/{href}"
-                    
-                    if href not in flat_urls:
-                        flat_urls.append(href)
-        
-        logging.info(f"Found {len(flat_urls)} flat URLs on search page")
-        return flat_urls
-        
+
+        flat_urls: List[str] = []
+
+        # Scope strictly to main results list to avoid right-hand ads
+        list_container = soup.select_one('.a-list.a-search-list.a-list-with-favs')
+        if list_container is None:
+            list_container = soup.select_one('.a-list.a-search-list')
+
+        def add_href(href: str) -> None:
+            if not href or '/a/show/' not in href:
+                return
+            if href.startswith('/'):
+                href_abs = f"https://krisha.kz{href}"
+            elif not href.startswith('http'):
+                href_abs = f"https://krisha.kz/{href}"
+            else:
+                href_abs = href
+            if href_abs not in flat_urls:
+                flat_urls.append(href_abs)
+
+        if list_container is not None:
+            # Anchors within the card titles inside the container
+            for a in list_container.select('a.a-card__title[href*="/a/show/"]'):
+                add_href(a.get('href'))
+            # Conservative fallback within the same container only
+            for a in list_container.select('a[href^="/a/show/"]'):
+                add_href(a.get('href'))
+        else:
+            # As a last resort, search globally but still restrict to card title links
+            for a in soup.select('a.a-card__title[href*="/a/show/"]'):
+                add_href(a.get('href'))
+
+        # Deduplicate preserving order
+        seen = set()
+        unique_urls: List[str] = []
+        for u in flat_urls:
+            if u not in seen:
+                unique_urls.append(u)
+                seen.add(u)
+
+        logging.info(f"Found {len(unique_urls)} flat URLs on search page")
+        return unique_urls
+
     except Exception as e:
         logging.error(f"Error extracting flat URLs from {search_url}: {e}")
         return []

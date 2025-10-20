@@ -10,7 +10,7 @@ import logging
 # Add the project root to Python path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-from scrapers.src.sales_scrapping import scrape_sales_flat
+from scrapers.src.krisha_sales_scrapping import scrape_sales_flat
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FlatType, FLAT_TYPE_VALUES
 
@@ -97,7 +97,6 @@ class TestSalesScrapping:
         assert flat_info.is_rental is False
         assert flat_info.flat_type == FlatType.THREE_PLUS_BEDROOM.value
 
-    
     def test_flat_info_structure(self):
         """Test the structure and type of the returned FlatInfo object."""
         logger.info("Testing FlatInfo object structure...")
