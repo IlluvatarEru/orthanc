@@ -33,7 +33,11 @@ class OrthancDB:
         schema = DatabaseSchema(db_path)
         schema.initialize_database()
         # Create FX tables
-        self.create_mid_prices_table()
+        try:
+            self.create_mid_prices_table()
+        except Exception as e:
+            logging.error(f"Error creating mid_prices table: {e}")
+            # Don't fail initialization, just log the error
     
     def connect(self):
         """
@@ -136,7 +140,6 @@ class OrthancDB:
         ))
         
         self.conn.commit()
-        self.disconnect()
         return True
     
     def update_rental_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
@@ -869,22 +872,31 @@ class OrthancDB:
         """
         self.connect()
         
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS mid_prices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                currency TEXT NOT NULL,
-                rate REAL NOT NULL,
-                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        if self.conn is None:
+            logging.error("Cannot create mid_prices table - database connection is None")
+            return
         
-        # Create index for faster queries
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)
-        """)
-        
-        self.conn.commit()
-        self.disconnect()
+        try:
+            self.conn.execute("""
+                CREATE TABLE IF NOT EXISTS mid_prices (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    currency TEXT NOT NULL,
+                    rate REAL NOT NULL,
+                    fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            
+            # Create index for faster queries
+            self.conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)
+            """)
+            
+            self.conn.commit()
+            logging.info("mid_prices table created successfully")
+            
+        except Exception as e:
+            logging.error(f"Error creating mid_prices table: {e}")
+            raise
     
     def insert_exchange_rate(self, currency: str, rate: float, fetched_at: datetime = None) -> bool:
         """
