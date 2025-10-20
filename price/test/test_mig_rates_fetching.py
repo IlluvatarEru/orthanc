@@ -2,13 +2,9 @@
 Test script for fetching mid prices from mig.kz for EUR, USD, and GBP vs KZT.
 """
 
-import sys
-import os
-from datetime import datetime
-import logging
 import pytest
 
-from common.src.currency import CurrencyManager
+from price.src.currency import CurrencyManager
 
 # Rate bounds for validation (KZT per currency unit)
 LOWER_BOUND_EUR_KZT = 400
@@ -87,7 +83,7 @@ class TestMigRatesFetching:
 
     def test_price_formatting(self, currency_manager):
         """Test price formatting with EUR conversion."""
-        from common.src.currency import format_price_with_eur
+        from price.src.currency import format_price_with_eur
 
         test_amount = 1e6
         formatted = format_price_with_eur(test_amount, currency_manager, show_eur=True)

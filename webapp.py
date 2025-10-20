@@ -15,7 +15,7 @@ import toml
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
 from analytics.src.jk_analytics import JKAnalytics
-from common.src.currency import currency_manager
+from price.src.currency import currency_manager
 from db.src.flat_info_from_db import get_flat_info
 from common.src.flat_info import FlatInfo
 from db.src.write_read_database import OrthancDB

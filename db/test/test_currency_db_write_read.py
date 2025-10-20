@@ -1,12 +1,11 @@
 """
 Test script for currency database functionality.
 """
-from common.src.currency import CurrencyManager, format_price_with_eur
 from db.src.write_read_database import OrthancDB
 import logging
 import pytest
 import datetime
-import os
+
 
 class TestDatabaseOperationsCurrency:
 
