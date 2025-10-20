@@ -18,7 +18,7 @@ from analytics.src.jk_analytics import JKAnalytics
 from common.src.currency import currency_manager
 from db.src.flat_info_from_db import get_flat_info
 from common.src.flat_info import FlatInfo
-from db.src.write_read_database import FlatDatabase
+from db.src.write_read_database import OrthancDB
 from scrapers.src.complex_scraper import search_complexes_by_name_deduplicated, search_complexes_by_name, \
     search_complex_by_name, get_all_residential_complexes
 from scrapers.src.search_scraper import scrape_complex_data
@@ -149,7 +149,7 @@ def calculate_bucket_overall_stats(bucket_analysis):
 def index(db_path='flats.db'):
     """Dashboard home page."""
     try:
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         try:
             # Get basic statistics
             rental_count = db.get_flat_count('rental')
@@ -225,7 +225,7 @@ def analyze_jk(complex_name, db_path='flats.db'):
             return redirect(url_for('search_jk'))
 
         # Get all flats for this complex
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         try:
             # Get rental flats
             rental_flats = db.get_flats_by_complex(complex_name, 'rental')
@@ -743,7 +743,7 @@ def view_similar_flats(flat_type, complex_name, db_path='flats.db'):
             return redirect(url_for('search_jk'))
 
         # Get similar flats for this complex
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         try:
             # Get flats by type (rental or sales)
             flats = db.get_flats_by_complex(complex_name, flat_type)
@@ -780,7 +780,7 @@ def view_similar_flats(flat_type, complex_name, db_path='flats.db'):
 def favorites(db_path='flats.db'):
     """Display user's favorite flats."""
     try:
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         favorites_list = db.get_favorites()
         db.disconnect()
 
@@ -809,7 +809,7 @@ def add_to_favorites(db_path='flats.db'):
             logging.info(f"Error: Missing flat_id or flat_type. flat_id='{flat_id}', flat_type='{flat_type}'")
             return jsonify({'success': False, 'error': 'Missing flat_id or flat_type'}), 400
 
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         try:
             # If flat_data is provided directly from frontend, use it
             if flat_data:
@@ -879,7 +879,7 @@ def remove_from_favorites(db_path='flats.db'):
         if not flat_id or not flat_type:
             return jsonify({'success': False, 'error': 'Missing flat_id or flat_type'}), 400
 
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         try:
             success = db.remove_from_favorites(flat_id, flat_type)
 
@@ -911,7 +911,7 @@ def check_favorite_status(db_path='flats.db'):
             logging.info(f"Error: Missing flat_id or flat_type. flat_id='{flat_id}', flat_type='{flat_type}'")
             return jsonify({'success': False, 'error': 'Missing flat_id or flat_type'}), 400
 
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         try:
             is_favorite = db.is_favorite(flat_id, flat_type)
             return jsonify({'success': True, 'is_favorite': is_favorite})
@@ -926,7 +926,7 @@ def check_favorite_status(db_path='flats.db'):
 def fix_flat_classification(flat_id: str, correct_type: str, db_path='flats.db'):
     """Fix flat classification by moving it to the correct table."""
     try:
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         success = db.move_flat_to_correct_table(flat_id, correct_type)
         db.disconnect()
 

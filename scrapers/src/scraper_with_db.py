@@ -7,8 +7,8 @@ import time
 from typing import Optional, List
 import logging
 from common.src.flat_info import FlatInfo
-from common.src.krisha_scraper import scrape_flat_info
-from db.src.write_read_database import FlatDatabase
+from .krisha_scraper import scrape_flat_info
+from db.src.write_read_database import OrthancDB
 
 
 def scrape_and_save(url: str, db_path: str = "flats.db") -> Optional[FlatInfo]:
@@ -24,7 +24,7 @@ def scrape_and_save(url: str, db_path: str = "flats.db") -> Optional[FlatInfo]:
         flat_info = scrape_flat_info(url)
         
         # Save to database
-        db = FlatDatabase(db_path)
+        db = OrthancDB(db_path)
         # Determine if it's rental or sales based on URL or other criteria
         # For now, we'll assume it's sales if not explicitly rental
         if hasattr(flat_info, 'is_rental') and flat_info.is_rental:
@@ -78,7 +78,7 @@ def get_database_summary(db_path: str = "flats.db") -> None:
     
     :param db_path: str, database file path
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     
     # Get counts for each type
     rental_count = db.get_flat_count('rental')
@@ -128,7 +128,7 @@ def search_flats_in_db(min_price: Optional[int] = None,
     :param limit: Optional[int], maximum number of results
     :param db_path: str, database file path
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     
     # Get recent flats from both rental and sales tables
     from datetime import datetime
@@ -204,7 +204,7 @@ def main():
     logging.info("=" * 50)
     
     # Initialize database
-    db = FlatDatabase()
+    db = OrthancDB()
     
     # Scrape and save flats
     scraped_flats = scrape_multiple_flats(test_urls, delay=2.0)

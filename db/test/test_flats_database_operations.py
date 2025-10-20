@@ -3,7 +3,7 @@ Unit tests for database operations using pytest.
 
 Tests write, read, and delete operations for both rental and sales flats.
 
-pytest db/test/test_database_operations.py -v
+pytest db/test/test_flats_database_operations.py -v
 """
 
 import pytest
@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 from typing import Dict, Any
 
-from db.src.write_read_database import FlatDatabase
+from db.src.write_read_database import OrthancDB
 from common.src.flat_info import FlatInfo
 
 
@@ -21,7 +21,7 @@ class TestDatabaseOperations:
     @pytest.fixture
     def db(self):
         """Create database connection using actual database."""
-        return FlatDatabase("flats.db")
+        return OrthancDB("flats.db")
     
     @pytest.fixture
     def sample_rental_flat(self):

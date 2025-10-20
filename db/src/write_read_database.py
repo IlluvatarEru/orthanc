@@ -8,11 +8,12 @@ with historical tracking and residential complex mapping.
 import sqlite3
 from typing import Optional, List, Dict
 import logging
+from datetime import datetime
 from common.src.flat_info import FlatInfo
 from .table_creation import DatabaseSchema
 
 
-class FlatDatabase:
+class OrthancDB:
     """
     Database manager for storing and retrieving flat information.
     
@@ -31,6 +32,8 @@ class FlatDatabase:
         # Initialize database schema
         schema = DatabaseSchema(db_path)
         schema.initialize_database()
+        # Create FX tables
+        self.create_mid_prices_table()
     
     def connect(self):
         """
@@ -858,6 +861,131 @@ class FlatDatabase:
         result = [dict(row) for row in cursor.fetchall()]
         self.disconnect()
         return result
+    
+    # FX Operations
+    def create_mid_prices_table(self):
+        """
+        Create mid_prices table if it doesn't exist.
+        """
+        self.connect()
+        
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS mid_prices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                currency TEXT NOT NULL,
+                rate REAL NOT NULL,
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Create index for faster queries
+        self.conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)
+        """)
+        
+        self.conn.commit()
+        self.disconnect()
+    
+    def insert_exchange_rate(self, currency: str, rate: float, fetched_at: datetime = None) -> bool:
+        """
+        Insert exchange rate into database.
+        
+        :param currency: str, currency code (EUR, USD, etc.)
+        :param rate: float, exchange rate
+        :param fetched_at: datetime, timestamp when rate was fetched
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        if fetched_at is None:
+            fetched_at = datetime.now()
+        
+        self.conn.execute("""
+            INSERT INTO mid_prices (currency, rate, fetched_at)
+            VALUES (?, ?, ?)
+        """, (currency, rate, fetched_at))
+        
+        self.conn.commit()
+        self.disconnect()
+        return True
+    
+    def get_latest_rate(self, currency: str) -> Optional[float]:
+        """
+        Get the latest exchange rate for a currency.
+        
+        :param currency: str, currency code (EUR or USD)
+        :return: Optional[float], latest rate or None if not found
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT rate FROM mid_prices 
+            WHERE currency = ? 
+            ORDER BY fetched_at DESC 
+            LIMIT 1
+        """, (currency,))
+        
+        result = cursor.fetchone()
+        rate = float(result['rate']) if result else None
+        self.disconnect()
+        return rate
+    
+    def get_rates_by_date_range(self, currency: str, start_date: str, end_date: str) -> list:
+        """
+        Get exchange rates for a currency within a date range.
+        
+        :param currency: str, currency code
+        :param start_date: str, start date (YYYY-MM-DD)
+        :param end_date: str, end date (YYYY-MM-DD)
+        :return: list, list of rate records
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT currency, rate, fetched_at 
+            FROM mid_prices 
+            WHERE currency = ? AND DATE(fetched_at) BETWEEN ? AND ?
+            ORDER BY fetched_at DESC
+        """, (currency, start_date, end_date))
+        
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+    
+    def get_all_currencies(self) -> list:
+        """
+        Get all unique currencies in the database.
+        
+        :return: list, list of currency codes
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT DISTINCT currency FROM mid_prices ORDER BY currency
+        """)
+        
+        result = [row['currency'] for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+    
+    def delete_rate_at_timestamp(self, timestamp: datetime) -> int:
+        """
+        Delete exchange rates at a specific timestamp.
+        
+        :param timestamp: datetime, timestamp to delete rates for
+        :return: int, number of records deleted
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            DELETE FROM mid_prices 
+            WHERE fetched_at = ?
+        """, (timestamp,))
+        
+        deleted_count = cursor.rowcount
+        self.conn.commit()
+        self.disconnect()
+        return deleted_count
             
 
 
@@ -892,7 +1020,7 @@ def save_rental_flat_to_db(flat_info: FlatInfo, url: str, query_date: str, flat_
     :param db_path: str, database file path
     :return: bool, True if successful
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     return db.insert_rental_flat(flat_info, url, query_date, flat_type)
 
 
@@ -907,36 +1035,31 @@ def save_sales_flat_to_db(flat_info: FlatInfo, url: str, query_date: str, flat_t
     :param db_path: str, database file path
     :return: bool, True if successful
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     return db.insert_sales_flat(flat_info, url, query_date, flat_type)
 
 
-def main():
+def save_exchange_rate_to_db(currency: str, rate: float, fetched_at: datetime = None, db_path: str = "flats.db") -> bool:
     """
-    Example usage of the database module.
+    Convenience function to save exchange rate to database.
+    
+    :param currency: str, currency code (EUR, USD, etc.)
+    :param rate: float, exchange rate
+    :param fetched_at: datetime, timestamp when rate was fetched
+    :param db_path: str, database file path
+    :return: bool, True if successful
     """
-    # Initialize database
-    db = FlatDatabase()
-    
-    # Example: Get historical statistics for the last 30 days
-    from datetime import datetime, timedelta
-    
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
-    
-    stats = db.get_historical_statistics(start_date, end_date)
-    
-    logging.info("Database Statistics:")
-    logging.info(f"Date range: {start_date} to {end_date}")
-    logging.info(f"Total rentals: {stats['rental_stats']['total_rentals']}")
-    logging.info(f"Total sales: {stats['sales_stats']['total_sales']}")
-    
-    if stats['rental_stats']['total_rentals'] > 0:
-        logging.info(f"Rental price range: {stats['rental_stats']['min_rental_price']:,} - {stats['rental_stats']['max_rental_price']:,} tenge")
-    
-    if stats['sales_stats']['total_sales'] > 0:
-        logging.info(f"Sales price range: {stats['sales_stats']['min_sales_price']:,} - {stats['sales_stats']['max_sales_price']:,} tenge")
+    db = OrthancDB(db_path)
+    return db.insert_exchange_rate(currency, rate, fetched_at)
 
 
-if __name__ == "__main__":
-    main()
+def get_latest_exchange_rate(currency: str, db_path: str = "flats.db") -> Optional[float]:
+    """
+    Convenience function to get latest exchange rate.
+    
+    :param currency: str, currency code (EUR or USD)
+    :param db_path: str, database file path
+    :return: Optional[float], latest rate or None if not found
+    """
+    db = OrthancDB(db_path)
+    return db.get_latest_rate(currency)

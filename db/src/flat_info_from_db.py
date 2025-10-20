@@ -10,8 +10,8 @@ from typing import Optional
 from flask import flash
 
 from common.src.flat_info import FlatInfo
-from common.src.krisha_scraper import scrape_flat_info_with_type
-from .write_read_database import FlatDatabase, save_sales_flat_to_db
+from scrapers.src.krisha_scraper import scrape_flat_info_with_type
+from .write_read_database import OrthancDB, save_sales_flat_to_db
 import logging
 
 
@@ -25,7 +25,7 @@ def get_flat_info(flat_id: str, flash_to_frontend: bool = True, db_path: str = "
     :return: Optional[FlatInfo], FlatInfo object or None if error
     """
     logging.info(f"flat_id = -{flat_id}- of type {type(flat_id)}")
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     rental_count = db.get_flat_count('rental')
     logging.info(f"rental_count = {rental_count}")
     try:

@@ -4,7 +4,7 @@ Command-line interface for Krisha.kz scraper and database management.
 import csv
 from argparse import ArgumentParser
 
-from db.src.write_read_database import FlatDatabase
+from db.src.write_read_database import OrthancDB
 from scrapers.src.scraper_with_db import scrape_and_save, scrape_multiple_flats, get_database_summary, \
     search_flats_in_db
 import logging
@@ -92,7 +92,7 @@ def export_to_csv(output_file: str, db_path: str = "flats.db"):
     :param db_path: str, database file path
     """
 
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     flats = db.get_all_flats()
 
     if not flats:

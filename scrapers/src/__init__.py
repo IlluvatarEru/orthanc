@@ -1,3 +1,3 @@
 """
-Scrapers source modules.
-"""
+Web scraping components.
+""" 

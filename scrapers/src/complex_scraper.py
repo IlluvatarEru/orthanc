@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 
 import requests
 
-from db.src.write_read_database import FlatDatabase
+from db.src.write_read_database import OrthancDB
 import logging
 
 def fetch_residential_complexes() -> List[Dict]:
@@ -127,7 +127,7 @@ def save_complexes_to_db(complexes: List[Dict], db_path: str = "flats.db") -> in
     :param db_path: str, database file path
     :return: int, number of complexes saved
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     
     saved_count = 0
     
@@ -158,7 +158,7 @@ def search_complex_by_name(name: str, db_path: str = "flats.db") -> Optional[Dic
     :param db_path: str, database file path
     :return: Optional[Dict], complex information if found
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
     
     # Case-insensitive search
@@ -179,7 +179,7 @@ def search_complexes_by_name(name: str, db_path: str = "flats.db") -> List[Dict]
     :param db_path: str, database file path
     :return: List[Dict], list of matching complexes
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
     
     # Case-insensitive search
@@ -201,7 +201,7 @@ def search_complexes_by_name_deduplicated(name: str, db_path: str = "flats.db") 
     :param db_path: str, database file path
     :return: List[Dict], list of deduplicated matching complexes
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
     
     # Case-insensitive search
@@ -313,7 +313,7 @@ def get_complex_by_id(complex_id: str, db_path: str = "flats.db") -> Optional[Di
     :param db_path: str, database file path
     :return: Optional[Dict], complex information or None if not found
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     return db.get_residential_complex_by_id(complex_id)
 
 
@@ -324,7 +324,7 @@ def get_all_residential_complexes(db_path: str = "flats.db") -> List[Dict]:
     :param db_path: str, database file path
     :return: List[Dict], list of all residential complexes
     """
-    db = FlatDatabase(db_path)
+    db = OrthancDB(db_path)
     return db.get_all_residential_complexes()
 
 

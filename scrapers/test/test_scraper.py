@@ -1,7 +1,7 @@
 """
 Test script for the Krisha.kz scraper.
 """
-from common.src.krisha_scraper import scrape_flat_info
+from scrapers.src.krisha_scraper import scrape_flat_info
 import logging
 
 def test_scraper():

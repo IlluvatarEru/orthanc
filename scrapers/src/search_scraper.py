@@ -14,7 +14,7 @@ from typing import List, Dict, Optional
 from urllib.parse import urljoin, urlparse, parse_qs, urlencode
 
 from common.src.flat_info import FlatInfo
-from common.src.krisha_scraper import scrape_flat_info
+from .krisha_scraper import scrape_flat_info
 from db.src.write_read_database import save_rental_flat_to_db, save_sales_flat_to_db
 
 

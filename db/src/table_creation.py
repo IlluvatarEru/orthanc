@@ -116,6 +116,16 @@ class DatabaseSchema:
             )
         """)
         
+        # Create mid_prices table for FX data
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS mid_prices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                currency TEXT NOT NULL,
+                rate REAL NOT NULL,
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         # Create JK performance snapshots table
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS jk_performance_snapshots (
@@ -219,6 +229,9 @@ class DatabaseSchema:
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_rental_flat_type ON rental_flats(flat_type)")
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_sales_flat_type ON sales_flats(flat_type)")
         
+        # FX indexes
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)")
+        
         self.conn.commit()
         self.disconnect()
     
@@ -235,7 +248,7 @@ class DatabaseSchema:
         """
         self.connect()
         
-        tables = ['favorites', 'sales_flats', 'rental_flats', 'residential_complexes']
+        tables = ['favorites', 'sales_flats', 'rental_flats', 'residential_complexes', 'mid_prices']
         
         for table in tables:
             self.conn.execute(f"DROP TABLE IF EXISTS {table}")

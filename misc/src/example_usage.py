@@ -3,7 +3,7 @@ Example usage of the Krisha.kz scraper.
 
 This script demonstrates how to use the scraper to extract flat information.
 """
-from common.src.krisha_scraper import scrape_flat_info
+from scrapers.src.krisha_scraper import scrape_flat_info
 import logging
 
 def main():

@@ -1,70 +1,24 @@
 """
-Currency conversion module for fetching and managing exchange rates.
+Currency conversion module for fetching exchange rates.
 
 This module provides functionality to fetch EUR and USD to KZT exchange rates
-from mig.kz and store them in the database.
+from mig.kz and perform currency conversions.
 """
 import re
-from datetime import datetime
-from sqlite3 import Row, connect
 from typing import Optional
 import logging
 import requests
-import logging
 
 class CurrencyManager:
     """
     Manages currency conversion and exchange rate fetching.
     """
 
-    def __init__(self, db_path: str = "flats.db"):
+    def __init__(self):
         """
         Initialize currency manager.
-        
-        :param db_path: str, path to SQLite database file
         """
-        self.db_path = db_path
-        self.conn = None
-        self.create_mid_prices_table()
-
-    def connect(self):
-        """
-        Establish database connection.
-        """
-        if self.conn is None:
-            self.conn = connect(self.db_path)
-            self.conn.row_factory = Row
-
-    def disconnect(self):
-        """
-        Close database connection.
-        """
-        if self.conn:
-            self.conn.close()
-            self.conn = None
-
-    def create_mid_prices_table(self):
-        """
-        Create mid_prices table if it doesn't exist.
-        """
-        self.connect()
-
-        self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS mid_prices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                currency TEXT NOT NULL,
-                rate REAL NOT NULL,
-                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # Create index for faster queries
-        self.conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)
-        """)
-
-        self.conn.commit()
-        self.disconnect()
+        pass
 
     def fetch_mig_exchange_rates(self) -> dict[str, float]:
         """
@@ -141,62 +95,15 @@ class CurrencyManager:
             logging.info(f"Error fetching exchange rates from mig.kz: {e}")
             return {}
 
-    def update_exchange_rates(self) -> bool:
-        """
-        Fetch and store latest exchange rates.
-        
-        :return: bool, True if successful, False otherwise
-        """
-        try:
-            rates = self.fetch_mig_exchange_rates()
-
-            if not rates:
-                logging.info("No exchange rates fetched")
-                return False
-
-            self.connect()
-
-            for currency, rate in rates.items():
-                self.conn.execute("""
-                    INSERT INTO mid_prices (currency, rate, fetched_at)
-                    VALUES (?, ?, ?)
-                """, (currency, rate, datetime.now()))
-
-            self.conn.commit()
-            self.disconnect()
-
-            logging.info(f"Updated exchange rates: {rates}")
-            return True
-
-        except Exception as e:
-            logging.info(f"Error updating exchange rates: {e}")
-            return False
-
     def get_latest_rate(self, currency: str) -> Optional[float]:
         """
-        Get the latest exchange rate for a currency.
+        Get the latest exchange rate for a currency by fetching from web.
         
         :param currency: str, currency code (EUR or USD)
         :return: Optional[float], latest rate or None if not found
         """
-        try:
-            self.connect()
-
-            cursor = self.conn.execute("""
-                SELECT rate FROM mid_prices 
-                WHERE currency = ? 
-                ORDER BY fetched_at DESC 
-                LIMIT 1
-            """, (currency,))
-
-            result = cursor.fetchone()
-            self.disconnect()
-
-            return float(result['rate']) if result else None
-
-        except Exception as e:
-            logging.info(f"Error getting latest rate for {currency}: {e}")
-            return None
+        rates = self.fetch_mig_exchange_rates()
+        return rates.get(currency)
 
     def convert_kzt_to_eur(self, kzt_amount: float) -> Optional[float]:
         """
