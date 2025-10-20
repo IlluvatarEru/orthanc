@@ -9,6 +9,7 @@ from typing import Optional
 import logging
 import requests
 
+
 class CurrencyManager:
     """
     Manages currency conversion and exchange rate fetching.
@@ -32,67 +33,70 @@ class CurrencyManager:
             response.raise_for_status()
 
             content = response.text
-
-            # Look for actual exchange rate data in the page
-            # The rates are typically displayed in a table or specific format
             rates = {}
 
-            # Look for EUR rate - search for patterns like "543.24 тенге" near EUR
-            eur_patterns = [
-                r'EUR[^>]*>.*?(\d+\.?\d*)\s*тенге',
-                r'(\d+\.?\d*)\s*тенге.*?EUR',
-                r'евро[^>]*>.*?(\d+\.?\d*)',
-                r'(\d+\.?\d*).*?евро'
-            ]
+            # Parse the HTML table structure for exchange rates
+            # Look for table rows with currency data
+            table_pattern = r'<tr>.*?<td[^>]*>([\d.]+)</td>.*?<td[^>]*class="currency"[^>]*>([A-Z]+)</td>.*?<td[^>]*>([\d.]+)</td>.*?</tr>'
+            table_matches = re.findall(table_pattern, content, re.DOTALL | re.IGNORECASE)
 
-            for pattern in eur_patterns:
-                eur_match = re.search(pattern, content, re.IGNORECASE)
-                if eur_match:
-                    try:
-                        eur_rate = float(eur_match.group(1))
-                        if 400 < eur_rate < 700:  # Reasonable range for EUR/KZT
-                            rates['EUR'] = eur_rate
-                            break
-                    except ValueError:
-                        continue
+            for match in table_matches:
+                buy_rate = float(match[0])
+                currency = match[1].upper()
+                sell_rate = float(match[2])
+                
+                # Use the average of buy and sell rates for mid-price
+                mid_rate = (buy_rate + sell_rate) / 2
+                
+                # Validate rate is within reasonable range
+                if 100 < mid_rate < 1000:
+                    rates[currency] = mid_rate
+                    logging.info(f"Found {currency} rate: {mid_rate} (buy: {buy_rate}, sell: {sell_rate})")
 
-            # Look for USD rate - search for patterns like "619.89 тенге" near USD
-            usd_patterns = [
-                r'USD[^>]*>.*?(\d+\.?\d*)\s*тенге',
-                r'(\d+\.?\d*)\s*тенге.*?USD',
-                r'доллар[^>]*>.*?(\d+\.?\d*)',
-                r'(\d+\.?\d*).*?доллар'
-            ]
-
-            for pattern in usd_patterns:
-                usd_match = re.search(pattern, content, re.IGNORECASE)
-                if usd_match:
-                    try:
-                        usd_rate = float(usd_match.group(1))
-                        if 400 < usd_rate < 700:  # Reasonable range for USD/KZT
-                            rates['USD'] = usd_rate
-                            break
-                    except ValueError:
-                        continue
-
-            # If we still don't have rates, try to find them in the visible text
+            # If we didn't find rates in table format, try alternative patterns
             if not rates:
-                # Look for any number followed by "тенге" that could be a rate
-                tenge_pattern = r'(\d+\.?\d*)\s*тенге'
-                tenge_matches = re.findall(tenge_pattern, content)
+                logging.info("Could not find rates in table format, trying alternative patterns.")
+                
+                # Look for patterns like "USD" followed by numbers
+                currency_patterns = [
+                    r'USD[^>]*>.*?(\d+\.?\d*)',
+                    r'EUR[^>]*>.*?(\d+\.?\d*)',
+                ]
+                
+                for pattern in currency_patterns:
+                    matches = re.findall(pattern, content, re.IGNORECASE)
+                    for match in matches:
+                        rate = float(match)
+                        if 100 < rate < 1000:
+                            # Determine currency from pattern
+                            if 'USD' in pattern.upper():
+                                rates['USD'] = rate
+                            elif 'EUR' in pattern.upper():
+                                rates['EUR'] = rate
 
-                # Filter for reasonable exchange rates (400-700 range)
-                reasonable_rates = [float(rate) for rate in tenge_matches if 400 < float(rate) < 700]
-
+            # Final fallback: look for any reasonable numbers
+            if not rates:
+                logging.info("Could not find rates with specific patterns, trying generic number extraction.")
+                # Look for any number that could be a rate
+                number_pattern = r'(\d+\.?\d*)'
+                numbers = re.findall(number_pattern, content)
+                
+                # Filter for reasonable exchange rates
+                reasonable_rates = []
+                for num in numbers:
+                    rate = float(num)
+                    if 100 < rate < 1000:
+                        reasonable_rates.append(rate)
+                
+                # Take the first few reasonable rates and assign to currencies
                 if len(reasonable_rates) >= 2:
-                    # Assume first two reasonable rates are USD and EUR
                     rates['USD'] = reasonable_rates[0]
                     rates['EUR'] = reasonable_rates[1]
 
             return rates
 
         except Exception as e:
-            logging.info(f"Error fetching exchange rates from mig.kz: {e}")
+            logging.error(f"Error fetching exchange rates from mig.kz: {e}")
             return {}
 
     def get_latest_rate(self, currency: str) -> Optional[float]:
@@ -129,6 +133,18 @@ class CurrencyManager:
             return kzt_amount / usd_rate
         return None
 
+    def convert_kzt_to_gbp(self, kzt_amount: float) -> Optional[float]:
+        """
+        Convert KZT amount to GBP.
+        
+        :param kzt_amount: float, amount in KZT
+        :return: Optional[float], amount in GBP or None if conversion failed
+        """
+        gbp_rate = self.get_latest_rate('GBP')
+        if gbp_rate:
+            return kzt_amount / gbp_rate
+        return None
+
 
 def format_price_with_eur(kzt_amount: float, currency_manager: CurrencyManager, show_eur: bool = False) -> str:
     """
@@ -146,6 +162,35 @@ def format_price_with_eur(kzt_amount: float, currency_manager: CurrencyManager, 
         if eur_amount:
             return f"{kzt_formatted} (€{eur_amount:.0f})"
 
+    return kzt_formatted
+
+
+def format_price_with_currency(kzt_amount: float, currency_manager: CurrencyManager, currency: str = 'EUR') -> str:
+    """
+    Format KZT price with currency conversion.
+    
+    :param kzt_amount: float, amount in KZT
+    :param currency_manager: CurrencyManager, currency manager instance
+    :param currency: str, currency code (EUR, USD, GBP)
+    :return: str, formatted price string
+    """
+    kzt_formatted = f"₸{kzt_amount:,.0f}"
+    
+    if currency.upper() == 'EUR':
+        converted = currency_manager.convert_kzt_to_eur(kzt_amount)
+        symbol = '€'
+    elif currency.upper() == 'USD':
+        converted = currency_manager.convert_kzt_to_usd(kzt_amount)
+        symbol = '$'
+    elif currency.upper() == 'GBP':
+        converted = currency_manager.convert_kzt_to_gbp(kzt_amount)
+        symbol = '£'
+    else:
+        return kzt_formatted
+    
+    if converted:
+        return f"{kzt_formatted} ({symbol}{converted:.0f})"
+    
     return kzt_formatted
 
 
