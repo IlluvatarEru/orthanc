@@ -45,7 +45,10 @@ class OrthancDB:
         """
         if self.conn is None:
             self.conn = sqlite3.connect(self.db_path)
-            self.conn.row_factory = sqlite3.Row  # Enable dict-like access
+            self.conn.row_factory = sqlite3.Row
+            logging.info(f"Connected to DB")
+        else:
+            logging.info("Already connected to DB")
     
     def disconnect(self):
         """
@@ -72,37 +75,37 @@ class OrthancDB:
         # Use flat_type from parameter or from flat_info object
         actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
         
-        # try:
-        self.conn.execute("""
-            INSERT INTO rental_flats (
-                flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                construction_year, parking, description, url, query_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            flat_info.flat_id,
-            flat_info.price,
-            flat_info.area,
-            actual_flat_type,
-            flat_info.residential_complex,
-            flat_info.floor,
-            flat_info.total_floors,
-            flat_info.construction_year,
-            flat_info.parking,
-            flat_info.description,
-            url,
-            query_date
-        ))
+        try:
+            self.conn.execute("""
+                INSERT INTO rental_flats (
+                    flat_id, price, area, flat_type, residential_complex, floor, total_floors,
+                    construction_year, parking, description, url, query_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                flat_info.flat_id,
+                flat_info.price,
+                flat_info.area,
+                actual_flat_type,
+                flat_info.residential_complex,
+                flat_info.floor,
+                flat_info.total_floors,
+                flat_info.construction_year,
+                flat_info.parking,
+                flat_info.description,
+                url,
+                query_date
+            ))
 
-        self.conn.commit()
-        return True
+            self.conn.commit()
+            return True
 
-        # except sqlite3.IntegrityError as e:
-        #     logging.exception(e)
-        #     # Flat already exists for this query date, update instead
-        #     return self.update_rental_flat(flat_info, url, query_date, flat_type)
-        #
-        # finally:
-        #     self.disconnect()
+        except sqlite3.IntegrityError as e:
+            logging.warning(f"Flat {flat_info.flat_id} already exists for {query_date}, updating instead")
+            # Flat already exists for this query date, update instead
+            return self.update_rental_flat(flat_info, url, query_date, flat_type)
+        except Exception as e:
+            logging.error(f"Error inserting rental flat {flat_info.flat_id}: {e}")
+            return False
     
     def insert_sales_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
         """
@@ -119,28 +122,37 @@ class OrthancDB:
         # Use flat_type from parameter or from flat_info object
         actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
         
-        self.conn.execute("""
-            INSERT INTO sales_flats (
-                flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                construction_year, parking, description, url, query_date
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            flat_info.flat_id,
-            flat_info.price,
-            flat_info.area,
-            actual_flat_type,
-            flat_info.residential_complex,
-            flat_info.floor,
-            flat_info.total_floors,
-            flat_info.construction_year,
-            flat_info.parking,
-            flat_info.description,
-            url,
-            query_date
-        ))
-        
-        self.conn.commit()
-        return True
+        try:
+            self.conn.execute("""
+                INSERT INTO sales_flats (
+                    flat_id, price, area, flat_type, residential_complex, floor, total_floors,
+                    construction_year, parking, description, url, query_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                flat_info.flat_id,
+                flat_info.price,
+                flat_info.area,
+                actual_flat_type,
+                flat_info.residential_complex,
+                flat_info.floor,
+                flat_info.total_floors,
+                flat_info.construction_year,
+                flat_info.parking,
+                flat_info.description,
+                url,
+                query_date
+            ))
+            
+            self.conn.commit()
+            return True
+            
+        except sqlite3.IntegrityError as e:
+            logging.warning(f"Flat {flat_info.flat_id} already exists for {query_date}, updating instead")
+            # Flat already exists for this query date, update instead
+            return self.update_sales_flat(flat_info, url, query_date, flat_type)
+        except Exception as e:
+            logging.error(f"Error inserting sales flat {flat_info.flat_id}: {e}")
+            return False
     
     def update_rental_flat(self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None) -> bool:
         """

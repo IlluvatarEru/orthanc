@@ -3,6 +3,8 @@ Test JK sales scraping functionality.
 
 This module tests the JK sales scraping functionality using pytest.
 Tests both querying (without DB) and writing (with DB) operations.
+
+python -m pytest scrapers/test/test_jk_sales_scrapping.py -v -s --log-cli-level=INFO
 """
 import logging
 import os

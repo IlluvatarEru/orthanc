@@ -36,7 +36,7 @@ def scrape_and_save(url: str, db_path: str = "flats.db") -> Optional[FlatInfo]:
             logging.info(f"Successfully scraped and saved flat {flat_info.flat_id}")
             return flat_info
         else:
-            logging.info(f"Failed to save flat {flat_info.flat_id} to database")
+            logging.error(f"Failed to save flat {flat_info.flat_id} to database")
             return flat_info
             
     except Exception as e:

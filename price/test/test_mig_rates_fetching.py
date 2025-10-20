@@ -1,5 +1,7 @@
 """
 Test script for fetching mid prices from mig.kz for EUR, USD, and GBP vs KZT.
+
+python -m pytest price/test/test_mig_rates_fetching.py -v -s --log-cli-level=INFO
 """
 
 import pytest

@@ -472,7 +472,7 @@ def scrape_and_save_search_results_with_pagination(search_url: str, db_path: str
                 logging.info(f"   Area: {flat_info.area} m²")
                 logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
             else:
-                logging.info(f"Failed to save flat {flat_info.flat_id}")
+                logging.error(f"Failed to save flat {flat_info.flat_id}")
             
         except Exception as e:
             logging.info(f"Error scraping {url}: {e}")
@@ -532,7 +532,7 @@ def scrape_and_save_search_results(search_url: str, db_path: str = "flats.db",
                 logging.info(f"   Area: {flat_info.area} m²")
                 logging.info(f"   Residential Complex: {flat_info.residential_complex or 'N/A'}")
             else:
-                logging.info(f"Failed to save flat {flat_info.flat_id}")
+                logging.error(f"Failed to save flat {flat_info.flat_id}")
             
         except Exception as e:
             logging.info(f"Error scraping {url}: {e}")
