@@ -163,18 +163,41 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
                                run_time: str = "12:00") -> None:
     """
     Run daily rental scraping in a continuous loop.
+    Starts immediately when launched, then runs at the specified time each day.
     
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param run_time: str, time to run scraping (format: "HH:MM")
     """
-    logger.info(f"Starting daily rental scraping loop (runs at {run_time})")
+    logger.info(f"Starting daily rental scraping loop (immediate run, then daily at {run_time})")
+    
+    # Run immediately on startup
+    logger.info("Running initial rental scraping immediately...")
+    try:
+        results = scrape_all_jk_rentals(db_path, max_pages)
+        
+        # Log summary
+        total_saved = sum(results.values())
+        successful_jks = len([r for r in results.values() if r > 0])
+        
+        logger.info(f"Initial rental scraping completed:")
+        logger.info(f"  - JKs processed: {len(results)}")
+        logger.info(f"  - Successful JKs: {successful_jks}")
+        logger.info(f"  - Total flats saved: {total_saved}")
+    except Exception as e:
+        logger.error(f"Error in initial rental scraping: {e}")
+    
+    # Parse target time
+    target_hour, target_minute = map(int, run_time.split(':'))
     
     while True:
         try:
-            current_time = datetime.now().strftime("%H:%M")
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
             
-            if current_time == run_time:
+            # Check if it's time to run (within 1 minute of target time)
+            if (now.hour == target_hour and now.minute == target_minute) or \
+               (now.hour == target_hour and now.minute == target_minute + 1):
                 logger.info(f"Starting daily rental scraping at {current_time}")
                 
                 results = scrape_all_jk_rentals(db_path, max_pages)
@@ -189,8 +212,8 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
                 logger.info(f"  - Total flats saved: {total_saved}")
                 
                 # Wait until next day to avoid multiple runs
-                next_run = datetime.now().replace(hour=23, minute=59, second=59)
-                wait_seconds = (next_run - datetime.now()).total_seconds()
+                next_run = now.replace(hour=23, minute=59, second=59)
+                wait_seconds = (next_run - now).total_seconds()
                 logger.info(f"Waiting {wait_seconds/3600:.1f} hours until next run")
                 time.sleep(wait_seconds)
             else:
@@ -209,18 +232,41 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
                               run_time: str = "13:00") -> None:
     """
     Run daily sales scraping in a continuous loop.
+    Starts immediately when launched, then runs at the specified time each day.
     
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param run_time: str, time to run scraping (format: "HH:MM")
     """
-    logger.info(f"Starting daily sales scraping loop (runs at {run_time})")
+    logger.info(f"Starting daily sales scraping loop (immediate run, then daily at {run_time})")
+    
+    # Run immediately on startup
+    logger.info("Running initial sales scraping immediately...")
+    try:
+        results = scrape_all_jk_sales(db_path, max_pages)
+        
+        # Log summary
+        total_saved = sum(results.values())
+        successful_jks = len([r for r in results.values() if r > 0])
+        
+        logger.info(f"Initial sales scraping completed:")
+        logger.info(f"  - JKs processed: {len(results)}")
+        logger.info(f"  - Successful JKs: {successful_jks}")
+        logger.info(f"  - Total flats saved: {total_saved}")
+    except Exception as e:
+        logger.error(f"Error in initial sales scraping: {e}")
+    
+    # Parse target time
+    target_hour, target_minute = map(int, run_time.split(':'))
     
     while True:
         try:
-            current_time = datetime.now().strftime("%H:%M")
+            now = datetime.now()
+            current_time = now.strftime("%H:%M")
             
-            if current_time == run_time:
+            # Check if it's time to run (within 1 minute of target time)
+            if (now.hour == target_hour and now.minute == target_minute) or \
+               (now.hour == target_hour and now.minute == target_minute + 1):
                 logger.info(f"Starting daily sales scraping at {current_time}")
                 
                 results = scrape_all_jk_sales(db_path, max_pages)
@@ -235,8 +281,8 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
                 logger.info(f"  - Total flats saved: {total_saved}")
                 
                 # Wait until next day to avoid multiple runs
-                next_run = datetime.now().replace(hour=23, minute=59, second=59)
-                wait_seconds = (next_run - datetime.now()).total_seconds()
+                next_run = now.replace(hour=23, minute=59, second=59)
+                wait_seconds = (next_run - now).total_seconds()
                 logger.info(f"Waiting {wait_seconds/3600:.1f} hours until next run")
                 time.sleep(wait_seconds)
             else:

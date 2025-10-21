@@ -44,3 +44,4 @@ def normalize_flat_type(value: str) -> str:
     if v in {"2br", "2 br", "2-bedroom", "two-bedroom", "2-комнатная", "2 комнатная"}:
         return FlatType.TWO_BEDROOM.value
     return FlatType.THREE_PLUS_BEDROOM.value
+

@@ -200,3 +200,4 @@ if __name__ == "__main__":
     else:
         # Launch the service
         launch_realtime_market_data(args.db_path, args.log_level)
+
