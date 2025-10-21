@@ -223,8 +223,13 @@ def extract_sales_info(soup: BeautifulSoup, flat_id: str, url: str) -> Optional[
         # Extract description
         description = extract_description(soup)
         
-        # Determine flat type based on area
-        flat_type = determine_flat_type(area)
+        # Extract title from page for better flat type determination
+        title_elem = soup.select_one('h1, .offer__title, .title')
+        title = title_elem.get_text(strip=True) if title_elem else ""
+        
+        # Determine flat type using text analysis (same as analytics API)
+        flat_type = determine_flat_type_from_text(title, description, area)
+        flat_type = normalize_flat_type_enum(flat_type)
         
         # Create FlatInfo object
         flat_info = FlatInfo(
