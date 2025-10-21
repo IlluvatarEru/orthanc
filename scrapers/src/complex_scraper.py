@@ -8,8 +8,8 @@ from typing import List, Dict, Optional
 
 import requests
 
-from db.src.enhanced_database import EnhancedFlatDatabase
-
+from db.src.write_read_database import OrthancDB
+import logging
 
 def fetch_residential_complexes() -> List[Dict]:
     """
@@ -17,7 +17,7 @@ def fetch_residential_complexes() -> List[Dict]:
     
     :return: List[Dict], list of residential complexes
     """
-    print("🔍 Fetching residential complexes from Krisha.kz...")
+    logging.info("Fetching residential complexes from Krisha.kz...")
     
     # API endpoint for residential complexes
     api_url = "https://krisha.kz/complex/ajaxMapComplexGetAll"
@@ -45,19 +45,19 @@ def fetch_residential_complexes() -> List[Dict]:
         # Parse JSON response
         data = response.json()
         
-        print(f"✅ Successfully fetched {len(data)} residential complexes")
+        logging.info(f"Successfully fetched {len(data)} residential complexes")
         
         # Debug: print first few items to understand structure
         if data and len(data) > 0:
-            print(f"📋 Sample data structure:")
-            print(f"   First item: {data[0]}")
+            logging.info(f"Sample data structure:")
+            logging.info(f"   First item: {data[0]}")
             if len(data) > 1:
-                print(f"   Second item: {data[1]}")
+                logging.info(f"   Second item: {data[1]}")
         
         return data
         
     except Exception as e:
-        print(f"❌ Error fetching residential complexes: {e}")
+        logging.info(f"Error fetching residential complexes: {e}")
         return []
 
 
@@ -112,10 +112,10 @@ def parse_complex_data(complexes_data: List[Dict]) -> List[Dict]:
             })
         
         except Exception as e:
-            print(f"⚠️ Error parsing complex data: {e}")
+            logging.info(f"Error parsing complex data: {e}")
             continue
     
-    print(f"✅ Parsed {len(cleaned_complexes)} valid complexes")
+    logging.info(f"Parsed {len(cleaned_complexes)} valid complexes")
     return cleaned_complexes
 
 
@@ -127,7 +127,7 @@ def save_complexes_to_db(complexes: List[Dict], db_path: str = "flats.db") -> in
     :param db_path: str, database file path
     :return: int, number of complexes saved
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = OrthancDB(db_path)
     
     saved_count = 0
     
@@ -144,9 +144,9 @@ def save_complexes_to_db(complexes: List[Dict], db_path: str = "flats.db") -> in
                 saved_count += 1
                 
         except Exception as e:
-            print(f"⚠️ Error saving complex {complex_data.get('complex_id', 'unknown')}: {e}")
+            logging.info(f"Error saving complex {complex_data.get('complex_id', 'unknown')}: {e}")
     
-    print(f"✅ Saved {saved_count}/{len(complexes)} complexes to database")
+    logging.info(f"Saved {saved_count}/{len(complexes)} complexes to database")
     return saved_count
 
 
@@ -158,7 +158,7 @@ def search_complex_by_name(name: str, db_path: str = "flats.db") -> Optional[Dic
     :param db_path: str, database file path
     :return: Optional[Dict], complex information if found
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
     
     # Case-insensitive search
@@ -179,7 +179,7 @@ def search_complexes_by_name(name: str, db_path: str = "flats.db") -> List[Dict]
     :param db_path: str, database file path
     :return: List[Dict], list of matching complexes
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
     
     # Case-insensitive search
@@ -201,7 +201,7 @@ def search_complexes_by_name_deduplicated(name: str, db_path: str = "flats.db") 
     :param db_path: str, database file path
     :return: List[Dict], list of deduplicated matching complexes
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
     
     # Case-insensitive search
@@ -313,7 +313,7 @@ def get_complex_by_id(complex_id: str, db_path: str = "flats.db") -> Optional[Di
     :param db_path: str, database file path
     :return: Optional[Dict], complex information or None if not found
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = OrthancDB(db_path)
     return db.get_residential_complex_by_id(complex_id)
 
 
@@ -324,7 +324,7 @@ def get_all_residential_complexes(db_path: str = "flats.db") -> List[Dict]:
     :param db_path: str, database file path
     :return: List[Dict], list of all residential complexes
     """
-    db = EnhancedFlatDatabase(db_path)
+    db = OrthancDB(db_path)
     return db.get_all_residential_complexes()
 
 
@@ -335,20 +335,20 @@ def update_complex_database(db_path: str = "flats.db") -> int:
     :param db_path: str, database file path
     :return: int, number of complexes updated
     """
-    print("🔄 Updating residential complex database...")
+    logging.info("Updating residential complex database...")
     
     # Fetch complexes from API
     complexes_data = fetch_residential_complexes()
     
     if not complexes_data:
-        print("❌ No complexes data received")
+        logging.info("No complexes data received")
         return 0
     
     # Parse and clean data
     cleaned_complexes = parse_complex_data(complexes_data)
     
     if not cleaned_complexes:
-        print("❌ No valid complexes found")
+        logging.info("No valid complexes found")
         return 0
     
     # Save to database
@@ -361,35 +361,35 @@ def main():
     """
     Main function to demonstrate complex scraping.
     """
-    print("🏢 Krisha.kz Residential Complex Scraper")
-    print("=" * 50)
+    logging.info("🏢 Krisha.kz Residential Complex Scraper")
+    logging.info("=" * 50)
     
     # Update complex database
     saved_count = update_complex_database()
     
     if saved_count > 0:
-        print(f"\n✅ Successfully updated {saved_count} residential complexes")
+        logging.info(f"\nSuccessfully updated {saved_count} residential complexes")
         
         # Show some examples
         db = EnhancedFlatDatabase()
         complexes = db.get_all_residential_complexes()
         
-        print(f"\n📋 Sample complexes:")
+        logging.info(f"\nSample complexes:")
         for i, complex_data in enumerate(complexes[:10], 1):
-            print(f"   {i}. {complex_data['name']} (ID: {complex_data['complex_id']})")
+            logging.info(f"   {i}. {complex_data['name']} (ID: {complex_data['complex_id']})")
             if complex_data.get('city'):
-                print(f"      City: {complex_data['city']}")
+                logging.info(f"      City: {complex_data['city']}")
         
         # Test search functionality
-        print(f"\n🔍 Testing search functionality:")
+        logging.info(f"\nTesting search functionality:")
         meridian = search_complex_by_name("Meridian")
         if meridian:
-            print(f"   Found Meridian: {meridian['name']} (ID: {meridian['complex_id']})")
+            logging.info(f"   Found Meridian: {meridian['name']} (ID: {meridian['complex_id']})")
         else:
-            print("   Meridian not found")
+            logging.info("   Meridian not found")
     
     else:
-        print("❌ Failed to update complex database")
+        logging.info("Failed to update complex database")
 
 
 if __name__ == "__main__":

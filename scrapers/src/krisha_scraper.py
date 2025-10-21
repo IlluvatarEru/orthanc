@@ -4,166 +4,16 @@ Krisha.kz web scraper for extracting flat information.
 This module provides functionality to scrape flat details from Krisha.kz
 using their API endpoint.
 """
-from dataclasses import dataclass
-from typing import Optional
 import re
+import json
 
 import requests
 
-
-@dataclass
-class FlatInfo:
-    """
-    Data class to store flat information extracted from Krisha.kz.
-    
-    :param flat_id: str, unique identifier of the flat from URL
-    :param price: int, price in tenge
-    :param area: float, area in square meters
-    :param residential_complex: Optional[str], name of the residential complex (JK)
-    :param floor: Optional[int], floor number where the flat is located
-    :param total_floors: Optional[int], total number of floors in the building
-    :param construction_year: Optional[int], year of construction
-    :param parking: Optional[str], parking information
-    :param description: str, full description text
-    :param is_rental: bool, True if the flat is for rent, False if for sale
-    """
-    flat_id: str
-    price: int
-    area: float
-    residential_complex: Optional[str]
-    floor: Optional[int]
-    total_floors: Optional[int]
-    construction_year: Optional[int]
-    parking: Optional[str]
-    description: str
-    is_rental: bool = False
-
-
-def extract_flat_id_from_url(url: str) -> str:
-    """
-    Extract flat ID from Krisha.kz URL.
-    
-    :param url: str, URL like https://krisha.kz/a/show/1003924251
-    :return: str, flat ID extracted from URL
-    """
-    # Extract ID from URL pattern like /a/show/1003924251
-    match = re.search(r'/a/show/(\d+)', url)
-    if not match:
-        raise ValueError(f"Could not extract flat ID from URL: {url}")
-    return match.group(1)
-
-
-def decode_cyrillic_text(text: str) -> str:
-    """
-    Decode Unicode escape sequences for Cyrillic text.
-    
-    :param text: str, text with Unicode escape sequences
-    :return: str, decoded Cyrillic text
-    """
-    try:
-        # First try to decode as unicode escape sequences
-        return text.encode('utf-8').decode('unicode_escape')
-    except (UnicodeDecodeError, UnicodeEncodeError):
-        # If that fails, try direct decoding
-        return text
-
-
-def extract_area_from_title(title: str) -> Optional[float]:
-    """
-    Extract area from title text.
-    
-    :param title: str, title containing area information
-    :return: Optional[float], area in square meters
-    """
-    # Look for pattern like "33 м²" or "33 м2" or "33 м"
-    # The м² character is Unicode U+00B2 (superscript 2)
-    match = re.search(r'(\d+(?:\.\d+)?)\s*м[²2]?', title)
-    if match:
-        return float(match.group(1))
-    
-    # Also try to match the Unicode superscript 2 character
-    match = re.search(r'(\d+(?:\.\d+)?)\s*м\u00B2', title)
-    if match:
-        return float(match.group(1))
-    
-    return None
-
-
-def extract_floor_info_from_title(title: str) -> tuple[Optional[int], Optional[int]]:
-    """
-    Extract floor and total floors from title text.
-    
-    :param title: str, title containing floor information
-    :return: tuple[Optional[int], Optional[int]], (floor, total_floors)
-    """
-    # Look for pattern like "10/12 этаж" or "10/12"
-    match = re.search(r'(\d+)/(\d+)\s*этаж', title)
-    if match:
-        return int(match.group(1)), int(match.group(2))
-    
-    # Also try to find just the pattern "10/12" without "этаж"
-    match = re.search(r'(\d+)/(\d+)', title)
-    if match:
-        return int(match.group(1)), int(match.group(2))
-    
-    return None, None
-
-
-def extract_residential_complex_from_description(description: str) -> Optional[str]:
-    """
-    Extract residential complex name from description.
-    
-    :param description: str, full description text
-    :return: Optional[str], residential complex name
-    """
-    # Look for patterns like "жил. комплекс", "ЖК", etc.
-    patterns = [
-        r'жил\.\s*комплекс\s+([^,\.]+)',
-        r'ЖК\s+([^,\.]+)',
-        r'жилой\s+комплекс\s+([^,\.]+)'
-    ]
-    
-    for pattern in patterns:
-        match = re.search(pattern, description, re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-    return None
-
-
-def extract_construction_year_from_description(description: str) -> Optional[int]:
-    """
-    Extract construction year from description.
-    
-    :param description: str, full description text
-    :return: Optional[int], construction year
-    """
-    # Look for year patterns like "2024 г.п." or "2024 г"
-    match = re.search(r'(\d{4})\s*г\.?п?\.?', description)
-    if match:
-        return int(match.group(1))
-    return None
-
-
-def extract_parking_info_from_description(description: str) -> Optional[str]:
-    """
-    Extract parking information from description.
-    
-    :param description: str, full description text
-    :return: Optional[str], parking information
-    """
-    # Look for parking-related keywords
-    parking_keywords = ['парковка', 'парковочное место', 'гараж', 'parking']
-    description_lower = description.lower()
-    
-    for keyword in parking_keywords:
-        if keyword in description_lower:
-            # Extract the sentence containing parking info
-            sentences = description.split('.')
-            for sentence in sentences:
-                if keyword in sentence.lower():
-                    return sentence.strip()
-    
-    return None
+import logging
+from common.src.flat_info import FlatInfo
+from scrapers.src.utils import extract_flat_id_from_url, extract_area_from_title, extract_floor_info_from_title, \
+    extract_residential_complex_from_description, extract_construction_year_from_description, \
+    extract_parking_info_from_description
 
 
 def detect_rental_from_api_data(data: dict) -> bool:
@@ -265,8 +115,22 @@ def scrape_flat_info(url: str) -> FlatInfo:
     if response.status_code != 200:
         raise Exception(f"Failed to fetch data: {response.status_code}")
     
-    # Parse JSON response
-    data = response.json()
+    # Check if response has content
+    if not response.text.strip():
+        raise Exception(f"Empty response from API for flat {flat_id}")
+    
+    # Parse JSON response with error handling
+    logging.info(f"response for {api_url} =\n{response.text}")
+    try:
+        data = response.json()
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to parse JSON response for flat {flat_id}: {e}")
+        logging.error(f"Response content: {response.text[:500]}")  # Log first 500 chars
+        raise Exception(f"Invalid JSON response from API for flat {flat_id}: {e}")
+    
+    # Validate response structure
+    if not isinstance(data, dict):
+        raise Exception(f"API returned invalid data structure for flat {flat_id}")
     
     # Extract advert information
     advert = data.get('advert', {})
@@ -323,20 +187,67 @@ def main():
     
     try:
         flat_info = scrape_flat_info(url)
-        print("Extracted flat information:")
-        print(f"Flat ID: {flat_info.flat_id}")
-        print(f"Price: {flat_info.price:,} tenge")
-        print(f"Area: {flat_info.area} m²")
-        print(f"Residential Complex: {flat_info.residential_complex}")
-        print(f"Floor: {flat_info.floor}/{flat_info.total_floors}")
-        print(f"Construction Year: {flat_info.construction_year}")
-        print(f"Parking: {flat_info.parking}")
-        print(f"Description: {flat_info.description[:200]}...")
-        print(f"Is Rental: {flat_info.is_rental}")
+        logging.info("Extracted flat information:")
+        logging.info(f"Flat ID: {flat_info.flat_id}")
+        logging.info(f"Price: {flat_info.price:,} tenge")
+        logging.info(f"Area: {flat_info.area} m²")
+        logging.info(f"Residential Complex: {flat_info.residential_complex}")
+        logging.info(f"Floor: {flat_info.floor}/{flat_info.total_floors}")
+        logging.info(f"Construction Year: {flat_info.construction_year}")
+        logging.info(f"Parking: {flat_info.parking}")
+        logging.info(f"Description: {flat_info.description[:200]}...")
+        logging.info(f"Is Rental: {flat_info.is_rental}")
         
     except Exception as e:
-        print(f"Error scraping flat info: {e}")
+        logging.info(f"Error scraping flat info: {e}")
+
+
+def determine_flat_type(area: float, description: str) -> str:
+    """
+    Determine flat type based on area and description.
+    
+    :param area: float, area in square meters
+    :param description: str, flat description
+    :return: str, flat type ('Studio', '1BR', '2BR', '3BR+')
+    """
+    description_lower = description.lower()
+    
+    # Check for explicit mentions in description
+    if any(word in description_lower for word in ['студия', 'studio', 'студио']):
+        return 'Studio'
+    elif any(word in description_lower for word in ['1-комнатная', '1-комн', '1 комната', '1 комн', 'однокомнатная', 'однокомн']):
+        return '1BR'
+    elif any(word in description_lower for word in ['2-комнатная', '2-комн', '2 комнаты', '2 комн', 'двухкомнатная', 'двухкомн']):
+        return '2BR'
+    elif any(word in description_lower for word in ['3-комнатная', '3-комн', '3 комнаты', '3 комн', 'трехкомнатная', 'трехкомн', '4-комнатная', '4-комн', '4 комнаты', '4 комн', 'четырехкомнатная', 'четырехкомн']):
+        return '3BR+'
+    
+    # Fallback to area-based classification
+    if area <= 35:
+        return 'Studio'
+    elif area <= 50:
+        return '1BR'
+    elif area <= 80:
+        return '2BR'
+    else:
+        return '3BR+'
+
+
+def scrape_flat_info_with_type(url: str) -> FlatInfo:
+    """
+    Scrape flat information and determine flat type.
+    
+    :param url: str, URL of the flat to scrape
+    :return: FlatInfo, flat information with determined type
+    """
+    flat_info = scrape_flat_info(url)
+    if flat_info:
+        flat_info.flat_type = determine_flat_type(flat_info.area, flat_info.description)
+    return flat_info
 
 
 if __name__ == "__main__":
-    main() 
+    main()
+
+
+

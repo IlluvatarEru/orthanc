@@ -1,3 +1,3 @@
 """
-Command line interface tools.
-""" 
+CLI source modules.
+"""

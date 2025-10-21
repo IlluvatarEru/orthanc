@@ -1,0 +1,48 @@
+name: CI - Python Tests
+
+on:
+  push:
+    branches: [ main, master, develop, feat/** ]
+  pull_request:
+    branches: [ main, master, develop, feat/** ]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: ${{ github.workspace }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            pyproject.toml
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          # Fallback to installing pytest if not in requirements
+          python - <<'PY'
+import importlib.util, subprocess
+spec = importlib.util.find_spec('pytest')
+if spec is None:
+    subprocess.check_call(['python','-m','pip','install','pytest'])
+PY
+
+      - name: Run tests
+        run: |
+          pytest -q
+
+
+

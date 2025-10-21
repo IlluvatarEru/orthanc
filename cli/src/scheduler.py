@@ -7,7 +7,7 @@ for both rental and sales flats with historical tracking.
 import time
 from datetime import datetime
 
-from db.src.enhanced_database import EnhancedFlatDatabase
+from db.src.write_read_database import OrthancDB
 import toml
 import logging
 
@@ -27,7 +27,7 @@ class ScraperScheduler:
         """
         self.config_path = config_path
         self.config = self.load_config()
-        self.db = EnhancedFlatDatabase(self.config['database']['path'])
+        self.db = OrthancDB(self.config['database']['path'])
         self.setup_logging()
     
     def load_config(self) -> dict:
@@ -39,10 +39,10 @@ class ScraperScheduler:
         try:
             with open(self.config_path, 'rb') as f:
                 config = toml.load(f)
-            print(f"✅ Loaded configuration from {self.config_path}")
+            logging.info(f"Loaded configuration from {self.config_path}")
             return config
         except Exception as e:
-            print(f"❌ Error loading configuration: {e}")
+            logging.info(f"Error loading configuration: {e}")
             raise
     
     def setup_logging(self):
@@ -74,7 +74,7 @@ class ScraperScheduler:
         query_name = query_config['name']
         url = query_config['url']
         
-        self.logger.info(f"🏠 Starting rental query with pagination: {query_name}")
+        self.logger.info(f"Starting rental query with pagination: {query_name}")
         self.logger.info(f"   URL: {url}")
         
         try:
@@ -93,11 +93,11 @@ class ScraperScheduler:
             )
             
             scraped_count = len(scraped_flats)
-            self.logger.info(f"   ✅ Completed rental query: {query_name} - {scraped_count} flats scraped")
+            self.logger.info(f"   Completed rental query: {query_name} - {scraped_count} flats scraped")
             return scraped_count
             
         except Exception as e:
-            self.logger.error(f"   ❌ Error in rental query {query_name}: {e}")
+            self.logger.error(f"   Error in rental query {query_name}: {e}")
             return 0
     
     def scrape_sales_query(self, query_config: dict) -> int:
@@ -110,7 +110,7 @@ class ScraperScheduler:
         query_name = query_config['name']
         url = query_config['url']
         
-        self.logger.info(f"🏠 Starting sales query with pagination: {query_name}")
+        self.logger.info(f"Starting sales query with pagination: {query_name}")
         self.logger.info(f"   URL: {url}")
         
         try:
@@ -129,11 +129,11 @@ class ScraperScheduler:
             )
             
             scraped_count = len(scraped_flats)
-            self.logger.info(f"   ✅ Completed sales query: {query_name} - {scraped_count} flats scraped")
+            self.logger.info(f"   Completed sales query: {query_name} - {scraped_count} flats scraped")
             return scraped_count
             
         except Exception as e:
-            self.logger.error(f"   ❌ Error in sales query {query_name}: {e}")
+            self.logger.error(f"   Error in sales query {query_name}: {e}")
             return 0
     
     def run_all_queries(self) -> dict:
@@ -151,7 +151,7 @@ class ScraperScheduler:
         rental_results = []
         rental_queries = self.config.get('rental_queries', [])
         
-        self.logger.info(f"   📋 Found {len(rental_queries)} rental queries")
+        self.logger.info(f"   Found {len(rental_queries)} rental queries")
         
         for query_config in rental_queries:
             scraped_count = self.scrape_rental_query(query_config)
@@ -164,7 +164,7 @@ class ScraperScheduler:
         sales_results = []
         sales_queries = self.config.get('sales_queries', [])
         
-        self.logger.info(f"   📋 Found {len(sales_queries)} sales queries")
+        self.logger.info(f"   Found {len(sales_queries)} sales queries")
         
         for query_config in sales_queries:
             scraped_count = self.scrape_sales_query(query_config)
@@ -195,7 +195,7 @@ class ScraperScheduler:
             'sales_results': sales_results
         }
         
-        self.logger.info("✅ Completed scheduled scraping job")
+        self.logger.info("Completed scheduled scraping job")
         self.logger.info(f"   Duration: {duration:.2f} seconds")
         self.logger.info(f"   Total flats scraped: {total_flats}")
         self.logger.info(f"   Rental flats: {total_rental_flats}")
@@ -244,34 +244,34 @@ def main():
         if args.query_name and args.query_type:
             # Run single query
             scraped_count = scheduler.run_single_query(args.query_type, args.query_name)
-            print(f"✅ Scraped {scraped_count} flats from query '{args.query_name}'")
+            logging.info(f"Scraped {scraped_count} flats from query '{args.query_name}'")
         
         elif args.all:
             # Run all queries
             summary = scheduler.run_all_queries()
-            print(f"\n📊 Summary:")
-            print(f"   Total flats scraped: {summary['total_flats']}")
-            print(f"   Rental flats: {summary['total_rental_flats']}")
-            print(f"   Sales flats: {summary['total_sales_flats']}")
-            print(f"   Duration: {summary['duration_seconds']:.2f} seconds")
+            logging.info(f"\nSummary:")
+            logging.info(f"   Total flats scraped: {summary['total_flats']}")
+            logging.info(f"   Rental flats: {summary['total_rental_flats']}")
+            logging.info(f"   Sales flats: {summary['total_sales_flats']}")
+            logging.info(f"   Duration: {summary['duration_seconds']:.2f} seconds")
         
         else:
             # Show available queries
-            print("Available queries:")
-            print("\nRental queries:")
+            logging.info("Available queries:")
+            logging.info("\nRental queries:")
             for query in scheduler.config.get('rental_queries', []):
-                print(f"   - {query['name']}")
+                logging.info(f"   - {query['name']}")
             
-            print("\nSales queries:")
+            logging.info("\nSales queries:")
             for query in scheduler.config.get('sales_queries', []):
-                print(f"   - {query['name']}")
+                logging.info(f"   - {query['name']}")
             
-            print(f"\nUsage:")
-            print(f"   python scheduler.py --all")
-            print(f"   python scheduler.py --query-type rental --query-name 'Meridian Apartments - 1 room rentals'")
+            logging.info(f"\nUsage:")
+            logging.info(f"   python scheduler.py --all")
+            logging.info(f"   python scheduler.py --query-type rental --query-name 'Meridian Apartments - 1 room rentals'")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logging.info(f"Error: {e}")
 
 
 if __name__ == "__main__":

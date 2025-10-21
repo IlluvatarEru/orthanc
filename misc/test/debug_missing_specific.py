@@ -6,14 +6,14 @@ Debug script to test specific missing flats.
 
 from datetime import datetime
 
-from common.src.krisha_scraper import scrape_flat_info
-from db.src.enhanced_database import save_sales_flat_to_db
-
+from scrapers.src.krisha_scraper import scrape_flat_info
+from db.src.write_read_database import save_sales_flat_to_db
+import logging
 
 def test_missing_flats():
     """Test scraping the specific missing flats."""
-    print("🔍 Testing Missing Flats")
-    print("=" * 50)
+    logging.info("Testing Missing Flats")
+    logging.info("=" * 50)
     
     # These are the flats that were scraped but not saved to DB
     missing_flat_ids = [
@@ -23,48 +23,48 @@ def test_missing_flats():
         '1003940239', '1003940973', '1003942284'
     ]
     
-    print(f"📊 Testing {len(missing_flat_ids)} missing flats")
+    logging.info(f"Testing {len(missing_flat_ids)} missing flats")
     
     success_count = 0
     error_count = 0
     
     for i, flat_id in enumerate(missing_flat_ids, 1):
         url = f"https://krisha.kz/a/show/{flat_id}"
-        print(f"\n[{i}/{len(missing_flat_ids)}] Testing: {url}")
+        logging.info(f"\n[{i}/{len(missing_flat_ids)}] Testing: {url}")
         
         try:
             # Try to scrape the flat
             flat_info = scrape_flat_info(url)
-            print(f"   ✅ Successfully scraped flat {flat_id}")
-            print(f"   Price: {flat_info.price:,} tenge")
-            print(f"   Area: {flat_info.area} m²")
-            print(f"   Complex: {flat_info.residential_complex}")
+            logging.info(f"   Successfully scraped flat {flat_id}")
+            logging.info(f"   Price: {flat_info.price:,} tenge")
+            logging.info(f"   Area: {flat_info.area} m²")
+            logging.info(f"   Complex: {flat_info.residential_complex}")
             
             # Try to save to database
             query_date = datetime.now().strftime('%Y-%m-%d')
             success = save_sales_flat_to_db(flat_info, url, query_date)
             
             if success:
-                print(f"   ✅ Successfully saved to database")
+                logging.info(f"   Successfully saved to database")
                 success_count += 1
             else:
-                print(f"   ❌ Failed to save to database")
+                logging.info(f"   Failed to save to database")
                 error_count += 1
                 
         except Exception as e:
-            print(f"   ❌ Error scraping {flat_id}: {e}")
+            logging.info(f"   Error scraping {flat_id}: {e}")
             error_count += 1
     
-    print(f"\n📊 Results:")
-    print(f"   Successfully scraped and saved: {success_count}")
-    print(f"   Failed: {error_count}")
-    print(f"   Success rate: {success_count/(success_count+error_count)*100:.1f}%")
+    logging.info(f"\nResults:")
+    logging.info(f"   Successfully scraped and saved: {success_count}")
+    logging.info(f"   Failed: {error_count}")
+    logging.info(f"   Success rate: {success_count/(success_count+error_count)*100:.1f}%")
 
 
 def check_database_after_test():
     """Check database after testing missing flats."""
-    print(f"\n🗄️  Database Check After Test")
-    print("=" * 50)
+    logging.info(f"\n🗄️  Database Check After Test")
+    logging.info("=" * 50)
     
     import sqlite3
     conn = sqlite3.connect('flats.db')
@@ -85,18 +85,18 @@ def check_database_after_test():
     
     unique_flats = cursor.fetchone()[0]
     
-    print(f"📊 Database after test:")
-    print(f"   Total records: {total_flats}")
-    print(f"   Unique flats: {unique_flats}")
-    print(f"   Duplicates: {total_flats - unique_flats}")
+    logging.info(f"Database after test:")
+    logging.info(f"   Total records: {total_flats}")
+    logging.info(f"   Unique flats: {unique_flats}")
+    logging.info(f"   Duplicates: {total_flats - unique_flats}")
     
     conn.close()
 
 
 def main():
     """Main debug function."""
-    print("🏠 Missing Flats Specific Test")
-    print("=" * 50)
+    logging.info("Missing Flats Specific Test")
+    logging.info("=" * 50)
     
     # Test the missing flats
     test_missing_flats()
