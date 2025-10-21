@@ -1,0 +1,91 @@
+# Krisha.kz Scraper Configuration
+# This file defines search queries for both rental and sales flats
+
+# Database configuration
+[database]
+path = "flats.db"
+
+# Scraping configuration
+[scraping]
+delay_between_requests = 2.0  # seconds
+max_flats_per_query = 200     # maximum flats to scrape per query (increased from 50)
+max_pages_per_query = 10      # maximum pages to scrape per query (pagination) (increased from 5)
+retry_attempts = 3            # number of retry attempts for failed requests
+
+# Search queries for rentals
+[[rental_queries]]
+name = "Meridian Apartments - 1 room rentals"
+description = "1-room apartments for rent in Meridian Apartments, Almaty"
+url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1&das[map.complex]=2758"
+parameters = { rooms = 1, complex_id = "2758", area_max = 35 }
+
+[[rental_queries]]
+name = "Meridian Apartments - 2 room rentals"
+description = "2-room apartments for rent in Meridian Apartments, Almaty"
+url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=2&das[map.complex]=2758"
+parameters = { rooms = 2, complex_id = "2758", area_max = 50 }
+
+[[rental_queries]]
+name = "Meridian Apartments - 3 room rentals"
+description = "3-room apartments for rent in Meridian Apartments, Almaty"
+url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=3&das[map.complex]=2758"
+parameters = { rooms = 3, complex_id = "2758", area_max = 80 }
+
+# Search queries for sales
+[[sales_queries]]
+name = "Meridian Apartments - 1 room sales"
+description = "1-room apartments for sale in Meridian Apartments, Almaty"
+url = "https://krisha.kz/prodazha/kvartiry/almaty/?das[live.rooms]=1&das[map.complex]=2758"
+parameters = { rooms = 1, complex_id = "2758", area_max = 35 }
+
+[[sales_queries]]
+name = "Meridian Apartments - 2 room sales"
+description = "2-room apartments for sale in Meridian Apartments, Almaty"
+url = "https://krisha.kz/prodazha/kvartiry/almaty/?das[live.rooms]=2&das[map.complex]=2758"
+parameters = { rooms = 2, complex_id = "2758", area_max = 50 }
+
+[[sales_queries]]
+name = "Meridian Apartments - 3 room sales"
+description = "3-room apartments for sale in Meridian Apartments, Almaty"
+url = "https://krisha.kz/prodazha/kvartiry/almaty/?das[live.rooms]=3&das[map.complex]=2758"
+parameters = { rooms = 3, complex_id = "2758", area_max = 80 }
+
+# Additional search queries can be added here
+# Example for different complexes:
+# [[rental_queries]]
+# name = "Another Complex - 1 room rentals"
+# description = "1-room apartments for rent in Another Complex, Almaty"
+# url = "https://krisha.kz/arenda/kvartiry/almaty/?das[live.rooms]=1&das[map.complex]=1234"
+# parameters = { rooms = 1, complex_id = "1234", area_max = 35 }
+
+# Scheduling configuration
+[scheduling]
+enabled = true
+interval_hours = 24  # run every 24 hours
+start_time = "09:00"  # start time for daily runs
+timezone = "Asia/Almaty"
+
+# Logging configuration
+[logging]
+level = "INFO"  # DEBUG, INFO, WARNING, ERROR
+file = "scraper.log"
+max_size_mb = 10
+backup_count = 5
+
+# Investment recommendation thresholds
+[recommendations]
+# Rental yield thresholds for different recommendations
+strong_buy_yield = 20.0    # STRONG BUY for yield > 20%
+buy_yield = 15.0            # BUY for yield > 8%
+consider_yield = 12.0       # CONSIDER for yield > 5%
+# Below consider_yield will be marked as "NOT RECOMMENDED"
+
+# Price comparison thresholds
+excellent_deal_discount = -15.0  # Excellent deal if price is 15% below median
+good_deal_discount = -10.0        # Good deal if price is 5% below median
+fair_deal_discount = 1.0         # Fair deal if price is within 5% of median
+# Above fair_deal_discount will be marked as "Expensive"
+
+# Analysis configuration
+[analysis]
+default_area_tolerance = 10.0  # Default area tolerance percentage for finding similar flats 
