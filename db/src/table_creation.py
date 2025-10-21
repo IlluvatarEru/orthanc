@@ -59,6 +59,17 @@ class DatabaseSchema:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Create blacklisted JKs table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS blacklisted_residential_complexes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                complex_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        """)
         
         # Create rentals table
         self.conn.execute("""
@@ -113,6 +124,17 @@ class DatabaseSchema:
                 added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 notes TEXT,
                 UNIQUE(flat_id, flat_type)
+            )
+        """)
+        
+        # Create blacklisted JKs table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS blacklisted_jks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                krisha_id TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
             )
         """)
         
@@ -231,6 +253,10 @@ class DatabaseSchema:
         
         # FX indexes
         self.conn.execute("CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)")
+        
+        # Blacklisted JKs indexes
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_blacklisted_krisha_id ON blacklisted_jks(krisha_id)")
+        self.conn.execute("CREATE INDEX IF NOT EXISTS idx_blacklisted_name ON blacklisted_jks(name)")
         
         self.conn.commit()
         self.disconnect()

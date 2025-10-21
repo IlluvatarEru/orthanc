@@ -32,12 +32,6 @@ class OrthancDB:
         # Initialize database schema
         schema = DatabaseSchema(db_path)
         schema.initialize_database()
-        # Create FX tables
-        try:
-            self.create_mid_prices_table()
-        except Exception as e:
-            logging.error(f"Error creating mid_prices table: {e}")
-            # Don't fail initialization, just log the error
     
     def connect(self):
         """
@@ -1010,6 +1004,306 @@ class OrthancDB:
         self.conn.commit()
         self.disconnect()
         return deleted_count
+    
+    # Blacklist operations
+    def blacklist_jk(self, krisha_id: str, name: str, notes: str = None) -> bool:
+        """
+        Add a JK to the blacklist.
+        
+        :param krisha_id: str, Krisha ID of the JK
+        :param name: str, name of the JK
+        :param notes: str, optional notes about why it's blacklisted
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        try:
+            self.conn.execute("""
+                INSERT OR REPLACE INTO blacklisted_jks (krisha_id, name, notes)
+                VALUES (?, ?, ?)
+            """, (krisha_id, name, notes))
+            
+            self.conn.commit()
+            logging.info(f"Blacklisted JK: {name} (ID: {krisha_id})")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error blacklisting JK {name}: {e}")
+            return False
+        finally:
+            self.disconnect()
+    
+    def blacklist_jks(self, jk_list: List[Dict]) -> int:
+        """
+        Add multiple JKs to the blacklist.
+        
+        :param jk_list: List[Dict], list of JK dictionaries with 'krisha_id', 'name', and optional 'notes'
+        :return: int, number of JKs successfully blacklisted
+        """
+        self.connect()
+        
+        success_count = 0
+        
+        try:
+            for jk in jk_list:
+                krisha_id = jk.get('krisha_id')
+                name = jk.get('name')
+                notes = jk.get('notes')
+                
+                if not krisha_id or not name:
+                    logging.warning(f"Skipping JK with missing required fields: {jk}")
+                    continue
+                
+                self.conn.execute("""
+                    INSERT OR REPLACE INTO blacklisted_jks (krisha_id, name, notes)
+                    VALUES (?, ?, ?)
+                """, (krisha_id, name, notes))
+                
+                success_count += 1
+                logging.info(f"Blacklisted JK: {name} (ID: {krisha_id})")
+            
+            self.conn.commit()
+            logging.info(f"Successfully blacklisted {success_count} JKs")
+            
+        except Exception as e:
+            logging.error(f"Error blacklisting JKs: {e}")
+        finally:
+            self.disconnect()
+        
+        return success_count
+    
+    def whitelist_jk(self, krisha_id: str = None, name: str = None) -> bool:
+        """
+        Remove a JK from the blacklist.
+        
+        :param krisha_id: str, Krisha ID of the JK to whitelist
+        :param name: str, name of the JK to whitelist
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        if not krisha_id and not name:
+            logging.error("Either krisha_id or name must be provided")
+            return False
+        
+        try:
+            if krisha_id:
+                cursor = self.conn.execute("""
+                    DELETE FROM blacklisted_jks WHERE krisha_id = ?
+                """, (krisha_id,))
+            else:
+                cursor = self.conn.execute("""
+                    DELETE FROM blacklisted_jks WHERE name = ?
+                """, (name,))
+            
+            deleted_count = cursor.rowcount
+            self.conn.commit()
+            
+            if deleted_count > 0:
+                logging.info(f"Whitelisted JK: {name or krisha_id}")
+                return True
+            else:
+                logging.warning(f"JK not found in blacklist: {name or krisha_id}")
+                return False
+                
+        except Exception as e:
+            logging.error(f"Error whitelisting JK {name or krisha_id}: {e}")
+            return False
+        finally:
+            self.disconnect()
+    
+    def whitelist_jk_by_name(self, name: str) -> bool:
+        """
+        Remove a JK from the blacklist by name, automatically finding the Krisha ID from the database.
+        
+        :param name: str, name of the JK to whitelist
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Find the JK in the residential_complexes table
+        cursor = self.conn.execute("""
+            SELECT complex_id FROM residential_complexes WHERE name = ?
+        """, (name,))
+        
+        complex_row = cursor.fetchone()
+        if complex_row:
+            krisha_id = complex_row[0]
+            logging.info(f"Found JK '{name}' with Krisha ID: {krisha_id}")
+            self.disconnect()
+            return self.whitelist_jk(krisha_id=krisha_id, name=name)
+        else:
+            self.disconnect()
+            raise Exception(f"JK '{name}' not found in residential_complexes table")
+    
+    def whitelist_jk_by_id(self, jk_id: str) -> bool:
+        """
+        Remove a JK from the blacklist by ID, automatically finding the name from the database.
+        
+        :param jk_id: str, ID of the JK to whitelist
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Find the JK in the residential_complexes table
+        cursor = self.conn.execute("""
+            SELECT name FROM residential_complexes WHERE complex_id = ?
+        """, (jk_id,))
+        
+        complex_row = cursor.fetchone()
+        if complex_row:
+            name = complex_row[0]
+            logging.info(f"Found JK with ID '{jk_id}' and name: {name}")
+            self.disconnect()
+            return self.whitelist_jk(krisha_id=jk_id, name=name)
+        else:
+            self.disconnect()
+            raise Exception(f"JK with ID '{jk_id}' not found in residential_complexes table")
+    
+    def whitelist_jks(self, jk_list: List[Dict]) -> int:
+        """
+        Remove multiple JKs from the blacklist.
+        
+        :param jk_list: List[Dict], list of JK dictionaries with 'krisha_id' or 'name'
+        :return: int, number of JKs successfully whitelisted
+        """
+        self.connect()
+        
+        success_count = 0
+        
+        try:
+            for jk in jk_list:
+                krisha_id = jk.get('krisha_id')
+                name = jk.get('name')
+                
+                if not krisha_id and not name:
+                    logging.warning(f"Skipping JK with missing identifier: {jk}")
+                    continue
+                
+                if krisha_id:
+                    cursor = self.conn.execute("""
+                        DELETE FROM blacklisted_jks WHERE krisha_id = ?
+                    """, (krisha_id,))
+                else:
+                    cursor = self.conn.execute("""
+                        DELETE FROM blacklisted_jks WHERE name = ?
+                    """, (name,))
+                
+                if cursor.rowcount > 0:
+                    success_count += 1
+                    logging.info(f"Whitelisted JK: {name or krisha_id}")
+                else:
+                    logging.warning(f"JK not found in blacklist: {name or krisha_id}")
+            
+            self.conn.commit()
+            logging.info(f"Successfully whitelisted {success_count} JKs")
+            
+        except Exception as e:
+            logging.error(f"Error whitelisting JKs: {e}")
+        finally:
+            self.disconnect()
+        
+        return success_count
+    
+    def get_blacklisted_jks(self) -> List[dict]:
+        """
+        Get all blacklisted JKs.
+        
+        :return: List[dict], list of blacklisted JK information
+        """
+        self.connect()
+        
+        cursor = self.conn.execute("""
+            SELECT * FROM blacklisted_jks ORDER BY blacklisted_at DESC
+        """)
+        
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+    
+    def is_jk_blacklisted(self, krisha_id: str = None, name: str = None) -> bool:
+        """
+        Check if a JK is blacklisted.
+        
+        :param krisha_id: str, Krisha ID to check
+        :param name: str, JK name to check
+        :return: bool, True if JK is blacklisted
+        """
+        self.connect()
+        
+        if not krisha_id and not name:
+            return False
+        
+        try:
+            if krisha_id:
+                cursor = self.conn.execute("""
+                    SELECT 1 FROM blacklisted_jks WHERE krisha_id = ?
+                """, (krisha_id,))
+            else:
+                cursor = self.conn.execute("""
+                    SELECT 1 FROM blacklisted_jks WHERE name = ?
+                """, (name,))
+            
+            result = cursor.fetchone() is not None
+            return result
+            
+        except Exception as e:
+            logging.error(f"Error checking if JK is blacklisted: {e}")
+            return False
+        finally:
+            self.disconnect()
+    
+    def blacklist_jk_by_name(self, name: str, notes: str = "") -> bool:
+        """
+        Blacklist a JK by its name, automatically finding the Krisha ID from the database.
+        
+        :param name: str, name of the JK to blacklist
+        :param notes: str, optional notes about why it's blacklisted
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Find the JK in the residential_complexes table
+        cursor = self.conn.execute("""
+            SELECT complex_id FROM residential_complexes WHERE name = ?
+        """, (name,))
+
+        complex_row = cursor.fetchone()
+        if complex_row:
+            krisha_id = complex_row[0]
+            logging.info(f"Found JK '{name}' with Krisha ID: {krisha_id}")
+            self.disconnect()
+            return self.blacklist_jk(krisha_id, name, notes)
+        else:
+            self.disconnect()
+            raise Exception(f"JK '{name}' not found in residential_complexes table")
+    
+    def blacklist_jk_by_id(self, jk_id: str, notes: str = "") -> bool:
+        """
+        Blacklist a JK by its ID, automatically finding the name from the database.
+        
+        :param jk_id: str, ID of the JK to blacklist
+        :param notes: str, optional notes about why it's blacklisted
+        :return: bool, True if successful
+        """
+        self.connect()
+        
+        # Find the JK in the residential_complexes table
+        cursor = self.conn.execute("""
+            SELECT name FROM residential_complexes WHERE complex_id = ?
+        """, (jk_id,))
+
+        complex_row = cursor.fetchone()
+        if complex_row:
+            name = complex_row[0]
+            logging.info(f"Found JK with ID '{jk_id}' and name: {name}")
+            self.disconnect()
+            return self.blacklist_jk(jk_id, name, notes)
+        else:
+            self.disconnect()
+            raise Exception(f"JK '{jk_id}' not found in residential_complexes table")
+
+
             
 
 

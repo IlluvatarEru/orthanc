@@ -3,6 +3,9 @@ Test JK rental scraping functionality.
 
 This module tests the JK rental scraping functionality using pytest.
 Tests both querying (without DB) and writing (with DB) operations.
+
+python -m pytest scrapers/test/test_jk_rentals_scrapping.py -v -s --log-cli-level=INFO
+
 """
 
 import sys
@@ -12,8 +15,7 @@ import tempfile
 import logging
 from typing import List
 
-# Add the project root to Python path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
 
 from scrapers.src.krisha_rental_scrapping import scrap_jk_rentals, scrap_and_save_jk_rentals
 from common.src.flat_info import FlatInfo

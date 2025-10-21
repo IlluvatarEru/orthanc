@@ -32,19 +32,17 @@ logger = logging.getLogger(__name__)
 
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     """
-    Get all residential complexes (JKs) from the database.
+    Get all residential complexes (JKs) from the database, excluding blacklisted ones.
     
     :param db_path: str, path to database file
     :return: List[Dict], list of JK information
     """
-    logger.info("Fetching all JKs from database")
+    logger.info("Fetching all JKs from database (excluding blacklisted)")
     
     db = OrthancDB(db_path)
     db.connect()
     try:
-
-        
-        # Get unique residential complexes from both rental and sales tables
+        # Get unique residential complexes from both rental and sales tables, excluding blacklisted ones
         cursor = db.conn.execute("""
             SELECT DISTINCT residential_complex, COUNT(*) as flat_count
             FROM (
@@ -52,13 +50,22 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
                 UNION ALL
                 SELECT residential_complex FROM sales_flats WHERE residential_complex IS NOT NULL
             )
-            WHERE residential_complex != '' AND residential_complex IS NOT NULL
+            WHERE residential_complex != '' 
+            AND residential_complex IS NOT NULL
+            AND residential_complex NOT IN (
+                SELECT name FROM blacklisted_jks
+            )
             GROUP BY residential_complex
             ORDER BY flat_count DESC
         """)
         
         jks = [dict(row) for row in cursor.fetchall()]
-        logger.info(f"Found {len(jks)} unique JKs in database")
+        logger.info(f"Found {len(jks)} unique JKs in database (excluding blacklisted)")
+        
+        # Log blacklisted JKs for transparency
+        blacklisted_jks = db.get_blacklisted_jks()
+        if blacklisted_jks:
+            logger.info(f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}")
         
         return jks
         
@@ -328,17 +335,72 @@ def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 5,
     logger.info("Immediate scraping completed!")
 
 
+def manage_blacklist(db_path: str = "flats.db", action: str = "list", 
+                   krisha_id: str = None, name: str = None, notes: str = None) -> None:
+    """
+    Manage blacklisted JKs.
+    
+    :param db_path: str, path to database file
+    :param action: str, action to perform ('list', 'add', 'remove')
+    :param krisha_id: str, Krisha ID of the JK
+    :param name: str, name of the JK
+    :param notes: str, notes for blacklisting
+    """
+    db = OrthancDB(db_path)
+    
+    if action == "list":
+        blacklisted = db.get_blacklisted_jks()
+        if blacklisted:
+            logger.info(f"Blacklisted JKs ({len(blacklisted)}):")
+            for jk in blacklisted:
+                logger.info(f"  - {jk['name']} (ID: {jk['krisha_id']}) - {jk['notes'] or 'No notes'}")
+        else:
+            logger.info("No blacklisted JKs found")
+    
+    elif action == "add":
+        if not krisha_id or not name:
+            logger.error("Both krisha_id and name are required for adding to blacklist")
+            return
+        
+        success = db.blacklist_jk(krisha_id, name, notes)
+        if success:
+            logger.info(f"Successfully blacklisted JK: {name}")
+        else:
+            logger.error(f"Failed to blacklist JK: {name}")
+    
+    elif action == "remove":
+        if not krisha_id and not name:
+            logger.error("Either krisha_id or name is required for removing from blacklist")
+            return
+        
+        success = db.whitelist_jk(krisha_id, name)
+        if success:
+            logger.info(f"Successfully whitelisted JK: {name or krisha_id}")
+        else:
+            logger.error(f"Failed to whitelist JK: {name or krisha_id}")
+    
+    else:
+        logger.error(f"Unknown action: {action}. Use 'list', 'add', or 'remove'")
+
+
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Launch JK scraping operations")
-    parser.add_argument("--mode", choices=["immediate", "daily-rentals", "daily-sales"], 
+    parser.add_argument("--mode", choices=["immediate", "daily-rentals", "daily-sales", "blacklist"], 
                        default="immediate", help="Scraping mode")
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
     parser.add_argument("--max-pages", type=int, default=5, help="Maximum pages per JK")
     parser.add_argument("--rentals", action="store_true", help="Include rentals (immediate mode)")
     parser.add_argument("--sales", action="store_true", help="Include sales (immediate mode)")
     parser.add_argument("--run-time", default="12:00", help="Time to run daily scraping (HH:MM)")
+    
+    # Blacklist management arguments
+    parser.add_argument("--blacklist-action", choices=["list", "add", "remove"], 
+                       default="list", help="Blacklist action")
+    parser.add_argument("--krisha-id", help="Krisha ID for blacklist operations")
+    parser.add_argument("--jk-name", help="JK name for blacklist operations")
+    parser.add_argument("--notes", help="Notes for blacklisting")
     
     args = parser.parse_args()
     
@@ -360,4 +422,12 @@ if __name__ == "__main__":
             db_path=args.db_path,
             max_pages=args.max_pages,
             run_time=args.run_time
+        )
+    elif args.mode == "blacklist":
+        manage_blacklist(
+            db_path=args.db_path,
+            action=args.blacklist_action,
+            krisha_id=args.krisha_id,
+            name=args.jk_name,
+            notes=args.notes
         )
