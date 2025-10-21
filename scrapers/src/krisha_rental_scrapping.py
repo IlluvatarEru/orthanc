@@ -24,6 +24,80 @@ from scrapers.src.utils import (
 )
 
 
+def scrape_rental_flat_from_rental_page(krisha_id: str) -> Optional[FlatInfo]:
+    """
+    Scrape rental flat information directly from the main rental page using BeautifulSoup.
+    
+    :param krisha_id: str, Krisha.kz flat ID (e.g., "12345678")
+    :return: Optional[FlatInfo], flat information object or None if failed
+    """
+    try:
+        url = f"https://krisha.kz/a/show/{krisha_id}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # Parse HTML with BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Use the existing extract_rental_info function
+        return extract_rental_info(soup, krisha_id, url)
+        
+    except requests.RequestException as e:
+        logging.error(f"Request error scraping rental flat {krisha_id} from rental page: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error scraping rental flat {krisha_id} from rental page: {e}")
+        return None
+
+
+def scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(krisha_id: str) -> Optional[FlatInfo]:
+    """
+    Scrape rental flat information with failover from analytics API to direct page scraping.
+    
+    :param krisha_id: str, Krisha.kz flat ID (e.g., "12345678")
+    :return: Optional[FlatInfo], flat information object or None if both methods fail
+    """
+    logging.info(f"Attempting to scrape rental flat {krisha_id} with failover...")
+    
+    # Try analytics API first (faster and more reliable)
+    try:
+        logging.info(f"Trying analytics API for rental flat {krisha_id}...")
+        flat_info = scrape_rental_flat(krisha_id)
+        if flat_info is not None:
+            logging.info(f"✅ Successfully scraped rental flat {krisha_id} using analytics API")
+            return flat_info
+        else:
+            logging.warning(f"Analytics API returned None for rental flat {krisha_id}")
+    except Exception as e:
+        logging.warning(f"Analytics API failed for rental flat {krisha_id}: {e}")
+    
+    # Fallback to direct page scraping
+    try:
+        logging.info(f"Trying direct page scraping for rental flat {krisha_id}...")
+        flat_info = scrape_rental_flat_from_rental_page(krisha_id)
+        if flat_info is not None:
+            logging.info(f"✅ Successfully scraped rental flat {krisha_id} using direct page scraping")
+            return flat_info
+        else:
+            logging.warning(f"Direct page scraping returned None for rental flat {krisha_id}")
+    except Exception as e:
+        logging.warning(f"Direct page scraping failed for rental flat {krisha_id}: {e}")
+    
+    # Both methods failed
+    logging.error(f"❌ Both scraping methods failed for rental flat {krisha_id}")
+    return None
+
+
 def scrape_rental_flat(krisha_id: str) -> Optional[FlatInfo]:
     """
     Fetch rental flat information via Krisha mobile analytics JSON and build FlatInfo.
@@ -154,8 +228,13 @@ def extract_rental_info(soup: BeautifulSoup, flat_id: str, url: str) -> Optional
         # Extract description
         description = extract_description(soup)
         
-        # Determine flat type based on area
-        flat_type = determine_flat_type(area)
+        # Extract title from page for better flat type determination
+        title_elem = soup.select_one('h1, .offer__title, .title')
+        title = title_elem.get_text(strip=True) if title_elem else ""
+        
+        # Determine flat type using text analysis (same as analytics API)
+        flat_type = determine_flat_type_from_text(title, description, area)
+        flat_type = normalize_flat_type_enum(flat_type)
         
         # Create FlatInfo object
         flat_info = FlatInfo(
@@ -228,8 +307,8 @@ def scrap_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
                 if not flat_id:
                     continue
 
-                # Scrape the flat
-                flat_info = scrape_rental_flat(flat_id)
+                # Scrape the flat with failover
+                flat_info = scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(flat_id)
                 if flat_info:
                     all_flats.append(flat_info)
                     logging.info(f"Successfully scraped rental flat: {flat_id}")

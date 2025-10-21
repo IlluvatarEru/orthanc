@@ -15,7 +15,7 @@ from typing import Optional
 from common.src.flat_type import FLAT_TYPE_VALUES, FlatType
 
 
-from scrapers.src.krisha_rental_scrapping import scrape_rental_flat
+from scrapers.src.krisha_rental_scrapping import scrape_rental_flat, scrape_rental_flat_from_analytics_page_with_failover_to_rental_page, scrape_rental_flat_from_rental_page
 from common.src.flat_info import FlatInfo
 
 # Test Krisha ID for rental flat
@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-class TestRentalScrapping:
+class TestRentalsScrapping:
     """Test class for rental flat scraping functionality."""
 
     def test_scrape_rental_flat_success_1(self):
@@ -193,3 +193,158 @@ class TestRentalScrapping:
             logger.info(f"{field_name:20}: {field_value}")
         logger.info("=" * 50)
 
+    def test_scrape_rental_flat_with_failover_success_1(self):
+        """Test the failover function with the first test ID."""
+        logger.info(f"Testing rental scraping with failover for Krisha ID: {TEST_RENTAL_KRISHA_ID_1}")
+        logger.info(f"URL: https://krisha.kz/a/show/{TEST_RENTAL_KRISHA_ID_1}")
+
+        flat_info = scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(TEST_RENTAL_KRISHA_ID_1)
+
+        # Fail if None
+        assert flat_info is not None, "Failed to scrape rental flat with failover - returned None."
+
+        # Log fields
+        fields_to_check = [
+            ('flat_id', flat_info.flat_id),
+            ('price', flat_info.price),
+            ('area', flat_info.area),
+            ('flat_type', flat_info.flat_type),
+            ('residential_complex', flat_info.residential_complex),
+            ('floor', flat_info.floor),
+            ('total_floors', flat_info.total_floors),
+            ('construction_year', flat_info.construction_year),
+            ('parking', flat_info.parking),
+            ('description', flat_info.description),
+            ('is_rental', flat_info.is_rental)
+        ]
+        for field_name, field_value in fields_to_check:
+            logger.info(f"{field_name:20}: {field_value}")
+
+        # Strict known facts (same as analytics API test)
+        assert flat_info.flat_id == TEST_RENTAL_KRISHA_ID_1
+        assert flat_info.price == 1_100_000
+        assert flat_info.area == 250
+        assert flat_info.flat_type == FlatType.THREE_PLUS_BEDROOM.value
+        assert flat_info.residential_complex == "Кокше"
+        assert flat_info.floor == 3
+        assert flat_info.total_floors == 3
+        assert flat_info.construction_year is None
+        assert flat_info.parking is None
+        assert flat_info.is_rental
+
+    def test_scrape_rental_flat_with_failover_success_2(self):
+        """Test the failover function with the second test ID."""
+        logger.info(f"Testing rental scraping with failover for Krisha ID: {TEST_RENTAL_KRISHA_ID_2}")
+        logger.info(f"URL: https://krisha.kz/a/show/{TEST_RENTAL_KRISHA_ID_2}")
+
+        flat_info = scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(TEST_RENTAL_KRISHA_ID_2)
+
+        # Fail if None
+        assert flat_info is not None, "Failed to scrape rental flat with failover - returned None."
+
+        # Log fields
+        fields_to_check = [
+            ('flat_id', flat_info.flat_id),
+            ('price', flat_info.price),
+            ('area', flat_info.area),
+            ('flat_type', flat_info.flat_type),
+            ('residential_complex', flat_info.residential_complex),
+            ('floor', flat_info.floor),
+            ('total_floors', flat_info.total_floors),
+            ('construction_year', flat_info.construction_year),
+            ('parking', flat_info.parking),
+            ('description', flat_info.description),
+            ('is_rental', flat_info.is_rental)
+        ]
+        for field_name, field_value in fields_to_check:
+            logger.info(f"{field_name:20}: {field_value}")
+
+        # Strict known facts (same as analytics API test)
+        assert flat_info.flat_id == TEST_RENTAL_KRISHA_ID_2
+        assert flat_info.price == 500_000
+        assert flat_info.area == 52
+        assert flat_info.flat_type == FlatType.ONE_BEDROOM.value
+        assert flat_info.residential_complex == "Meridian Apartments"
+        assert flat_info.floor == 2
+        assert flat_info.total_floors == 12
+        assert flat_info.construction_year is None
+        assert flat_info.parking is None
+        assert flat_info.is_rental
+
+    def test_scrape_rental_flat_from_rental_page_success_1(self):
+        """Test direct rental page scraping with the first test ID."""
+        logger.info(f"Testing direct rental page scraping for Krisha ID: {TEST_RENTAL_KRISHA_ID_1}")
+        logger.info(f"URL: https://krisha.kz/a/show/{TEST_RENTAL_KRISHA_ID_1}")
+
+        flat_info = scrape_rental_flat_from_rental_page(TEST_RENTAL_KRISHA_ID_1)
+
+        # Fail if None
+        assert flat_info is not None, "Failed to scrape rental flat from rental page - returned None."
+
+        # Log fields
+        fields_to_check = [
+            ('flat_id', flat_info.flat_id),
+            ('price', flat_info.price),
+            ('area', flat_info.area),
+            ('flat_type', flat_info.flat_type),
+            ('residential_complex', flat_info.residential_complex),
+            ('floor', flat_info.floor),
+            ('total_floors', flat_info.total_floors),
+            ('construction_year', flat_info.construction_year),
+            ('parking', flat_info.parking),
+            ('description', flat_info.description),
+            ('is_rental', flat_info.is_rental)
+        ]
+        for field_name, field_value in fields_to_check:
+            logger.info(f"{field_name:20}: {field_value}")
+
+        # Strict known facts (same as analytics API test)
+        assert flat_info.flat_id == TEST_RENTAL_KRISHA_ID_1
+        assert flat_info.price == 1_100_000
+        assert flat_info.area == 250
+        assert flat_info.flat_type == FlatType.THREE_PLUS_BEDROOM.value
+        assert flat_info.residential_complex == "Кокше"
+        assert flat_info.floor == 3
+        assert flat_info.total_floors == 3
+        assert flat_info.construction_year is None
+        assert flat_info.parking is None
+        assert flat_info.is_rental
+
+    def test_scrape_rental_flat_from_rental_page_success_2(self):
+        """Test direct rental page scraping with the second test ID."""
+        logger.info(f"Testing direct rental page scraping for Krisha ID: {TEST_RENTAL_KRISHA_ID_2}")
+        logger.info(f"URL: https://krisha.kz/a/show/{TEST_RENTAL_KRISHA_ID_2}")
+
+        flat_info = scrape_rental_flat_from_rental_page(TEST_RENTAL_KRISHA_ID_2)
+
+        # Fail if None
+        assert flat_info is not None, "Failed to scrape rental flat from rental page - returned None."
+
+        # Log fields
+        fields_to_check = [
+            ('flat_id', flat_info.flat_id),
+            ('price', flat_info.price),
+            ('area', flat_info.area),
+            ('flat_type', flat_info.flat_type),
+            ('residential_complex', flat_info.residential_complex),
+            ('floor', flat_info.floor),
+            ('total_floors', flat_info.total_floors),
+            ('construction_year', flat_info.construction_year),
+            ('parking', flat_info.parking),
+            ('description', flat_info.description),
+            ('is_rental', flat_info.is_rental)
+        ]
+        for field_name, field_value in fields_to_check:
+            logger.info(f"{field_name:20}: {field_value}")
+
+        # Strict known facts (same as analytics API test)
+        assert flat_info.flat_id == TEST_RENTAL_KRISHA_ID_2
+        assert flat_info.price == 500_000
+        assert flat_info.area == 52
+        assert flat_info.flat_type == FlatType.ONE_BEDROOM.value
+        assert flat_info.residential_complex == "Meridian Apartments"
+        assert flat_info.floor == 2
+        assert flat_info.total_floors == 12
+        assert flat_info.construction_year is None
+        assert flat_info.parking is None
+        assert flat_info.is_rental

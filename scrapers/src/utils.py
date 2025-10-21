@@ -42,11 +42,13 @@ def extract_price(soup: BeautifulSoup) -> Optional[int]:
                 logging.info(f"Found price element with selector '{selector}': '{price_text}'")
                 
                 # Extract numeric value - handle various formats
-                # Remove common currency symbols and text
-                clean_text = re.sub(r'[^\d\s]', '', price_text)
-                price_match = re.search(r'(\d+(?:\s*\d+)*)', clean_text)
+                # Remove common currency symbols and text, but keep digits and spaces
+                clean_text = re.sub(r'[^\d\s\xa0]', '', price_text)
+                # Match digits with any kind of space separator (regular or non-breaking)
+                price_match = re.search(r'(\d+(?:[\s\xa0]*\d+)*)', clean_text)
                 if price_match:
-                    price_str = price_match.group(1).replace(' ', '')
+                    # Replace both regular spaces and non-breaking spaces
+                    price_str = price_match.group(1).replace(' ', '').replace('\xa0', '')
                     if price_str:
                         return int(price_str)
         
@@ -68,7 +70,8 @@ def extract_price(soup: BeautifulSoup) -> Optional[int]:
             if matches:
                 # Get the first reasonable price (not too small, not too large)
                 for match in matches:
-                    price_str = match.replace(' ', '')
+                    # Replace both regular spaces and non-breaking spaces
+                    price_str = match.replace(' ', '').replace('\xa0', '')
                     if price_str:
                         price = int(price_str)
                         # Filter out unreasonable prices (too small or too large)
@@ -155,7 +158,22 @@ def extract_residential_complex(soup: BeautifulSoup) -> Optional[str]:
         for selector in complex_selectors:
             complex_elem = soup.select_one(selector)
             if complex_elem:
-                return complex_elem.get_text(strip=True)
+                complex_text = complex_elem.get_text(strip=True)
+                
+                # Remove common prefixes
+                prefixes_to_remove = [
+                    'Жилой комплекс',
+                    'ЖК',
+                    'Residential Complex',
+                    'Complex'
+                ]
+                
+                for prefix in prefixes_to_remove:
+                    if complex_text.startswith(prefix):
+                        complex_text = complex_text[len(prefix):].strip()
+                        break
+                
+                return complex_text if complex_text else None
         
         return None
     except Exception:

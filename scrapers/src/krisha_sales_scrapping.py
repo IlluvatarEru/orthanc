@@ -24,7 +24,81 @@ from scrapers.src.utils import (
 )
 
 
-def scrape_sales_flat(krisha_id: str) -> Optional[FlatInfo]:
+def scrape_sales_flat_from_sale_page(krisha_id: str) -> Optional[FlatInfo]:
+    """
+    Scrape sales flat information directly from the main sales page using BeautifulSoup.
+    
+    :param krisha_id: str, Krisha.kz flat ID (e.g., "12345678")
+    :return: Optional[FlatInfo], flat information object or None if failed
+    """
+    try:
+        url = f"https://krisha.kz/a/show/{krisha_id}"
+        
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # Parse HTML with BeautifulSoup
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Use the existing extract_sales_info function
+        return extract_sales_info(soup, krisha_id, url)
+        
+    except requests.RequestException as e:
+        logging.error(f"Request error scraping sales flat {krisha_id} from sale page: {e}")
+        return None
+    except Exception as e:
+        logging.error(f"Unexpected error scraping sales flat {krisha_id} from sale page: {e}")
+        return None
+
+
+def scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(krisha_id: str) -> Optional[FlatInfo]:
+    """
+    Scrape sales flat information with failover from analytics API to direct page scraping.
+    
+    :param krisha_id: str, Krisha.kz flat ID (e.g., "12345678")
+    :return: Optional[FlatInfo], flat information object or None if both methods fail
+    """
+    logging.info(f"Attempting to scrape sales flat {krisha_id} with failover...")
+    
+    # Try analytics API first (faster and more reliable)
+    try:
+        logging.info(f"Trying analytics API for flat {krisha_id}...")
+        flat_info = scrape_sales_flat_from_analytics_page(krisha_id)
+        if flat_info is not None:
+            logging.info(f"✅ Successfully scraped flat {krisha_id} using analytics API")
+            return flat_info
+        else:
+            logging.warning(f"Analytics API returned None for flat {krisha_id}")
+    except Exception as e:
+        logging.warning(f"Analytics API failed for flat {krisha_id}: {e}")
+    
+    # Fallback to direct page scraping
+    try:
+        logging.info(f"Trying direct page scraping for flat {krisha_id}...")
+        flat_info = scrape_sales_flat_from_sale_page(krisha_id)
+        if flat_info is not None:
+            logging.info(f"✅ Successfully scraped flat {krisha_id} using direct page scraping")
+            return flat_info
+        else:
+            logging.warning(f"Direct page scraping returned None for flat {krisha_id}")
+    except Exception as e:
+        logging.warning(f"Direct page scraping failed for flat {krisha_id}: {e}")
+    
+    # Both methods failed
+    logging.error(f"❌ Both scraping methods failed for flat {krisha_id}")
+    return None
+
+
+def scrape_sales_flat_from_analytics_page(krisha_id: str) -> Optional[FlatInfo]:
     """
     Fetch sales flat information via Krisha mobile analytics JSON and build FlatInfo.
     :param krisha_id: str, Krisha.kz flat ID (e.g., "12345678")
@@ -42,6 +116,7 @@ def scrape_sales_flat(krisha_id: str) -> Optional[FlatInfo]:
 
         response = requests.get(api_url, headers=headers, timeout=15)
         response.raise_for_status()
+        logging.info(response.text)
 
         try:
             data = response.json()
@@ -222,8 +297,8 @@ def scrap_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
                 if not flat_id:
                     continue
                 
-                # Scrape the flat
-                flat_info = scrape_sales_flat(flat_id)
+                # Scrape the flat with failover
+                flat_info = scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(flat_id)
                 if flat_info:
                     all_flats.append(flat_info)
                     logging.info(f"Successfully scraped sales flat: {flat_id}")
