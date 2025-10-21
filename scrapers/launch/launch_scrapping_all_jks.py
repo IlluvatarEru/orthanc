@@ -32,35 +32,28 @@ logger = logging.getLogger(__name__)
 
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     """
-    Get all residential complexes (JKs) from the database, excluding blacklisted ones.
+    Get all residential complexes (JKs) from the residential_complexes table, excluding blacklisted ones.
     
     :param db_path: str, path to database file
     :return: List[Dict], list of JK information
     """
-    logger.info("Fetching all JKs from database (excluding blacklisted)")
+    logger.info("Fetching all JKs from residential_complexes table (excluding blacklisted)")
     
     db = OrthancDB(db_path)
     db.connect()
     try:
-        # Get unique residential complexes from both rental and sales tables, excluding blacklisted ones
+        # Get JKs from residential_complexes table, excluding blacklisted ones
         cursor = db.conn.execute("""
-            SELECT DISTINCT residential_complex, COUNT(*) as flat_count
-            FROM (
-                SELECT residential_complex FROM rental_flats WHERE residential_complex IS NOT NULL
-                UNION ALL
-                SELECT residential_complex FROM sales_flats WHERE residential_complex IS NOT NULL
-            )
-            WHERE residential_complex != '' 
-            AND residential_complex IS NOT NULL
-            AND residential_complex NOT IN (
+            SELECT name as residential_complex, complex_id, city, district
+            FROM residential_complexes 
+            WHERE name NOT IN (
                 SELECT name FROM blacklisted_jks
             )
-            GROUP BY residential_complex
-            ORDER BY flat_count DESC
+            ORDER BY name
         """)
         
         jks = [dict(row) for row in cursor.fetchall()]
-        logger.info(f"Found {len(jks)} unique JKs in database (excluding blacklisted)")
+        logger.info(f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)")
         
         # Log blacklisted JKs for transparency
         blacklisted_jks = db.get_blacklisted_jks()
@@ -197,6 +190,14 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
     # Parse target time
     target_hour, target_minute = map(int, run_time.split(':'))
     
+    # Calculate next run time
+    now = datetime.now()
+    next_run = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+    if next_run <= now:
+        next_run = next_run + timedelta(days=1)
+    
+    logging.info(f"Next launch at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+    
     while True:
         try:
             now = datetime.now()
@@ -222,6 +223,11 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
                 next_run = now.replace(hour=23, minute=59, second=59)
                 wait_seconds = (next_run - now).total_seconds()
                 logger.info(f"Waiting {wait_seconds/3600:.1f} hours until next run")
+                
+                # Calculate and log the next scheduled run time
+                tomorrow_run = (now + timedelta(days=1)).replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+                logger.info(f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                
                 time.sleep(wait_seconds)
             else:
                 # Check every minute
@@ -266,6 +272,14 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
     # Parse target time
     target_hour, target_minute = map(int, run_time.split(':'))
     
+    # Calculate next run time
+    now = datetime.now()
+    next_run = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+    if next_run <= now:
+        next_run = next_run + timedelta(days=1)
+    
+    logging.info(f"Next launch at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
+
     while True:
         try:
             now = datetime.now()
@@ -291,6 +305,11 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
                 next_run = now.replace(hour=23, minute=59, second=59)
                 wait_seconds = (next_run - now).total_seconds()
                 logger.info(f"Waiting {wait_seconds/3600:.1f} hours until next run")
+                
+                # Calculate and log the next scheduled run time
+                tomorrow_run = (now + timedelta(days=1)).replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+                logger.info(f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                
                 time.sleep(wait_seconds)
             else:
                 # Check every minute
