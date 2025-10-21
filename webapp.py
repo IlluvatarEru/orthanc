@@ -19,7 +19,7 @@ from price.src.currency import currency_manager
 from db.src.flat_info_from_db import get_flat_info
 from common.src.flat_info import FlatInfo
 from db.src.write_read_database import OrthancDB
-from scrapers.src.complex_scraper import search_complexes_by_name_deduplicated, search_complexes_by_name, \
+from scrapers.src.residential_complex_scraper import search_complexes_by_name_deduplicated, search_complexes_by_name, \
     search_complex_by_name, get_all_residential_complexes
 from scrapers.src.search_scraper import scrape_complex_data
 

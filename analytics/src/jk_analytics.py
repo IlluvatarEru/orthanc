@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, Optional
 import logging
 from db.src.write_read_database import OrthancDB
-from scrapers.src.complex_scraper import search_complex_by_name
+from scrapers.src.residential_complex_scraper import search_complex_by_name
 from scrapers.src.search_scraper import scrape_and_save_search_results_with_pagination
 
 

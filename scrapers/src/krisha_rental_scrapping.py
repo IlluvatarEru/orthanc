@@ -193,7 +193,7 @@ def scrap_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     all_flats = []
     
     # Search for the complex to get its ID
-    from scrapers.src.complex_scraper import search_complex_by_name
+    from scrapers.src.residential_complex_scraper import search_complex_by_name
     complex_info = search_complex_by_name(jk_name)
 
     if not complex_info or not complex_info.get('complex_id'):

@@ -17,6 +17,7 @@ from typing import List, Dict
 from db.src.write_read_database import OrthancDB
 from scrapers.src.krisha_rental_scrapping import scrap_and_save_jk_rentals
 from scrapers.src.krisha_sales_scrapping import scrap_and_save_jk_sales
+from scrapers.src.residential_complex_scraper import update_complex_database
 
 # Configure logging
 logging.basicConfig(
@@ -354,6 +355,77 @@ def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 5,
     logger.info("Immediate scraping completed!")
 
 
+def fetch_all_jks(db_path: str = "flats.db") -> int:
+    """
+    Fetch all residential complexes (JKs) from Krisha.kz and save them to the database.
+    First clears the existing data to ensure fresh, complete data.
+    
+    :param db_path: str, path to database file
+    :return: int, number of JKs fetched and saved
+    """
+    logger.info("Starting fetch of all residential complexes from Krisha.kz...")
+    
+    try:
+        # First, clear existing residential complexes data
+        logger.info("🗑️ Clearing existing residential complexes data...")
+        db = OrthancDB(db_path)
+        db.connect()
+        try:
+            # Delete all existing residential complexes
+            cursor = db.conn.execute("DELETE FROM residential_complexes")
+            deleted_count = cursor.rowcount
+            db.conn.commit()
+            logger.info(f"✅ Cleared {deleted_count} existing residential complexes")
+        except Exception as e:
+            logger.error(f"❌ Error clearing existing data: {e}")
+            db.conn.rollback()
+            return 0
+        finally:
+            db.disconnect()
+        
+        # Now fetch fresh data from Krisha
+        logger.info("🔄 Fetching fresh residential complexes from Krisha.kz...")
+        saved_count = update_complex_database(db_path)
+        
+        if saved_count > 0:
+            logger.info(f"✅ Successfully fetched and saved {saved_count} residential complexes")
+            
+            # Get some statistics about what was saved
+            db = OrthancDB(db_path)
+            db.connect()
+            try:
+                # Get total count
+                cursor = db.conn.execute("SELECT COUNT(*) FROM residential_complexes")
+                total_count = cursor.fetchone()[0]
+                
+                # Get some sample data
+                cursor = db.conn.execute("""
+                    SELECT name, complex_id, city, district 
+                    FROM residential_complexes 
+                    ORDER BY name 
+                    LIMIT 10
+                """)
+                sample_complexes = cursor.fetchall()
+                
+                logger.info(f"📊 Database now contains {total_count} total residential complexes")
+                logger.info("📋 Sample complexes:")
+                for i, (name, complex_id, city, district) in enumerate(sample_complexes, 1):
+                    location_info = f" ({city}, {district})" if city and district else ""
+                    logger.info(f"   {i}. {name} (ID: {complex_id}){location_info}")
+                
+            finally:
+                db.disconnect()
+            
+            return saved_count
+        else:
+            logger.warning("⚠️ No residential complexes were fetched")
+            return 0
+            
+    except Exception as e:
+        logger.error(f"❌ Error fetching residential complexes: {e}")
+        return 0
+
+
 def manage_blacklist(db_path: str = "flats.db", action: str = "list", 
                    krisha_id: str = None, name: str = None, notes: str = None) -> None:
     """
@@ -406,7 +478,7 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Launch JK scraping operations")
-    parser.add_argument("--mode", choices=["immediate", "daily-rentals", "daily-sales", "blacklist"], 
+    parser.add_argument("--mode", choices=["immediate", "daily-rentals", "daily-sales", "blacklist", "fetch-jks"], 
                        default="immediate", help="Scraping mode")
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
     parser.add_argument("--max-pages", type=int, default=5, help="Maximum pages per JK")
@@ -450,3 +522,10 @@ if __name__ == "__main__":
             name=args.jk_name,
             notes=args.notes
         )
+    elif args.mode == "fetch-jks":
+        saved_count = fetch_all_jks(db_path=args.db_path)
+        if saved_count > 0:
+            logger.info(f"🎉 Successfully fetched {saved_count} residential complexes!")
+        else:
+            logger.error("❌ Failed to fetch residential complexes")
+            sys.exit(1)
