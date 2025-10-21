@@ -1,7 +1,7 @@
 """
 Test JK sales scraping functionality with strict assertions and FlatType enum.
 
-python -m pytest scrapers/test/test_krisha_sales_scrapping.py -v -s --log-cli-level=INFO
+python -m pytest scrapers/test/test_krisha_sales_scraping.py -v -s --log-cli-level=INFO
 """
 
 import sys
@@ -9,7 +9,7 @@ import os
 import pytest
 import logging
 
-from scrapers.src.krisha_sales_scrapping import scrape_sales_flat_from_analytics_page, \
+from scrapers.src.krisha_sales_scraping import scrape_sales_flat_from_analytics_page, \
     scrape_sales_flat_from_analytics_page_with_failover_to_sale_page, scrape_sales_flat_from_sale_page
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FlatType, FLAT_TYPE_VALUES
@@ -28,7 +28,7 @@ class TestSalesScrapping:
     """Test class for sales flat scraping functionality."""
 
     def test_scrape_sales_flat_success_1(self):
-        logger.info(f"Testing sales scrapping for Krisha ID: {TEST_SALES_KRISHA_ID_1}")
+        logger.info(f"Testing sales scraping for Krisha ID: {TEST_SALES_KRISHA_ID_1}")
         logger.info(f"URL: https://krisha.kz/a/show/{TEST_SALES_KRISHA_ID_1}")
 
         flat_info = scrape_sales_flat_from_analytics_page(TEST_SALES_KRISHA_ID_1)
@@ -64,7 +64,7 @@ class TestSalesScrapping:
         assert flat_info.residential_complex is None
 
     def test_scrape_sales_flat_success_2(self):
-        logger.info(f"Testing sales scrapping for Krisha ID: {TEST_SALES_KRISHA_ID_2}")
+        logger.info(f"Testing sales scraping for Krisha ID: {TEST_SALES_KRISHA_ID_2}")
         logger.info(f"URL: https://krisha.kz/a/show/{TEST_SALES_KRISHA_ID_2}")
 
         flat_info = scrape_sales_flat_from_analytics_page(TEST_SALES_KRISHA_ID_2)
@@ -275,7 +275,7 @@ class TestSalesScrapping:
         all required fields from a rental flat listing.
         """
         krisha_id = 1005617823
-        logger.info(f"Testing rental scrapping for Krisha ID: {krisha_id}")
+        logger.info(f"Testing rental scraping for Krisha ID: {krisha_id}")
         logger.info(f"URL: https://krisha.kz/a/show/{krisha_id}")
 
         # Scrape the rental flat

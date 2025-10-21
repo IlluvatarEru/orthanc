@@ -1,5 +1,5 @@
 """
-Sales scrapping module for fetching individual sales flat information.
+Sales scraping module for fetching individual sales flat information.
 
 This module provides functionality to scrape sales flat details from Krisha.kz
 using a single flat ID and return a FlatInfo object.
@@ -253,7 +253,7 @@ def extract_sales_info(soup: BeautifulSoup, flat_id: str, url: str) -> Optional[
         return None
 
 
-def scrap_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
+def scrape_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     """
     Scrape all sales flats for a specific residential complex (JK).
     
@@ -318,7 +318,7 @@ def scrap_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     return all_flats
 
 
-def scrap_and_save_jk_sales(jk_name: str, max_pages: int = 10, db_path: str = "flats.db") -> int:
+def scrape_and_save_jk_sales(jk_name: str, max_pages: int = 10, db_path: str = "flats.db") -> int:
     """
     Scrape and save all sales flats for a specific residential complex (JK).
     
@@ -330,7 +330,7 @@ def scrap_and_save_jk_sales(jk_name: str, max_pages: int = 10, db_path: str = "f
     logging.info(f"Starting JK sales scraping and saving for: {jk_name}")
     
         # Scrape flats
-    flats = scrap_jk_sales(jk_name, max_pages)
+    flats = scrape_jk_sales(jk_name, max_pages)
 
     if not flats:
         logging.warning(f"No flats found for {jk_name}")

@@ -1,9 +1,9 @@
 """
-Test rental scrapping functionality.
+Test rental scraping functionality.
 
 This module tests the rental flat scraping functionality using pytest.
 
-python -m pytest scrapers/test/test_krisha_rentals_scrapping.py -v -s --log-cli-level=INFO
+python -m pytest scrapers/test/test_krisha_rentals_scraping.py -v -s --log-cli-level=INFO
 """
 
 import sys
@@ -15,7 +15,7 @@ from typing import Optional
 from common.src.flat_type import FLAT_TYPE_VALUES, FlatType
 
 
-from scrapers.src.krisha_rental_scrapping import scrape_rental_flat, scrape_rental_flat_from_analytics_page_with_failover_to_rental_page, scrape_rental_flat_from_rental_page
+from scrapers.src.krisha_rental_scraping import scrape_rental_flat, scrape_rental_flat_from_analytics_page_with_failover_to_rental_page, scrape_rental_flat_from_rental_page
 from common.src.flat_info import FlatInfo
 
 # Test Krisha ID for rental flat
@@ -37,7 +37,7 @@ class TestRentalsScrapping:
         This test verifies that the scraper can successfully extract
         all required fields from a rental flat listing.
         """
-        logger.info(f"Testing rental scrapping for Krisha ID: {TEST_RENTAL_KRISHA_ID_1}")
+        logger.info(f"Testing rental scraping for Krisha ID: {TEST_RENTAL_KRISHA_ID_1}")
         logger.info(f"URL: https://krisha.kz/a/show/{TEST_RENTAL_KRISHA_ID_1}")
 
         # Scrape the rental flat
@@ -88,7 +88,7 @@ class TestRentalsScrapping:
         This test verifies that the scraper can successfully extract
         all required fields from a rental flat listing.
         """
-        logger.info(f"Testing rental scrapping for Krisha ID: {TEST_RENTAL_KRISHA_ID_2}")
+        logger.info(f"Testing rental scraping for Krisha ID: {TEST_RENTAL_KRISHA_ID_2}")
         logger.info(f"URL: https://krisha.kz/a/show/{TEST_RENTAL_KRISHA_ID_2}")
 
         # Scrape the rental flat
@@ -160,7 +160,7 @@ class TestRentalsScrapping:
         all required fields from a rental flat listing.
         """
         krisha_id = 1006362898
-        logger.info(f"Testing rental scrapping for Krisha ID: {krisha_id}")
+        logger.info(f"Testing rental scraping for Krisha ID: {krisha_id}")
         logger.info(f"URL: https://krisha.kz/a/show/{krisha_id}")
 
         # Scrape the rental flat

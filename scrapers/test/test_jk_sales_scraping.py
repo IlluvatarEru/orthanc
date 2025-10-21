@@ -4,7 +4,7 @@ Test JK sales scraping functionality.
 This module tests the JK sales scraping functionality using pytest.
 Tests both querying (without DB) and writing (with DB) operations.
 
-python -m pytest scrapers/test/test_jk_sales_scrapping.py -v -s --log-cli-level=INFO
+python -m pytest scrapers/test/test_jk_sales_scraping.py -v -s --log-cli-level=INFO
 """
 import logging
 import os
@@ -14,7 +14,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from common.src.flat_info import FlatInfo
-from scrapers.src.krisha_sales_scrapping import scrap_jk_sales, scrap_and_save_jk_sales
+from scrapers.src.krisha_sales_scraping import scrape_jk_sales, scrape_and_save_jk_sales
 
 # Test JK names (use known complexes)
 TEST_JK_NAME_1 = "Meridian Apartments"
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 class TestJKSalesScrapping:
     """Test class for JK sales scraping functionality."""
 
-    def test_scrap_jk_sales_query_only_1(self):
+    def test_scrape_jk_sales_query_only_1(self):
         """
         Test JK sales scraping without database writing.
         
@@ -39,7 +39,7 @@ class TestJKSalesScrapping:
 
         # Scrape with limited pages to avoid long test times
         max_pages = 2
-        flats = scrap_jk_sales(TEST_JK_NAME_1, max_pages=max_pages)
+        flats = scrape_jk_sales(TEST_JK_NAME_1, max_pages=max_pages)
 
         # Verify results
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -61,7 +61,7 @@ class TestJKSalesScrapping:
 
         logger.info("✅ JK sales scraping (query only) test passed!")
 
-    def test_scrap_jk_sales_query_only_2(self):
+    def test_scrape_jk_sales_query_only_2(self):
         """
         Test JK sales scraping without database writing for JK "Legenda".
         
@@ -72,7 +72,7 @@ class TestJKSalesScrapping:
 
         # Scrape with limited pages to avoid long test times
         max_pages = 2
-        flats = scrap_jk_sales(TEST_JK_NAME_2, max_pages=max_pages)
+        flats = scrape_jk_sales(TEST_JK_NAME_2, max_pages=max_pages)
 
         # Verify results
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -94,7 +94,7 @@ class TestJKSalesScrapping:
 
         logger.info("✅ JK sales scraping (query only) test passed for Legenda!")
     
-    def test_scrap_and_save_jk_sales_query_only_1(self):
+    def test_scrape_and_save_jk_sales_query_only_1(self):
         """
         Test JK sales scraping with database writing.
         
@@ -110,7 +110,7 @@ class TestJKSalesScrapping:
         try:
             # Scrape and save with limited pages
             max_pages = 2
-            saved_count = scrap_and_save_jk_sales(
+            saved_count = scrape_and_save_jk_sales(
                 jk_name=TEST_JK_NAME_1,
                 max_pages=max_pages,
                 db_path=temp_db_path
@@ -153,7 +153,7 @@ class TestJKSalesScrapping:
             if os.path.exists(temp_db_path):
                 os.unlink(temp_db_path)
     
-    def test_scrap_jk_sales_invalid_jk(self):
+    def test_scrape_jk_sales_invalid_jk(self):
         """
         Test JK sales scraping with invalid JK name.
         
@@ -162,7 +162,7 @@ class TestJKSalesScrapping:
         logger.info("Testing JK sales scraping with invalid JK name")
 
         invalid_jk = "NonExistentJK12345"
-        flats = scrap_jk_sales(invalid_jk, max_pages=1)
+        flats = scrape_jk_sales(invalid_jk, max_pages=1)
 
         # Should return empty list for invalid JK
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -170,7 +170,7 @@ class TestJKSalesScrapping:
 
         logger.info("✅ Invalid JK handling test passed!")
     
-    def test_scrap_jk_sales_max_pages_limit(self):
+    def test_scrape_jk_sales_max_pages_limit(self):
         """
         Test JK sales scraping respects max_pages limit.
         
@@ -179,7 +179,7 @@ class TestJKSalesScrapping:
         logger.info("Testing JK sales scraping max_pages limit")
 
         max_pages = 1
-        flats = scrap_jk_sales(TEST_JK_NAME_1, max_pages=max_pages)
+        flats = scrape_jk_sales(TEST_JK_NAME_1, max_pages=max_pages)
 
         # Verify results
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -198,7 +198,7 @@ class TestJKSalesScrapping:
         """
         logger.info("Testing FlatInfo structure validation")
 
-        flats = scrap_jk_sales(TEST_JK_NAME_1, max_pages=1)
+        flats = scrape_jk_sales(TEST_JK_NAME_1, max_pages=1)
 
         # CRITICAL: Test should fail if no flats found - this indicates scraping is not working
         assert len(
@@ -234,7 +234,7 @@ class TestJKSalesScrapping:
         """
         logger.info("Testing sales vs rental differences")
 
-        sales_flats = scrap_jk_sales(TEST_JK_NAME_1, max_pages=1)
+        sales_flats = scrape_jk_sales(TEST_JK_NAME_1, max_pages=1)
 
         # CRITICAL: Test should fail if no flats found - this indicates scraping is not working
         assert len(sales_flats) > 0, f"No sales flats found for {TEST_JK_NAME_1}. This indicates the JK sales scraper is not working properly."

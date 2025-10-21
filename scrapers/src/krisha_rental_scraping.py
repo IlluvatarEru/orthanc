@@ -1,5 +1,5 @@
 """
-Rental scrapping module for fetching individual rental flat information.
+Rental scraping module for fetching individual rental flat information.
 
 This module provides functionality to scrape rental flat details from Krisha.kz
 using a single flat ID and return a FlatInfo object.
@@ -258,7 +258,7 @@ def extract_rental_info(soup: BeautifulSoup, flat_id: str, url: str) -> Optional
         return None
 
 
-def scrap_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
+def scrape_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     """
     Scrape all rental flats for a specific residential complex (JK).
     
@@ -324,7 +324,7 @@ def scrap_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
 
 
 
-def scrap_and_save_jk_rentals(jk_name: str, max_pages: int = 10, db_path: str = "flats.db") -> int:
+def scrape_and_save_jk_rentals(jk_name: str, max_pages: int = 10, db_path: str = "flats.db") -> int:
     """
     Scrape and save all rental flats for a specific residential complex (JK).
     
@@ -336,7 +336,7 @@ def scrap_and_save_jk_rentals(jk_name: str, max_pages: int = 10, db_path: str = 
     logging.info(f"Starting JK rental scraping and saving for: {jk_name}")
     
     # Scrape flats
-    flats = scrap_jk_rentals(jk_name, max_pages)
+    flats = scrape_jk_rentals(jk_name, max_pages)
 
     if not flats:
         logging.warning(f"No flats found for {jk_name}")

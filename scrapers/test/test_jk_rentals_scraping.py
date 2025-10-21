@@ -4,7 +4,7 @@ Test JK rental scraping functionality.
 This module tests the JK rental scraping functionality using pytest.
 Tests both querying (without DB) and writing (with DB) operations.
 
-python -m pytest scrapers/test/test_jk_rentals_scrapping.py -v -s --log-cli-level=INFO
+python -m pytest scrapers/test/test_jk_rentals_scraping.py -v -s --log-cli-level=INFO
 
 """
 
@@ -17,7 +17,7 @@ from typing import List
 
 
 
-from scrapers.src.krisha_rental_scrapping import scrap_jk_rentals, scrap_and_save_jk_rentals
+from scrapers.src.krisha_rental_scraping import scrape_jk_rentals, scrape_and_save_jk_rentals
 from common.src.flat_info import FlatInfo
 
 # Test JK name (use a known complex)
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 class TestJKRentalsScrapping:
     """Test class for JK rental scraping functionality."""
     
-    def test_scrap_jk_rentals_query_only_1(self):
+    def test_scrape_jk_rentals_query_only_1(self):
         """
         Test JK rental scraping without database writing.
         
@@ -42,7 +42,7 @@ class TestJKRentalsScrapping:
         
         # Scrape with limited pages to avoid long test times
         max_pages = 2
-        flats = scrap_jk_rentals(TEST_JK_NAME, max_pages=max_pages)
+        flats = scrape_jk_rentals(TEST_JK_NAME, max_pages=max_pages)
         
         # Verify results
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -63,7 +63,7 @@ class TestJKRentalsScrapping:
         
         logger.info("✅ JK rental scraping (query only) test passed!")
     
-    def test_scrap_jk_rentals_with_database(self):
+    def test_scrape_jk_rentals_with_database(self):
         """
         Test JK rental scraping with database writing.
         
@@ -79,7 +79,7 @@ class TestJKRentalsScrapping:
         try:
             # Scrape and save with limited pages
             max_pages = 2
-            saved_count = scrap_and_save_jk_rentals(
+            saved_count = scrape_and_save_jk_rentals(
                 jk_name=TEST_JK_NAME,
                 max_pages=max_pages,
                 db_path=temp_db_path
@@ -122,7 +122,7 @@ class TestJKRentalsScrapping:
             if os.path.exists(temp_db_path):
                 os.unlink(temp_db_path)
     
-    def test_scrap_jk_rentals_invalid_jk(self):
+    def test_scrape_jk_rentals_invalid_jk(self):
         """
         Test JK rental scraping with invalid JK name.
         
@@ -131,7 +131,7 @@ class TestJKRentalsScrapping:
         logger.info("Testing JK rental scraping with invalid JK name")
         
         invalid_jk = "NonExistentJK12345"
-        flats = scrap_jk_rentals(invalid_jk, max_pages=1)
+        flats = scrape_jk_rentals(invalid_jk, max_pages=1)
         
         # Should return empty list for invalid JK
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -139,7 +139,7 @@ class TestJKRentalsScrapping:
         
         logger.info("✅ Invalid JK handling test passed!")
     
-    def test_scrap_jk_rentals_max_pages_limit(self):
+    def test_scrape_jk_rentals_max_pages_limit(self):
         """
         Test JK rental scraping respects max_pages limit.
         
@@ -148,7 +148,7 @@ class TestJKRentalsScrapping:
         logger.info("Testing JK rental scraping max_pages limit")
         
         max_pages = 1
-        flats = scrap_jk_rentals(TEST_JK_NAME, max_pages=max_pages)
+        flats = scrape_jk_rentals(TEST_JK_NAME, max_pages=max_pages)
         
         # Verify results
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
@@ -167,7 +167,7 @@ class TestJKRentalsScrapping:
         """
         logger.info("Testing FlatInfo structure validation")
         
-        flats = scrap_jk_rentals(TEST_JK_NAME, max_pages=1)
+        flats = scrape_jk_rentals(TEST_JK_NAME, max_pages=1)
         
         # CRITICAL: Test should fail if no flats found - this indicates scraping is not working
         assert len(flats) > 0, f"No flats found for {TEST_JK_NAME}. This indicates the JK rental scraper is not working properly."

@@ -4,7 +4,7 @@ Launch script for scraping all JK rentals and sales.
 This module provides functions to scrape all residential complexes (JKs)
 from the database, both for rentals and sales, with daily scheduling options.
 
-python -m scrapers.launch.launch_scrapping_all_jks
+python -m scrapers.launch.launch_scraping_all_jks
 """
 
 import sys
@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 
 from db.src.write_read_database import OrthancDB
-from scrapers.src.krisha_rental_scrapping import scrap_and_save_jk_rentals
-from scrapers.src.krisha_sales_scrapping import scrap_and_save_jk_sales
+from scrapers.src.krisha_rental_scraping import scrape_and_save_jk_rentals
+from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
 from scrapers.src.residential_complex_scraper import update_complex_database
 
 # Configure logging
@@ -93,7 +93,7 @@ def scrape_all_jk_rentals(db_path: str = "flats.db", max_pages: int = 1) -> Dict
         logger.info(f"[{i}/{len(jks)}] Scraping rentals for: {jk_name}")
         
         try:
-            saved_count = scrap_and_save_jk_rentals(
+            saved_count = scrape_and_save_jk_rentals(
                 jk_name=jk_name,
                 max_pages=max_pages,
                 db_path=db_path
@@ -138,7 +138,7 @@ def scrape_all_jk_sales(db_path: str = "flats.db", max_pages: int = 1) -> Dict[s
         logger.info(f"[{i}/{len(jks)}] Scraping sales for: {jk_name}")
         
         try:
-            saved_count = scrap_and_save_jk_sales(
+            saved_count = scrape_and_save_jk_sales(
                 jk_name=jk_name,
                 max_pages=max_pages,
                 db_path=db_path

@@ -178,7 +178,7 @@ print(f"Blacklisted {count} JKs")
 ### Example 3: Integration with Scraping
 
 ```python
-from scrapers.launch.launch_scrapping_all_jks import get_all_jks_from_db
+from scrapers.launch.launch_scraping_all_jks import get_all_jks_from_db
 
 # Get JKs for scraping (automatically excludes blacklisted)
 jks = get_all_jks_from_db("flats.db")
