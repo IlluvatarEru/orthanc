@@ -330,7 +330,7 @@ def scrape_and_save_jk_sales(jk_name: str, max_pages: int = 10, db_path: str = "
     logging.info(f"Starting JK sales scraping and saving for: {jk_name}")
     
         # Scrape flats
-    flats = scrape_jk_sales(jk_name, max_pages)
+    flats:list[FlatInfo] = scrape_jk_sales(jk_name, max_pages)
 
     if not flats:
         logging.warning(f"No flats found for {jk_name}")
@@ -343,26 +343,23 @@ def scrape_and_save_jk_sales(jk_name: str, max_pages: int = 10, db_path: str = "
     saved_count = 0
         
     for flat_info in flats:
-        try:
-            # Save sales flat to database
-            success = db.insert_sales_flat(
-                flat_info=flat_info,
-                url=f"https://krisha.kz/a/show/{flat_info.flat_id}",
-                query_date=datetime.now().strftime('%Y-%m-%d'),
-                flat_type=flat_info.flat_type
-            )
+        # Save sales flat to database
+        success = db.insert_sales_flat(
+            flat_info=flat_info,
+            url=f"https://krisha.kz/a/show/{flat_info.flat_id}",
+            query_date=datetime.now().strftime('%Y-%m-%d'),
+            flat_type=flat_info.flat_type
+        )
 
-            if success:
-                saved_count += 1
-                logging.info(f"Saved sales flat: {flat_info.flat_id}")
-            else:
-                logging.error(f"Failed to save sales flat: {flat_info.flat_id}")
+        if success:
+            saved_count += 1
+            logging.info(f"Saved sales flat: {flat_info.flat_id}")
+        else:
+            logging.error(f"Failed to save sales flat: {flat_info.flat_id}")
 
-        except Exception as e:
-            logging.error(f"Error saving flat {flat_info.flat_id}: {e}")
-            continue
+
         
-        logging.info(f"Completed JK sales scraping and saving for {jk_name}. Saved: {saved_count}/{len(flats)}")
-        return saved_count
+    logging.info(f"Completed JK sales scraping and saving for {jk_name}. Saved: {saved_count}/{len(flats)}")
+    return saved_count
 
 

@@ -1302,6 +1302,28 @@ class OrthancDB:
         else:
             self.disconnect()
             raise Exception(f"JK '{jk_id}' not found in residential_complexes table")
+    
+    def get_latest_sales_by_jk(self, jk_name: str) -> List[dict]:
+        """
+        Get sales data for a residential complex where updated_at is less than 24 hours old.
+        
+        :param jk_name: str, name of the residential complex
+        :return: List[dict], list of recent sales data
+        """
+        self.connect()
+        
+        recent_sales_query = """
+            SELECT sf.*
+            FROM sales_flats sf
+            WHERE sf.residential_complex = ? 
+            AND sf.updated_at >= datetime('now', '-24 hours')
+        """
+        
+        cursor = self.conn.execute(recent_sales_query, (jk_name,))
+        recent_sales = [dict(row) for row in cursor.fetchall()]
+        
+        self.disconnect()
+        return recent_sales
 
 
             

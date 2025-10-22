@@ -1,812 +1,429 @@
 """
-JK Analytics Module
+JK Analytics Module for Sales Analysis
 
-This module provides comprehensive analytics for residential complexes (JK)
-including rental and sales statistics, yield analysis, and market insights.
+This module provides comprehensive analytics for residential complex (JK) sales data,
+including current market analysis and historical trends.
 """
 
-import statistics
-from datetime import datetime
-from typing import Dict, Optional
+import sqlite3
 import logging
+from typing import Dict, List, Optional, Tuple
+from datetime import datetime, timedelta
+from dataclasses import dataclass
+
+from common.src.flat_info import FlatInfo
 from db.src.write_read_database import OrthancDB
-from scrapers.src.residential_complex_scraper import search_complex_by_name
-from scrapers.src.search_scraper import scrape_and_save_search_results_with_pagination
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PriceStats:
+    """Price statistics for a flat type bucket."""
+    mean: float
+    median: float
+    min: float
+    max: float
+    count: int
+
+
+@dataclass
+class StatsForFlatType:
+    """
+    Historical data point for time series analysis.
+    """
+    date: str
+    flat_type: str
+    residential_complex: str
+    mean_price: float
+    median_price: float
+    min_price: float
+    max_price: float
+    count: int
+
+
+@dataclass
+class FlatOpportunity:
+    """
+    Represents a good opportunity flat.
+    """
+    flat_info: FlatInfo
+    stats_for_flat_type: StatsForFlatType
+    discount_percentage_vs_median: float
+    query_date: str
+
+
+@dataclass
+class CurrentMarketAnalysis:
+    """Current market analysis for a JK."""
+    jk_name: str
+    global_stats: PriceStats
+    flat_type_buckets: Dict[str, PriceStats]
+    # flat_type -> list of opportunities
+    opportunities: Dict[str, List[FlatOpportunity]]
+    analysis_date: str
+
+
+@dataclass
+class HistoricalAnalysis:
+    """Historical analysis for a JK."""
+    jk_name: str
+    flat_type_timeseries: Dict[str, List[StatsForFlatType]]
+    analysis_period: Tuple[str, str]  # (start_date, end_date)
 
 
 class JKAnalytics:
     """
-    Analytics class for residential complex (JK) data analysis.
+    Analytics engine for residential complex (JK) sales data.
     
-    Provides methods to analyze rental and sales data, calculate yields,
-    and generate market insights for investment decisions.
+    Provides comprehensive analysis of current market conditions and historical trends.
     """
 
     def __init__(self, db_path: str = "flats.db"):
         """
-        Initialize analytics with database connection.
+        Initialize JK Analytics.
         
         :param db_path: str, path to SQLite database file
         """
+        self.db_path = db_path
         self.db = OrthancDB(db_path)
 
-    def fetch_rental_data_if_needed(self, complex_name: str, area_max: float = 100.0) -> bool:
+    def analyse_jk_for_sales(self, jk_name: str, sale_discount_percentage: float = 0.15) -> Dict:
         """
-        Fetch rental data from Krisha if database is empty for this complex.
+        Analyze sales data for a specific residential complex (JK).
         
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :return: bool, True if data was fetched or already exists
+        :param jk_name: str, name of the residential complex
+        :param sale_discount_percentage: float, discount percentage to identify opportunities (default: 15%)
+        :return: Dict, comprehensive analysis including current market and historical data
         """
-        self.db.connect()
+        logger.info(f"Starting analysis for JK: {jk_name}")
 
         try:
-            # Check if we have rental data for this complex
-            cursor = self.db.conn.execute("""
-                SELECT COUNT(DISTINCT flat_id) 
-                FROM rental_flats 
-                WHERE residential_complex LIKE ? 
-                AND area <= ?
-            """, (f'%{complex_name}%', area_max))
+            # Get current market analysis
+            current_analysis = self._analyze_current_market(jk_name, sale_discount_percentage)
 
-            rental_count = cursor.fetchone()[0]
-            # todo:a ctually always fetch all data even if there is smthg in db
-            if rental_count > 0:
-                logging.info(f"Found {rental_count} rental flats in database for {complex_name}")
-                return True
+            # Get historical analysis
+            historical_analysis = self._analyze_historical_trends(jk_name)
 
-            logging.info(f"No rental data found for {complex_name}. Fetching from Krisha...")
-
-            # Try to find complex ID by searching for the complex name
-            complex_info = search_complex_by_name(complex_name)
-
-            if complex_info and complex_info.get('complex_id'):
-                complex_id = complex_info['complex_id']
-                logging.info(f"Found complex ID: {complex_id}")
-
-                # Construct rental search URL
-                rental_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}"
-
-                # Fetch rental data
-                logging.info(f"Fetching rental data from: {rental_url}")
-                scraped_flats = scrape_and_save_search_results_with_pagination(
-                    rental_url,
-                    max_pages=5,
-                    max_flats=None,
-                    delay=1.0
-                )
-
-                if scraped_flats:
-                    logging.info(f"Successfully fetched {len(scraped_flats)} rental flats for {complex_name}")
-                    return True
-                else:
-                    logging.info(f"Failed to fetch rental data for {complex_name}")
-                    return False
-            else:
-                logging.info(f"Could not find complex ID for {complex_name}")
-                return False
-
-        finally:
-            self.db.disconnect()
-
-    def fetch_sales_data_if_needed(self, complex_name: str, area_max: float = 100.0) -> bool:
-        """
-        Fetch sales data from Krisha if database is empty for this complex.
-        
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :return: bool, True if data was fetched or already exists
-        """
-        self.db.connect()
-
-        try:
-            # Check if we have sales data for this complex
-            cursor = self.db.conn.execute("""
-                SELECT COUNT(DISTINCT flat_id) 
-                FROM sales_flats 
-                WHERE residential_complex LIKE ? 
-                AND area <= ?
-            """, (f'%{complex_name}%', area_max))
-
-            sales_count = cursor.fetchone()[0]
-
-            if sales_count > 0:
-                logging.info(f"Found {sales_count} sales flats in database for {complex_name}")
-                return True
-
-            logging.info(f"No sales data found for {complex_name}. Fetching from Krisha...")
-
-            # Try to find complex ID by searching for the complex name
-            complex_info = search_complex_by_name(complex_name)
-
-            if complex_info and complex_info.get('complex_id'):
-                complex_id = complex_info['complex_id']
-                logging.info(f"Found complex ID: {complex_id}")
-
-                # Construct sales search URL
-                sales_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}"
-
-                # Fetch sales data
-                logging.info(f"Fetching sales data from: {sales_url}")
-                scraped_flats = scrape_and_save_search_results_with_pagination(
-                    sales_url,
-                    max_pages=5,
-                    max_flats=None,
-                    delay=1.0
-                )
-
-                if scraped_flats:
-                    logging.info(f"Successfully fetched {len(scraped_flats)} sales flats for {complex_name}")
-                    return True
-                else:
-                    logging.info(f"Failed to fetch sales data for {complex_name}")
-                    return False
-            else:
-                logging.info(f"Could not find complex ID for {complex_name}")
-                return False
-
-        finally:
-            self.db.disconnect()
-
-    def get_jk_rental_stats(self, complex_name: str, area_max: float = 100.0,
-                            query_date: Optional[str] = None) -> Dict:
-        """
-        Get rental statistics for a specific residential complex.
-        
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :param query_date: Optional[str], specific query date (YYYY-MM-DD), if None uses latest
-        :return: Dict, rental statistics
-        """
-        if query_date is None:
-            query_date = datetime.now().strftime('%Y-%m-%d')
-
-        # First, try to fetch data if needed
-        self.fetch_rental_data_if_needed(complex_name, area_max)
-
-        self.db.connect()
-
-        try:
-            # Get rental data for the complex - use DISTINCT to avoid duplicates and get historical data
-            cursor = self.db.conn.execute("""
-                SELECT DISTINCT flat_id, price, area, floor, total_floors, construction_year
-                FROM rental_flats 
-                WHERE residential_complex LIKE ? 
-                AND area <= ? 
-                ORDER BY flat_id, query_date DESC
-            """, (f'%{complex_name}%', area_max))
-
-            # Group by flat_id to get only the most recent entry for each flat
-            rental_data = {}
-            for row in cursor.fetchall():
-                flat_id = row[0]
-                if flat_id not in rental_data:
-                    rental_data[flat_id] = row[1:]  # Store price, area, floor, total_floors, construction_year
-
-            flats = list(rental_data.values())
-
-            if not flats:
-                return {
-                    'complex_name': complex_name,
-                    'query_date': query_date,
-                    'area_max': area_max,
-                    'count': 0,
-                    'error': 'No rental data found'
-                }
-
-            # Extract data
-            prices = [flat[0] for flat in flats]
-            areas = [flat[1] for flat in flats]
-            floors = [flat[2] for flat in flats if flat[2] is not None]
-            total_floors = [flat[3] for flat in flats if flat[3] is not None]
-            construction_years = [flat[4] for flat in flats if flat[4] is not None]
-
-            # Calculate statistics
-            stats = {
-                'complex_name': complex_name,
-                'query_date': query_date,
-                'area_max': area_max,
-                'count': len(flats),
-                'price_stats': {
-                    'min': min(prices),
-                    'max': max(prices),
-                    'avg': sum(prices) / len(prices),
-                    'median': statistics.median(prices),
-                    'std_dev': statistics.stdev(prices) if len(prices) > 1 else 0
-                },
-                'area_stats': {
-                    'min': min(areas),
-                    'max': max(areas),
-                    'avg': sum(areas) / len(areas),
-                    'median': statistics.median(areas)
-                }
-            }
-
-            # Add floor statistics if available
-            if floors:
-                stats['floor_stats'] = {
-                    'min': min(floors),
-                    'max': max(floors),
-                    'avg': sum(floors) / len(floors)
-                }
-
-            if total_floors:
-                stats['total_floors_stats'] = {
-                    'min': min(total_floors),
-                    'max': max(total_floors),
-                    'avg': sum(total_floors) / len(total_floors)
-                }
-
-            if construction_years:
-                stats['construction_year_stats'] = {
-                    'min': min(construction_years),
-                    'max': max(construction_years),
-                    'avg': sum(construction_years) / len(construction_years)
-                }
-
-            return stats
-
-        finally:
-            self.db.disconnect()
-
-    def get_jk_sales_stats(self, complex_name: str, area_max: float = 100.0,
-                           query_date: Optional[str] = None) -> Dict:
-        """
-        Get sales statistics for a specific residential complex.
-        
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :param query_date: Optional[str], specific query date (YYYY-MM-DD), if None uses latest
-        :return: Dict, sales statistics
-        """
-        if query_date is None:
-            query_date = datetime.now().strftime('%Y-%m-%d')
-
-        # First, try to fetch data if needed
-        self.fetch_sales_data_if_needed(complex_name, area_max)
-
-        self.db.connect()
-
-        try:
-            # Get sales data for the complex - use DISTINCT to avoid duplicates and get historical data
-            cursor = self.db.conn.execute("""
-                SELECT DISTINCT flat_id, price, area, floor, total_floors, construction_year
-                FROM sales_flats 
-                WHERE residential_complex LIKE ? 
-                AND area <= ? 
-                ORDER BY flat_id, query_date DESC
-            """, (f'%{complex_name}%', area_max))
-
-            # Group by flat_id to get only the most recent entry for each flat
-            sales_data = {}
-            for row in cursor.fetchall():
-                flat_id = row[0]
-                if flat_id not in sales_data:
-                    sales_data[flat_id] = row[1:]  # Store price, area, floor, total_floors, construction_year
-
-            flats = list(sales_data.values())
-
-            if not flats:
-                return {
-                    'complex_name': complex_name,
-                    'query_date': query_date,
-                    'area_max': area_max,
-                    'count': 0,
-                    'error': 'No sales data found'
-                }
-
-            # Extract data
-            prices = [flat[0] for flat in flats]
-            areas = [flat[1] for flat in flats]
-            floors = [flat[2] for flat in flats if flat[2] is not None]
-            total_floors = [flat[3] for flat in flats if flat[3] is not None]
-            construction_years = [flat[4] for flat in flats if flat[4] is not None]
-
-            # Calculate statistics
-            stats = {
-                'complex_name': complex_name,
-                'query_date': query_date,
-                'area_max': area_max,
-                'count': len(flats),
-                'price_stats': {
-                    'min': min(prices),
-                    'max': max(prices),
-                    'avg': sum(prices) / len(prices),
-                    'median': statistics.median(prices),
-                    'std_dev': statistics.stdev(prices) if len(prices) > 1 else 0
-                },
-                'area_stats': {
-                    'min': min(areas),
-                    'max': max(areas),
-                    'avg': sum(areas) / len(areas),
-                    'median': statistics.median(areas)
-                }
-            }
-
-            # Add floor statistics if available
-            if floors:
-                stats['floor_stats'] = {
-                    'min': min(floors),
-                    'max': max(floors),
-                    'avg': sum(floors) / len(floors)
-                }
-
-            if total_floors:
-                stats['total_floors_stats'] = {
-                    'min': min(total_floors),
-                    'max': max(total_floors),
-                    'avg': sum(total_floors) / len(total_floors)
-                }
-
-            if construction_years:
-                stats['construction_year_stats'] = {
-                    'min': min(construction_years),
-                    'max': max(construction_years),
-                    'avg': sum(construction_years) / len(construction_years)
-                }
-
-            return stats
-
-        finally:
-            self.db.disconnect()
-
-    def get_jk_comprehensive_analysis(self, complex_name: str, area_max: float = 100.0,
-                                      query_date: Optional[str] = None) -> Dict:
-        """
-        Get comprehensive analysis for a residential complex.
-        
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :param query_date: Optional[str], specific query date (YYYY-MM-DD), if None uses latest
-        :return: Dict, comprehensive analysis
-        """
-        if query_date is None:
-            query_date = datetime.now().strftime('%Y-%m-%d')
-
-        # Get rental and sales statistics
-        rental_stats = self.get_jk_rental_stats(complex_name, area_max, query_date)
-        sales_stats = self.get_jk_sales_stats(complex_name, area_max, query_date)
-
-        # Check if we have at least some data to work with
-        rental_count = rental_stats.get('count', 0)
-        sales_count = sales_stats.get('count', 0)
-
-        if rental_count == 0 and sales_count == 0:
             return {
-                'complex_name': complex_name,
-                'query_date': query_date,
-                'area_max': area_max,
-                'error': 'No data available for analysis',
-                'rental_count': 0,
-                'sales_count': 0
+                "jk_name": jk_name,
+                "analysis_timestamp": datetime.now().isoformat(),
+                "sale_discount_percentage": sale_discount_percentage,
+                "current_market": current_analysis,
+                "historical_analysis": historical_analysis
             }
-
-        # If we have data but some stats have errors, create partial analysis
-        if 'error' in rental_stats or 'error' in sales_stats:
-            # Create a basic analysis with available data
-            analysis_result = {
-                'complex_name': complex_name,
-                'query_date': query_date,
-                'area_max': area_max,
-                'rental_count': rental_count,
-                'sales_count': sales_count
-            }
-
-            # Add available stats (only if no error)
-            if 'error' not in rental_stats:
-                analysis_result['rental_stats'] = rental_stats
-            else:
-                analysis_result['rental_stats'] = {'count': 0, 'error': rental_stats.get('error', 'No rental data')}
-
-            if 'error' not in sales_stats:
-                analysis_result['sales_stats'] = sales_stats
-            else:
-                analysis_result['sales_stats'] = {'count': 0, 'error': sales_stats.get('error', 'No sales data')}
-
-            # Add basic insights structure for error cases
-            analysis_result['insights'] = {
-                'price_per_sqm': {'rental': None, 'sales': None},
-                'market_position': {'rental_competitiveness': 'N/A', 'investment_potential': 'N/A'},
-                'data_quality': {
-                    'rental_sample_size': rental_count,
-                    'sales_sample_size': sales_count,
-                    'reliability': 'Low'
-                }
-            }
-            return analysis_result
-
-        # Add market insights (only if both types of data are available)
-        rental_data = rental_stats
-        sales_data = sales_stats
-
-        insights = {
-            'price_per_sqm': {
-                'rental': None,
-                'sales': None
-            },
-            'market_position': {
-                'rental_competitiveness': 'N/A',
-                'investment_potential': 'N/A'
-            },
-            'data_quality': {
-                'rental_sample_size': rental_data.get('count', 0),
-                'sales_sample_size': sales_data.get('count', 0),
-                'reliability': 'Low'
-            }
-        }
-
-        # Calculate insights only if both data types are available
-        if 'error' not in rental_data and 'error' not in sales_data:
-            # Calculate price per square meter
-            rental_price_per_sqm = rental_data['price_stats']['avg'] / rental_data['area_stats']['avg']
-            sales_price_per_sqm = sales_data['price_stats']['avg'] / sales_data['area_stats']['avg']
-
-            insights['price_per_sqm']['rental'] = rental_price_per_sqm
-            insights['price_per_sqm']['sales'] = sales_price_per_sqm
-
-            insights['market_position'][
-                'rental_competitiveness'] = 'High' if rental_price_per_sqm > 100000 else 'Medium' if rental_price_per_sqm > 50000 else 'Low'
-            insights['market_position'][
-                'investment_potential'] = 'High' if sales_price_per_sqm > 150000 else 'Medium' if sales_price_per_sqm > 80000 else 'Low'
-
-            insights['data_quality']['reliability'] = 'High' if min(rental_data['count'],
-                                                                    sales_data['count']) >= 5 else 'Medium' if min(
-                rental_data['count'], sales_data['count']) >= 3 else 'Low'
-
-        return {
-            'complex_name': complex_name,
-            'query_date': query_date,
-            'area_max': area_max,
-            'rental_stats': rental_data,
-            'sales_stats': sales_data,
-            'insights': insights
-        }
-
-    def print_jk_analysis(self, complex_name: str, area_max: float = 100.0,
-                          query_date: Optional[str] = None) -> None:
-        """
-        Print formatted analysis for a residential complex.
-        
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :param query_date: Optional[str], specific query date (YYYY-MM-DD), if None uses latest
-        """
-        analysis = self.get_jk_comprehensive_analysis(complex_name, area_max, query_date)
-
-        if 'error' in analysis:
-            logging.info(f"Error analyzing {complex_name}: {analysis['error']}")
-            return
-
-        logging.info(f"🏢 Analysis for {analysis['complex_name']}")
-        logging.info(f"   Date: {analysis['query_date']}")
-        logging.info(f"   Area limit: ≤{analysis['area_max']} m²")
-        logging.info("=" * 60)
-
-        # Rental statistics
-        rental = analysis['rental_stats']
-        logging.info(f"Rental Statistics ({rental['count']} flats):")
-        logging.info(f"   Price range: {rental['price_stats']['min']:,} - {rental['price_stats']['max']:,} tenge")
-        logging.info(f"   Average price: {rental['price_stats']['avg']:,.0f} tenge")
-        logging.info(f"   Median price: {rental['price_stats']['median']:,.0f} tenge")
-        logging.info(f"   Area range: {rental['area_stats']['min']:.1f} - {rental['area_stats']['max']:.1f} m²")
-        logging.info(f"   Average area: {rental['area_stats']['avg']:.1f} m²")
-
-        # Sales statistics
-        sales = analysis['sales_stats']
-        logging.info(f"\n💰 Sales Statistics ({sales['count']} flats):")
-        logging.info(f"   Price range: {sales['price_stats']['min']:,} - {sales['price_stats']['max']:,} tenge")
-        logging.info(f"   Average price: {sales['price_stats']['avg']:,.0f} tenge")
-        logging.info(f"   Median price: {sales['price_stats']['median']:,.0f} tenge")
-        logging.info(f"   Area range: {sales['area_stats']['min']:.1f} - {sales['area_stats']['max']:.1f} m²")
-        logging.info(f"   Average area: {sales['area_stats']['avg']:.1f} m²")
-
-        # Market insights
-        insights = analysis['insights']
-        logging.info(f"\n💡 Market Insights:")
-        logging.info(f"   Rental price per m²: {insights['price_per_sqm']['rental']:,.0f} tenge")
-        logging.info(f"   Sales price per m²: {insights['price_per_sqm']['sales']:,.0f} tenge")
-        logging.info(f"   Investment potential: {insights['market_position']['investment_potential']}")
-        logging.info(f"   Data reliability: {insights['data_quality']['reliability']}")
-
-        # You can also get raw data for further analysis
-        logging.info(f"\nRaw Data Example:")
-        yield_data = self.get_jk_comprehensive_analysis("Meridian", area_max=35.0)
-        if 'error' not in yield_data:
-            logging.info(f"   Rental sample size: {yield_data['insights']['data_quality']['rental_sample_size']}")
-            logging.info(f"   Sales sample size: {yield_data['insights']['data_quality']['sales_sample_size']}")
-
-    def get_bucket_analysis(self, complex_name: str, area_max: float = 100.0,
-                            query_date: Optional[str] = None) -> Dict:
-        """
-        Get bucket-based analysis for a residential complex.
-        
-        Groups flats by room count and area ranges to provide accurate yield analysis.
-        
-        :param complex_name: str, name of the residential complex
-        :param area_max: float, maximum area in square meters
-        :param query_date: Optional[str], specific query date (YYYY-MM-DD), if None uses latest
-        :return: Dict, bucket-based analysis
-        """
-        if query_date is None:
-            query_date = datetime.now().strftime('%Y-%m-%d')
-
-        # First, try to fetch data if needed
-        self.fetch_rental_data_if_needed(complex_name, area_max)
-        self.fetch_sales_data_if_needed(complex_name, area_max)
-
-        self.db.connect()
-
-        try:
-            # Get all rental and sales data for the complex
-            rental_cursor = self.db.conn.execute("""
-                SELECT DISTINCT flat_id, price, area, floor, total_floors, construction_year
-                FROM rental_flats 
-                WHERE residential_complex LIKE ? 
-                AND area <= ? 
-                ORDER BY flat_id, query_date DESC
-            """, (f'%{complex_name}%', area_max))
-
-            sales_cursor = self.db.conn.execute("""
-                SELECT DISTINCT flat_id, price, area, floor, total_floors, construction_year
-                FROM sales_flats 
-                WHERE residential_complex LIKE ? 
-                AND area <= ? 
-                ORDER BY flat_id, query_date DESC
-            """, (f'%{complex_name}%', area_max))
-
-            # Group by flat_id to get only the most recent entry for each flat
-            rental_data = {}
-            for row in rental_cursor.fetchall():
-                flat_id = row[0]
-                if flat_id not in rental_data:
-                    rental_data[flat_id] = row[1:]  # Store price, area, floor, total_floors, construction_year
-
-            sales_data = {}
-            for row in sales_cursor.fetchall():
-                flat_id = row[0]
-                if flat_id not in sales_data:
-                    sales_data[flat_id] = row[1:]  # Store price, area, floor, total_floors, construction_year
-
-            # Define area buckets based on typical flat sizes
-            area_buckets = [
-                (0, 30, "Small (≤30m²)"),
-                (30, 50, "Medium (30-50m²)"),
-                (50, 70, "Large (50-70m²)"),
-                (70, 90, "Extra Large (70-90m²)"),
-                (90, float('inf'), "Huge (≥90m²)")
-            ]
-
-            # Define room count buckets (estimated based on area)
-            def estimate_rooms(area):
-                if area <= 30:
-                    return 1
-                elif area <= 50:
-                    return 2
-                elif area <= 70:
-                    return 3
-                elif area <= 90:
-                    return 4
-                else:
-                    return 5
-
-            # Group data by buckets
-            bucket_analysis = {}
-
-            # Process rental data
-            for flat_id, (price, area, floor, total_floors, construction_year) in rental_data.items():
-                rooms = estimate_rooms(area)
-
-                # Find area bucket
-                area_bucket = None
-                for min_area, max_area, bucket_name in area_buckets:
-                    if min_area <= area < max_area:
-                        area_bucket = bucket_name
-                        break
-
-                if area_bucket:
-                    bucket_key = f"{rooms}BR_{area_bucket}"
-                    if bucket_key not in bucket_analysis:
-                        bucket_analysis[bucket_key] = {
-                            'rooms': rooms,
-                            'area_bucket': area_bucket,
-                            'rental_flats': [],
-                            'sales_flats': [],
-                            'rental_prices': [],
-                            'sales_prices': [],
-                            'rental_areas': [],
-                            'sales_areas': []
-                        }
-
-                    bucket_analysis[bucket_key]['rental_flats'].append({
-                        'flat_id': flat_id,
-                        'price': price,
-                        'area': area,
-                        'floor': floor,
-                        'total_floors': total_floors,
-                        'construction_year': construction_year
-                    })
-                    bucket_analysis[bucket_key]['rental_prices'].append(price)
-                    bucket_analysis[bucket_key]['rental_areas'].append(area)
-
-            # Process sales data
-            for flat_id, (price, area, floor, total_floors, construction_year) in sales_data.items():
-                rooms = estimate_rooms(area)
-
-                # Find area bucket
-                area_bucket = None
-                for min_area, max_area, bucket_name in area_buckets:
-                    if min_area <= area < max_area:
-                        area_bucket = bucket_name
-                        break
-
-                if area_bucket:
-                    bucket_key = f"{rooms}BR_{area_bucket}"
-                    if bucket_key not in bucket_analysis:
-                        bucket_analysis[bucket_key] = {
-                            'rooms': rooms,
-                            'area_bucket': area_bucket,
-                            'rental_flats': [],
-                            'sales_flats': [],
-                            'rental_prices': [],
-                            'sales_prices': [],
-                            'rental_areas': [],
-                            'sales_areas': []
-                        }
-
-                    bucket_analysis[bucket_key]['sales_flats'].append({
-                        'flat_id': flat_id,
-                        'price': price,
-                        'area': area,
-                        'floor': floor,
-                        'total_floors': total_floors,
-                        'construction_year': construction_year
-                    })
-                    bucket_analysis[bucket_key]['sales_prices'].append(price)
-                    bucket_analysis[bucket_key]['sales_areas'].append(area)
-
-            # Calculate statistics for each bucket
-            for bucket_key, bucket_data in bucket_analysis.items():
-                rental_count = len(bucket_data['rental_prices'])
-                sales_count = len(bucket_data['sales_prices'])
-
-                # Calculate rental statistics
-                if rental_count > 0:
-                    bucket_data['rental_count'] = rental_count
-                    bucket_data['rental_stats'] = {
-                        'min_price': min(bucket_data['rental_prices']),
-                        'max_price': max(bucket_data['rental_prices']),
-                        'avg_price': sum(bucket_data['rental_prices']) / rental_count,
-                        'median_price': statistics.median(bucket_data['rental_prices']),
-                        'avg_area': sum(bucket_data['rental_areas']) / rental_count
-                    }
-                else:
-                    bucket_data['rental_count'] = 0
-                    bucket_data['rental_stats'] = None
-
-                # Calculate sales statistics
-                if sales_count > 0:
-                    bucket_data['sales_count'] = sales_count
-                    bucket_data['sales_stats'] = {
-                        'min_price': min(bucket_data['sales_prices']),
-                        'max_price': max(bucket_data['sales_prices']),
-                        'avg_price': sum(bucket_data['sales_prices']) / sales_count,
-                        'median_price': statistics.median(bucket_data['sales_prices']),
-                        'avg_area': sum(bucket_data['sales_areas']) / sales_count
-                    }
-                else:
-                    bucket_data['sales_count'] = 0
-                    bucket_data['sales_stats'] = None
-
-                # Calculate yield if both rental and sales data are available
-                if rental_count > 0 and sales_count > 0:
-                    avg_rental_price = bucket_data['rental_stats']['avg_price']
-                    avg_sales_price = bucket_data['sales_stats']['avg_price']
-
-                    # Annual rental income
-                    annual_rental_income = avg_rental_price * 12
-
-                    # Rental yield
-                    rental_yield = (annual_rental_income / avg_sales_price) * 100
-
-                    bucket_data['yield_analysis'] = {
-                        'annual_rental_income': annual_rental_income,
-                        'rental_yield': rental_yield,
-                        'yield_min': (min(bucket_data['rental_prices']) * 12 / max(bucket_data['sales_prices'])) * 100,
-                        'yield_max': (max(bucket_data['rental_prices']) * 12 / min(bucket_data['sales_prices'])) * 100
-                    }
-                else:
-                    bucket_data['yield_analysis'] = None
-
-            # Calculate overall statistics across all buckets
-            all_yields = []
-            all_rental_prices = []
-            all_sales_prices = []
-            
-            for bucket_data in bucket_analysis.values():
-                if bucket_data['yield_analysis']:
-                    all_yields.append(bucket_data['yield_analysis']['rental_yield'])
-                
-                if bucket_data['rental_prices']:
-                    all_rental_prices.extend(bucket_data['rental_prices'])
-                
-                if bucket_data['sales_prices']:
-                    all_sales_prices.extend(bucket_data['sales_prices'])
-            
-            # Calculate overall statistics
-            overall_stats = {}
-            
-            if all_yields:
-                overall_stats['median_yield'] = statistics.median(all_yields)
-                overall_stats['mean_yield'] = statistics.mean(all_yields)
-                overall_stats['yield_range'] = {
-                    'min': min(all_yields),
-                    'max': max(all_yields)
-                }
-            else:
-                overall_stats['median_yield'] = None
-                overall_stats['mean_yield'] = None
-                overall_stats['yield_range'] = None
-            
-            if all_rental_prices:
-                overall_stats['overall_rental_stats'] = {
-                    'median_price': statistics.median(all_rental_prices),
-                    'mean_price': statistics.mean(all_rental_prices),
-                    'price_range': {
-                        'min': min(all_rental_prices),
-                        'max': max(all_rental_prices)
-                    }
-                }
-            else:
-                overall_stats['overall_rental_stats'] = None
-            
-            if all_sales_prices:
-                overall_stats['overall_sales_stats'] = {
-                    'median_price': statistics.median(all_sales_prices),
-                    'mean_price': statistics.mean(all_sales_prices),
-                    'price_range': {
-                        'min': min(all_sales_prices),
-                        'max': max(all_sales_prices)
-                    }
-                }
-            else:
-                overall_stats['overall_sales_stats'] = None
-
-            result = {
-                'complex_name': complex_name,
-                'query_date': query_date,
-                'area_max': area_max,
-                'bucket_analysis': bucket_analysis,
-                'total_rental_flats': len(rental_data),
-                'total_sales_flats': len(sales_data),
-                'overall_stats': overall_stats
-            }
-            return result
 
         except Exception as e:
+            logger.error(f"Error analyzing JK {jk_name}: {e}")
             raise
-        finally:
-            self.db.disconnect()
+
+    def _analyze_current_market(self, jk_name: str, discount_percentage: float) -> CurrentMarketAnalysis:
+        """
+        Analyze current market conditions for a JK.
+        
+        :param jk_name: str, name of the residential complex
+        :param discount_percentage: float, discount percentage for opportunities
+        :return: CurrentMarketAnalysis, current market analysis
+        """
+        logger.info(f"Analyzing current market for {jk_name}")
+
+        self.db.connect()
+
+        # Get latest sales data (most recent query_date for each flat)
+        latest_sales_query = """
+            SELECT sf.*, 
+                   ROW_NUMBER() OVER (PARTITION BY sf.flat_id ORDER BY sf.query_date DESC) as rn
+            FROM sales_flats sf
+            WHERE sf.residential_complex = ?
+        """
+
+        cursor = self.db.conn.execute(latest_sales_query, (jk_name,))
+        latest_sales = [dict(row) for row in cursor.fetchall() if row['rn'] == 1]
+
+        if not latest_sales:
+            logger.warning(f"No sales data found for JK: {jk_name}")
+            return CurrentMarketAnalysis(
+                jk_name=jk_name,
+                global_stats=PriceStats(0, 0, 0, 0, 0),
+                flat_type_buckets={},
+                opportunities=[],
+                analysis_date=datetime.now().strftime('%Y-%m-%d')
+            )
+
+        # Calculate global statistics
+        prices = [sale['price'] for sale in latest_sales]
+        global_stats = self._calculate_price_stats(prices)
+
+        # Calculate statistics by flat type
+        flat_type_buckets = {}
+        for flat_type in ['Studio', '1BR', '2BR', '3BR+']:
+            type_sales = [sale for sale in latest_sales if sale['flat_type'] == flat_type]
+            if type_sales:
+                type_prices = [sale['price'] for sale in type_sales]
+                flat_type_buckets[flat_type] = self._calculate_price_stats(type_prices)
+
+        # Find opportunities (flats selling below market average by discount_percentage)
+        opportunities = self._find_opportunities(latest_sales, flat_type_buckets, discount_percentage, jk_name)
+
+        return CurrentMarketAnalysis(
+            jk_name=jk_name,
+            global_stats=global_stats,
+            flat_type_buckets=flat_type_buckets,
+            opportunities=opportunities,
+            analysis_date=datetime.now().strftime('%Y-%m-%d')
+        )
+
+    def _analyze_historical_trends(self, jk_name: str, days_back: int = 365) -> HistoricalAnalysis:
+        """
+        Analyze historical trends for a JK.
+        
+        :param jk_name: str, name of the residential complex
+        :param days_back: int, number of days to look back (default: 365)
+        :return: HistoricalAnalysis, historical analysis
+        """
+        logger.info(f"Analyzing historical trends for {jk_name}")
+
+        self.db.connect()
+
+        # Get historical data
+        start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+
+        historical_query = """
+            SELECT query_date, flat_type, price, area, floor, total_floors, flat_id, url
+            FROM sales_flats
+            WHERE residential_complex = ? AND query_date >= ?
+            ORDER BY query_date, flat_type
+        """
+
+        cursor = self.db.conn.execute(historical_query, (jk_name, start_date))
+        historical_data = [dict(row) for row in cursor.fetchall()]
+
+        # Group by flat type and create time series
+        flat_type_timeseries = {}
+
+        for flat_type in ['Studio', '1BR', '2BR', '3BR+']:
+            type_data = [d for d in historical_data if d['flat_type'] == flat_type]
+
+            if type_data:
+                # Group by date and calculate daily statistics
+                daily_stats = {}
+                for record in type_data:
+                    date = record['query_date']
+                    if date not in daily_stats:
+                        daily_stats[date] = []
+                    daily_stats[date].append(record['price'])
+
+                # Create time series data points
+                timeseries = []
+                for date, prices in sorted(daily_stats.items()):
+                    if prices:
+                        stats = self._calculate_price_stats(prices)
+                        timeseries.append(StatsForFlatType(
+                            date=date,
+                            flat_type=flat_type,
+                            residential_complex=jk_name,
+                            mean_price=stats.mean,
+                            median_price=stats.median,
+                            min_price=stats.min,
+                            max_price=stats.max,
+                            count=stats.count
+                        ))
+
+                flat_type_timeseries[flat_type] = timeseries
+
+        return HistoricalAnalysis(
+            jk_name=jk_name,
+            flat_type_timeseries=flat_type_timeseries,
+            analysis_period=(start_date, datetime.now().strftime('%Y-%m-%d'))
+        )
+
+    def _calculate_price_stats(self, prices: List[int]) -> PriceStats:
+        """
+        Calculate price statistics for a list of prices.
+        
+        :param prices: List[int], list of prices
+        :return: PriceStats, calculated statistics
+        """
+        if not prices:
+            return PriceStats(0, 0, 0, 0, 0)
+
+        prices_sorted = sorted(prices)
+        n = len(prices_sorted)
+
+        mean = sum(prices) / n
+        median = prices_sorted[n // 2] if n % 2 == 1 else (prices_sorted[n // 2 - 1] + prices_sorted[n // 2]) / 2
+        min_price = min(prices)
+        max_price = max(prices)
+
+        return PriceStats(
+            mean=round(mean, 2),
+            median=round(median, 2),
+            min=min_price,
+            max=max_price,
+            count=n
+        )
+
+    def _find_opportunities(self, sales_data: List[Dict], flat_type_buckets: Dict[str, PriceStats], 
+                           discount_percentage: float, jk_name: str) -> Dict[str, List[FlatOpportunity]]:
+        """
+        Find good opportunity flats based on discount percentage.
+        
+        :param sales_data: List[Dict], current sales data
+        :param flat_type_buckets: Dict[str, PriceStats], price statistics by flat type
+        :param discount_percentage: float, discount percentage threshold
+        :return: Dict[str, List[FlatOpportunity]], opportunities grouped by flat type
+        """
+        opportunities_by_type = {}
+        
+        for sale in sales_data:
+            flat_type = sale['flat_type']
+            if flat_type in flat_type_buckets:
+                market_avg = flat_type_buckets[flat_type].mean
+                market_median = flat_type_buckets[flat_type].median
+                threshold_price = market_avg * (1 - discount_percentage)
+                
+                if sale['price'] <= threshold_price:
+                    # Calculate discount vs median (more meaningful than vs mean)
+                    discount_vs_median = ((market_median - sale['price']) / market_median) * 100
+                    
+                    # Create FlatInfo object
+                    flat_info = FlatInfo(
+                        flat_id=sale['flat_id'],
+                        price=sale['price'],
+                        area=sale['area'],
+                        flat_type=flat_type,
+                        residential_complex=sale.get('residential_complex'),
+                        floor=sale['floor'],
+                        total_floors=sale['total_floors'],
+                        construction_year=sale.get('construction_year'),
+                        parking=sale.get('parking'),
+                        description=sale.get('description', ''),
+                        is_rental=False  # This is sales data
+                    )
+                    
+                    # Create StatsForFlatType object
+                    stats_for_flat_type = StatsForFlatType(
+                        date=sale['query_date'],
+                        flat_type=flat_type,
+                        residential_complex=jk_name,
+                        mean_price=market_avg,
+                        median_price=market_median,
+                        min_price=flat_type_buckets[flat_type].min,
+                        max_price=flat_type_buckets[flat_type].max,
+                        count=flat_type_buckets[flat_type].count
+                    )
+                    
+                    opportunity = FlatOpportunity(
+                        flat_info=flat_info,
+                        stats_for_flat_type=stats_for_flat_type,
+                        discount_percentage_vs_median=round(discount_vs_median, 2),
+                        query_date=sale['query_date']
+                    )
+                    
+                    # Group by flat type
+                    if flat_type not in opportunities_by_type:
+                        opportunities_by_type[flat_type] = []
+                    opportunities_by_type[flat_type].append(opportunity)
+        
+        # Sort each flat type's opportunities by discount percentage vs median (highest first)
+        for flat_type in opportunities_by_type:
+            opportunities_by_type[flat_type].sort(key=lambda x: x.discount_percentage_vs_median, reverse=True)
+        
+        return opportunities_by_type
+
+    def get_jk_list(self) -> List[str]:
+        """
+        Get list of all JKs in the database.
+        
+        :return: List[str], list of JK names
+        """
+        self.db.connect()
+
+        query = """
+            SELECT DISTINCT residential_complex
+            FROM sales_flats
+            WHERE residential_complex IS NOT NULL
+            ORDER BY residential_complex
+        """
+
+        cursor = self.db.conn.execute(query)
+        return [row[0] for row in cursor.fetchall()]
+
+    def get_jk_sales_summary(self, jk_name: str) -> Dict:
+        """
+        Get a quick summary of sales data for a JK.
+        
+        :param jk_name: str, name of the residential complex
+        :return: Dict, summary statistics
+        """
+        self.db.connect()
+
+        # Get total sales count
+        count_query = "SELECT COUNT(*) FROM sales_flats WHERE residential_complex = ?"
+        total_sales = self.db.conn.execute(count_query, (jk_name,)).fetchone()[0]
+
+        # Get date range
+        date_query = """
+            SELECT MIN(query_date) as earliest, MAX(query_date) as latest
+            FROM sales_flats
+            WHERE residential_complex = ?
+        """
+        date_result = self.db.conn.execute(date_query, (jk_name,)).fetchone()
+
+        # Get flat type distribution
+        type_query = """
+            SELECT flat_type, COUNT(*) as count
+            FROM sales_flats
+            WHERE residential_complex = ?
+            GROUP BY flat_type
+            ORDER BY count DESC
+        """
+        type_distribution = dict(self.db.conn.execute(type_query, (jk_name,)).fetchall())
+
+        return {
+            "jk_name": jk_name,
+            "total_sales": total_sales,
+            "date_range": {
+                "earliest": date_result[0],
+                "latest": date_result[1]
+            },
+            "flat_type_distribution": type_distribution
+        }
 
 
-def main():
+def analyze_jk_for_sales(jk_name: str, sale_discount_percentage: float = 0.15, db_path: str = "flats.db") -> Dict:
     """
-    Example usage of JK analytics.
+    Convenience function to analyze JK sales data.
+    
+    :param jk_name: str, name of the residential complex
+    :param sale_discount_percentage: float, discount percentage for opportunities
+    :param db_path: str, path to database file
+    :return: Dict, comprehensive analysis
     """
-    analytics = JKAnalytics()
-
-    # Analyze Meridian Apartments
-    logging.info("JK Analytics Example")
-    logging.info("=" * 60)
-
-    analytics.print_jk_analysis("Meridian", area_max=35.0)
-
-    # You can also get raw data for further analysis
-    logging.info(f"\nRaw Data Example:")
-    yield_data = analytics.get_jk_comprehensive_analysis("Meridian", area_max=35.0)
-    if 'error' not in yield_data:
-        logging.info(f"   Rental sample size: {yield_data['insights']['data_quality']['rental_sample_size']}")
-        logging.info(f"   Sales sample size: {yield_data['insights']['data_quality']['sales_sample_size']}")
+    analytics = JKAnalytics(db_path)
+    return analytics.analyse_jk_for_sales(jk_name, sale_discount_percentage)
 
 
 if __name__ == "__main__":
-    main()
+    # Example usage
+    analytics = JKAnalytics()
+
+    # Get list of JKs
+    jks = analytics.get_jk_list()
+    print(f"Available JKs: {jks[:5]}...")  # Show first 5
+
+    if jks:
+        # Analyze first JK
+        jk_name = jks[0]
+        print(f"\nAnalyzing: {jk_name}")
+
+        # Get summary
+        summary = analytics.get_jk_sales_summary(jk_name)
+        print(f"Summary: {summary}")
+
+        # Get full analysis
+        analysis = analytics.analyse_jk_for_sales(jk_name, 0.15)
+        print(f"\nAnalysis completed for {jk_name}")
+        print(f"Found {len(analysis['current_market'].opportunities)} opportunities")

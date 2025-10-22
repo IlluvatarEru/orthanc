@@ -7,7 +7,7 @@ and retrieves sales and rental data from Krisha.kz for each one.
 Data is written to the database immediately after each JK is processed.
 
 Usage from root folder:
-python analytics/src/analyse_all_jks.py
+python analytics/src/old_analyse_all_jks.py
 """
 
 import sys
@@ -22,7 +22,7 @@ sys.path.insert(0, '.')
 from scrapers.src.search_scraper import scrape_complex_data
 
 from db.src.write_read_database import OrthancDB
-from analytics.src.jk_analytics import JKAnalytics
+from analytics.src.old_jk_analytics import JKAnalytics
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:

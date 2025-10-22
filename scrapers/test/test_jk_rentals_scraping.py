@@ -11,7 +11,6 @@ python -m pytest scrapers/test/test_jk_rentals_scraping.py -v -s --log-cli-level
 import sys
 import os
 import pytest
-import tempfile
 import logging
 from typing import List
 
@@ -28,7 +27,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-class TestJKRentalsScrapping:
+class TestJKRentalsScraping:
     """Test class for JK rental scraping functionality."""
     
     def test_scrape_jk_rentals_query_only_1(self):
@@ -72,55 +71,48 @@ class TestJKRentalsScrapping:
         """
         logger.info(f"Testing JK rental scraping (with database) for: {TEST_JK_NAME}")
         
-        # Create temporary database
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as temp_db:
-            temp_db_path = temp_db.name
+        # Use the actual database
+        db_path = "flats.db"
         
+        # Scrape and save with limited pages
+        max_pages = 2
+        saved_count = scrape_and_save_jk_rentals(
+            jk_name=TEST_JK_NAME,
+            max_pages=max_pages,
+            db_path=db_path
+        )
+        
+        # Verify results
+        assert isinstance(saved_count, int), f"Expected int, got {type(saved_count)}"
+        assert saved_count >= 0, f"Saved count should be non-negative, got {saved_count}"
+        
+        logger.info(f"Saved {saved_count} rental flats to database")
+        
+        # CRITICAL: Test should fail if no flats saved - this indicates scraping is not working
+        assert saved_count > 0, f"No rental flats saved for {TEST_JK_NAME}. This indicates the JK rental scraper is not working properly."
+            
+        # Verify database contains the saved flats
+        from db.src.write_read_database import OrthancDB
+        db = OrthancDB(db_path)
+            
         try:
-            # Scrape and save with limited pages
-            max_pages = 2
-            saved_count = scrape_and_save_jk_rentals(
-                jk_name=TEST_JK_NAME,
-                max_pages=max_pages,
-                db_path=temp_db_path
-            )
+            db.connect()
             
-            # Verify results
-            assert isinstance(saved_count, int), f"Expected int, got {type(saved_count)}"
-            assert saved_count >= 0, f"Saved count should be non-negative, got {saved_count}"
+            # Check rental flats in database
+            cursor = db.conn.execute("""
+                SELECT COUNT(*) FROM rental_flats 
+                WHERE residential_complex LIKE ?
+            """, (f'%{TEST_JK_NAME}%',))
             
-            logger.info(f"Saved {saved_count} rental flats to database")
+            db_count = cursor.fetchone()[0]
+            assert db_count >= saved_count, f"Database should have at least {saved_count} flats, got {db_count}"
             
-            # CRITICAL: Test should fail if no flats saved - this indicates scraping is not working
-            assert saved_count > 0, f"No rental flats saved for {TEST_JK_NAME}. This indicates the JK rental scraper is not working properly."
-            
-            # Verify database contains the saved flats
-            from db.src.write_read_database import OrthancDB
-            db = OrthancDB(temp_db_path)
-            
-            try:
-                db.connect()
-                
-                # Check rental flats in database
-                cursor = db.conn.execute("""
-                    SELECT COUNT(*) FROM rental_flats 
-                    WHERE residential_complex LIKE ?
-                """, (f'%{TEST_JK_NAME}%',))
-                
-                db_count = cursor.fetchone()[0]
-                assert db_count >= saved_count, f"Database should have at least {saved_count} flats, got {db_count}"
-                
-                logger.info(f"Database contains {db_count} rental flats for {TEST_JK_NAME}")
-                
-            finally:
-                db.disconnect()
-            
-            logger.info("✅ JK rental scraping (with database) test passed!")
+            logger.info(f"Database contains {db_count} rental flats for {TEST_JK_NAME}")
             
         finally:
-            # Clean up temporary database
-            if os.path.exists(temp_db_path):
-                os.unlink(temp_db_path)
+            db.disconnect()
+        
+        logger.info("✅ JK rental scraping (with database) test passed!")
     
     def test_scrape_jk_rentals_invalid_jk(self):
         """

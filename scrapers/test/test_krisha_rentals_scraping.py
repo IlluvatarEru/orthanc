@@ -27,7 +27,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-class TestRentalsScrapping:
+class TestRentalsScraping:
     """Test class for rental flat scraping functionality."""
 
     def test_scrape_rental_flat_success_1(self):

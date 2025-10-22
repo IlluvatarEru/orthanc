@@ -160,7 +160,7 @@ def scrape_all_jk_sales(db_path: str = "flats.db", max_pages: int = 1) -> Dict[s
     return results
 
 
-def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 5, 
+def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1, 
                                run_time: str = "12:00") -> None:
     """
     Run daily rental scraping in a continuous loop.
@@ -242,7 +242,7 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
             time.sleep(300)  # Wait 5 minutes before retrying
 
 
-def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 5, 
+def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1, 
                               run_time: str = "13:00") -> None:
     """
     Run daily sales scraping in a continuous loop.
@@ -324,7 +324,7 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 5,
             time.sleep(300)  # Wait 5 minutes before retrying
 
 
-def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 5, 
+def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 1, 
                           scrape_rentals: bool = True, scrape_sales: bool = True) -> None:
     """
     Run immediate scraping of all JKs (rentals and/or sales).
@@ -481,7 +481,7 @@ if __name__ == "__main__":
     parser.add_argument("--mode", choices=["immediate", "daily-rentals", "daily-sales", "blacklist", "fetch-jks"], 
                        default="immediate", help="Scraping mode")
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
-    parser.add_argument("--max-pages", type=int, default=5, help="Maximum pages per JK")
+    parser.add_argument("--max-pages", type=int, default=1, help="Maximum pages per JK")
     parser.add_argument("--rentals", action="store_true", help="Include rentals (immediate mode)")
     parser.add_argument("--sales", action="store_true", help="Include sales (immediate mode)")
     parser.add_argument("--run-time", default="12:00", help="Time to run daily scraping (HH:MM)")

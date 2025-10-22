@@ -2,7 +2,7 @@
 """
 Debug script to test refresh route and identify the exact error.
 """
-from analytics.src.jk_analytics import JKAnalytics
+from analytics.src.old_jk_analytics import JKAnalytics
 from webapp import app
 import json
 import requests

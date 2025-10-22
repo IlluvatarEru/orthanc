@@ -24,7 +24,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-class TestSalesScrapping:
+class TestSalesScraping:
     """Test class for sales flat scraping functionality."""
 
     def test_scrape_sales_flat_success_1(self):

@@ -14,7 +14,7 @@ from urllib.parse import unquote
 import toml
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 
-from analytics.src.jk_analytics import JKAnalytics
+from analytics.src.old_jk_analytics import JKAnalytics
 from price.src.currency import currency_manager
 from db.src.flat_info_from_db import get_flat_info
 from common.src.flat_info import FlatInfo
