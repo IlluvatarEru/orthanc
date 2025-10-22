@@ -4,13 +4,8 @@ JK (Residential Complex) sales analysis endpoints.
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
-import sys
-import os
 
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from analytics.src.jk_analytics import JKAnalytics, analyze_jk_for_sales
+from analytics.src.jk_sales_analytics import JKAnalytics, analyze_jk_for_sales
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -115,18 +110,20 @@ async def get_jk_sales_analysis(
                 "opportunities": serialized_opportunities
             },
             "historical_analysis": {
-                "timeseries_data": [
-                    {
-                        "date": point.date,
-                        "flat_type": point.flat_type,
-                        "residential_complex": point.residential_complex,
-                        "mean_price": point.mean_price,
-                        "median_price": point.median_price,
-                        "min_price": point.min_price,
-                        "max_price": point.max_price,
-                        "count": point.count
-                    } for point in analysis['historical_analysis'].timeseries_data
-                ]
+                "flat_type_timeseries": {
+                    flat_type: [
+                        {
+                            "date": point.date,
+                            "flat_type": point.flat_type,
+                            "residential_complex": point.residential_complex,
+                            "mean_price": point.mean_price,
+                            "median_price": point.median_price,
+                            "min_price": point.min_price,
+                            "max_price": point.max_price,
+                            "count": point.count
+                        } for point in points
+                    ] for flat_type, points in analysis['historical_analysis'].flat_type_timeseries.items()
+                }
             }
         }
     except Exception as e:

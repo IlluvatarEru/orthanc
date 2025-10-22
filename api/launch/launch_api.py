@@ -1,5 +1,8 @@
 """
 Launcher script for the Orthanc Real Estate Analytics API.
+
+python -m api.launch.launch_api --reload
+
 """
 import uvicorn
 import argparse
@@ -7,10 +10,7 @@ import logging
 import sys
 import os
 
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
-from api.src.app import app
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)

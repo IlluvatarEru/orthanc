@@ -4,11 +4,6 @@ FastAPI application for Orthanc real estate analytics API.
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import logging
-import sys
-import os
-
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from api.src.flat_analysis import router as flat_analysis_router
 from api.src.jk_analysis_sales import router as jk_sales_router

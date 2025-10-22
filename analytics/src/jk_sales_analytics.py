@@ -148,7 +148,7 @@ class JKAnalytics:
                 jk_name=jk_name,
                 global_stats=PriceStats(0, 0, 0, 0, 0),
                 flat_type_buckets={},
-                opportunities=[],
+                opportunities={},
                 analysis_date=datetime.now().strftime('%Y-%m-%d')
             )
 
@@ -404,26 +404,3 @@ def analyze_jk_for_sales(jk_name: str, sale_discount_percentage: float = 0.15, d
     """
     analytics = JKAnalytics(db_path)
     return analytics.analyse_jk_for_sales(jk_name, sale_discount_percentage)
-
-
-if __name__ == "__main__":
-    # Example usage
-    analytics = JKAnalytics()
-
-    # Get list of JKs
-    jks = analytics.get_jk_list()
-    print(f"Available JKs: {jks[:5]}...")  # Show first 5
-
-    if jks:
-        # Analyze first JK
-        jk_name = jks[0]
-        print(f"\nAnalyzing: {jk_name}")
-
-        # Get summary
-        summary = analytics.get_jk_sales_summary(jk_name)
-        print(f"Summary: {summary}")
-
-        # Get full analysis
-        analysis = analytics.analyse_jk_for_sales(jk_name, 0.15)
-        print(f"\nAnalysis completed for {jk_name}")
-        print(f"Found {len(analysis['current_market'].opportunities)} opportunities")

@@ -3,7 +3,7 @@ Test JK Analytics functionality.
 
 This module tests the JK analytics functionality using pytest.
 
-python -m pytest analytics/test/test_jk_analytics.py -v -s --log-cli-level=INFO
+python -m pytest analytics/test/test_jk_sales_analytics.py -v -s --log-cli-level=INFO
 """
 
 import sys
@@ -13,13 +13,8 @@ import logging
 from typing import Dict, List, Optional
 from datetime import datetime
 
-from common.src.flat_info import FlatInfo
-
-# Add the project root to the path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
-from analytics.src.jk_analytics import JKAnalytics, analyze_jk_for_sales, StatsForFlatType
-from analytics.src.jk_analytics import PriceStats, FlatOpportunity, CurrentMarketAnalysis, HistoricalAnalysis
+from analytics.src.jk_sales_analytics import JKAnalytics, analyze_jk_for_sales, StatsForFlatType
+from analytics.src.jk_sales_analytics import PriceStats, FlatOpportunity, CurrentMarketAnalysis, HistoricalAnalysis
 from common.src.flat_info import FlatInfo
 
 # Test JK name

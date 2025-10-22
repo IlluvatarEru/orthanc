@@ -4,11 +4,6 @@ Flat-specific analysis endpoints.
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 import logging
-import sys
-import os
-
-# Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from common.src.flat_info import FlatInfo
 from db.src.write_read_database import OrthancDB
@@ -39,7 +34,7 @@ async def search_flats(
         query += "SELECT *, 'rental' as table_type FROM rental_flats "
         query += "UNION ALL "
         query += "SELECT *, 'sale' as table_type FROM sales_flats"
-        query += ") WHERE 1=1"
+        query += ") AS combined_flats WHERE 1=1"
         
         params = []
         
@@ -76,8 +71,36 @@ async def search_flats(
         query += " ORDER BY price ASC LIMIT ?"
         params.append(limit)
         
+        # Add debugging
+        logger.info(f"Executing query: {query}")
+        logger.info(f"With params: {params}")
+        
         cursor = db.conn.execute(query, params)
         results = [dict(row) for row in cursor.fetchall()]
+        
+        logger.info(f"Query returned {len(results)} results")
+        
+        # Log sample results for debugging
+        if results:
+            logger.info(f"Sample result: {results[0]}")
+        else:
+            # If no results, let's check what's in the database
+            logger.warning("No results found. Checking database content...")
+            
+            # Check total count
+            cursor = db.conn.execute("SELECT COUNT(*) FROM (SELECT * FROM rental_flats UNION ALL SELECT * FROM sales_flats)")
+            total_count = cursor.fetchone()[0]
+            logger.info(f"Total flats in database: {total_count}")
+            
+            # Check residential complexes
+            cursor = db.conn.execute("SELECT DISTINCT residential_complex FROM (SELECT * FROM rental_flats UNION ALL SELECT * FROM sales_flats) WHERE residential_complex IS NOT NULL LIMIT 10")
+            complexes = [row[0] for row in cursor.fetchall()]
+            logger.info(f"Sample residential complexes: {complexes}")
+            
+            # Check flat types
+            cursor = db.conn.execute("SELECT DISTINCT flat_type FROM (SELECT * FROM rental_flats UNION ALL SELECT * FROM sales_flats) WHERE flat_type IS NOT NULL")
+            types = [row[0] for row in cursor.fetchall()]
+            logger.info(f"Available flat types: {types}")
         
         db.disconnect()
         
