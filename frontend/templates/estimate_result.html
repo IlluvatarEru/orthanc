@@ -52,7 +52,13 @@
                 <div class="row">
                     <div class="col-md-3 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-primary"><span class="price-kzt">₸{{ "{:,}".format(flat_info.price or 0) }}</span></div>
+                            <div class="kpi-value text-primary">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format((flat_info.price or 0) / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat_info.price or 0) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Price</div>
                         </div>
                     </div>
@@ -155,13 +161,25 @@
                 <div class="row">
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-primary"><span class="price-kzt">₸{{ rental_stats_fmt.min_price }}</span></div>
+                            <div class="kpi-value text-primary">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(rental_stats_fmt.min_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(rental_stats_fmt.min_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Min Price</div>
                         </div>
                     </div>
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-primary"><span class="price-kzt">₸{{ rental_stats_fmt.max_price }}</span></div>
+                            <div class="kpi-value text-primary">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(rental_stats_fmt.max_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(rental_stats_fmt.max_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Max Price</div>
                         </div>
                     </div>
@@ -169,13 +187,25 @@
                 <div class="row">
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-success"><span class="price-kzt">₸{{ rental_stats_fmt.avg_price }}</span></div>
+                            <div class="kpi-value text-success">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(rental_stats_fmt.avg_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(rental_stats_fmt.avg_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Average Price</div>
                         </div>
                     </div>
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-warning"><span class="price-kzt">₸{{ rental_stats_fmt.median_price }}</span></div>
+                            <div class="kpi-value text-warning">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(rental_stats_fmt.median_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(rental_stats_fmt.median_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Median Price</div>
                         </div>
                     </div>
@@ -201,13 +231,25 @@
                 <div class="row">
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-success"><span class="price-kzt">₸{{ sales_stats_fmt.min_price }}</span></div>
+                            <div class="kpi-value text-success">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(sales_stats_fmt.min_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(sales_stats_fmt.min_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Min Price</div>
                         </div>
                     </div>
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-success"><span class="price-kzt">₸{{ sales_stats_fmt.max_price }}</span></div>
+                            <div class="kpi-value text-success">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(sales_stats_fmt.max_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(sales_stats_fmt.max_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Max Price</div>
                         </div>
                     </div>
@@ -215,13 +257,25 @@
                 <div class="row">
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-warning"><span class="price-kzt">₸{{ sales_stats_fmt.avg_price }}</span></div>
+                            <div class="kpi-value text-warning">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(sales_stats_fmt.avg_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(sales_stats_fmt.avg_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Average Price</div>
                         </div>
                     </div>
                     <div class="col-md-6 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-info"><span class="price-kzt">₸{{ sales_stats_fmt.median_price }}</span></div>
+                            <div class="kpi-value text-info">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(sales_stats_fmt.median_price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(sales_stats_fmt.median_price) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Median Price</div>
                         </div>
                     </div>
@@ -268,7 +322,13 @@
                 <div class="row">
                     <div class="col-md-3 col-sm-6 mb-3">
                         <div class="kpi-card estimate-kpi">
-                            <div class="kpi-value text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(investment_analysis.annual_rental_income or 0) }}</span></div>
+                            <div class="kpi-value text-primary">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format((investment_analysis.annual_rental_income or 0) / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,.0f}".format(investment_analysis.annual_rental_income or 0) }}
+                                {% endif %}
+                            </div>
                             <div class="kpi-label">Expected Annual Rent</div>
                         </div>
                     </div>
@@ -331,13 +391,25 @@
                                 <div class="row">
                                     <div class="col-md-6 col-sm-6 mb-3">
                                         <div class="kpi-card estimate-kpi">
-                                            <div class="kpi-value text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(scenario.discounted_price or 0) }}</span></div>
+                                            <div class="kpi-value text-primary">
+                                                {% if show_eur %}
+                                                    €{{ "{:,.0f}".format((scenario.discounted_price or 0) / 500) }}
+                                                {% else %}
+                                                    ₸{{ "{:,.0f}".format(scenario.discounted_price or 0) }}
+                                                {% endif %}
+                                            </div>
                                             <div class="kpi-label">Discounted Price</div>
                                         </div>
                                     </div>
                                     <div class="col-md-6 col-sm-6 mb-3">
                                         <div class="kpi-card estimate-kpi">
-                                            <div class="kpi-value text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(scenario.savings or 0) }}</span></div>
+                                            <div class="kpi-value text-success">
+                                                {% if show_eur %}
+                                                    €{{ "{:,.0f}".format((scenario.savings or 0) / 500) }}
+                                                {% else %}
+                                                    ₸{{ "{:,.0f}".format(scenario.savings or 0) }}
+                                                {% endif %}
+                                            </div>
                                             <div class="kpi-label">Savings</div>
                                         </div>
                                     </div>

@@ -32,7 +32,13 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h5 class="text-success">₸{{ "{:,}".format(opportunity.price) }}</h5>
+                            <h5 class="text-success">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format(opportunity.price / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(opportunity.price) }}
+                                {% endif %}
+                            </h5>
                             <p class="mb-2">
                                 <strong>Discount:</strong> 
                                 <span class="badge bg-success">{{ "{:.1f}".format(opportunity.discount_percentage_vs_median) }}% below median</span>
@@ -80,19 +86,43 @@
                     <div class="row">
                         <div class="col-md-3">
                             <h6 class="text-muted">Median Price</h6>
-                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}</p>
+                            <p class="text-white h5">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format((opportunity.market_stats.median_price|int) / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
+                                {% endif %}
+                            </p>
                         </div>
                         <div class="col-md-3">
                             <h6 class="text-muted">Mean Price</h6>
-                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.mean_price|int) }}</p>
+                            <p class="text-white h5">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format((opportunity.market_stats.mean_price|int) / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(opportunity.market_stats.mean_price|int) }}
+                                {% endif %}
+                            </p>
                         </div>
                         <div class="col-md-3">
                             <h6 class="text-muted">Min Price</h6>
-                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.min_price|int) }}</p>
+                            <p class="text-white h5">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format((opportunity.market_stats.min_price|int) / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(opportunity.market_stats.min_price|int) }}
+                                {% endif %}
+                            </p>
                         </div>
                         <div class="col-md-3">
                             <h6 class="text-muted">Max Price</h6>
-                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.max_price|int) }}</p>
+                            <p class="text-white h5">
+                                {% if show_eur %}
+                                    €{{ "{:,}".format((opportunity.market_stats.max_price|int) / 500) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(opportunity.market_stats.max_price|int) }}
+                                {% endif %}
+                            </p>
                         </div>
                     </div>
                     <div class="mt-3">
@@ -124,7 +154,11 @@
                                     <div class="badge bg-success mb-2">This Opportunity</div>
                                     {% endif %}
                                     <h6 class="card-title">
-                                        ₸{{ "{:,}".format(bucket_flat.price) }}
+                                        {% if show_eur %}
+                                            €{{ "{:,}".format(bucket_flat.price / 500) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(bucket_flat.price) }}
+                                        {% endif %}
                                         {% if bucket_flat.flat_id != opportunity.flat_id %}
                                             {% set price_diff = ((bucket_flat.price - opportunity.price) / opportunity.price) * 100 %}
                                             {% if price_diff > 0 %}

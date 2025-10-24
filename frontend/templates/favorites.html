@@ -25,7 +25,11 @@
                 <div class="d-flex justify-content-between align-items-start mb-2">
                     <h6 class="card-title">
                         <span class="{% if flat.flat_type == 'sale' %}text-success{% else %}text-primary{% endif %}">
-                            <span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span>
+                            {% if show_eur %}
+                                €{{ "{:,}".format(flat.price / 500) }}
+                            {% else %}
+                                ₸{{ "{:,}".format(flat.price) }}
+                            {% endif %}
                         </span>
                     </h6>
                     <div class="d-flex gap-1">

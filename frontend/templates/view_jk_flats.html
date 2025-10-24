@@ -201,7 +201,13 @@
                         <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <h6 class="card-title text-success"><span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span></h6>
+                                    <h6 class="card-title text-success">
+                                        {% if show_eur %}
+                                            €{{ "{:,}".format(flat.price / 500) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(flat.price) }}
+                                        {% endif %}
+                                    </h6>
                                     <span class="badge bg-success">Sale</span>
                                 </div>
                                 <p class="card-text">
@@ -267,7 +273,13 @@
                         <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <h6 class="card-title text-primary"><span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span></h6>
+                                    <h6 class="card-title text-primary">
+                                        {% if show_eur %}
+                                            €{{ "{:,}".format(flat.price / 500) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(flat.price) }}
+                                        {% endif %}
+                                    </h6>
                                     <span class="badge bg-primary">Rental</span>
                                 </div>
                                 <p class="card-text">
