@@ -79,25 +79,23 @@ class TestDatabaseOperations:
         # Find our specific flat
         inserted_flat = None
         for flat in rental_flats:
-            if flat['flat_id'] == sample_rental_flat.flat_id:
+            if flat.flat_id == sample_rental_flat.flat_id:
                 inserted_flat = flat
                 break
 
         assert inserted_flat is not None, "Inserted rental flat not found"
 
         # Verify all fields match
-        assert inserted_flat['flat_id'] == sample_rental_flat.flat_id
-        assert inserted_flat['price'] == sample_rental_flat.price
-        assert inserted_flat['area'] == sample_rental_flat.area
-        assert inserted_flat['flat_type'] == sample_rental_flat.flat_type
-        assert inserted_flat['residential_complex'] == sample_rental_flat.residential_complex
-        assert inserted_flat['floor'] == sample_rental_flat.floor
-        assert inserted_flat['total_floors'] == sample_rental_flat.total_floors
-        assert inserted_flat['construction_year'] == sample_rental_flat.construction_year
-        assert inserted_flat['parking'] == sample_rental_flat.parking
-        assert inserted_flat['description'] == sample_rental_flat.description
-        assert inserted_flat['url'] == url
-        assert inserted_flat['query_date'] == query_date
+        assert inserted_flat.flat_id == sample_rental_flat.flat_id
+        assert inserted_flat.price == sample_rental_flat.price
+        assert inserted_flat.area == sample_rental_flat.area
+        assert inserted_flat.flat_type == sample_rental_flat.flat_type
+        assert inserted_flat.residential_complex == sample_rental_flat.residential_complex
+        assert inserted_flat.floor == sample_rental_flat.floor
+        assert inserted_flat.total_floors == sample_rental_flat.total_floors
+        assert inserted_flat.construction_year == sample_rental_flat.construction_year
+        assert inserted_flat.parking == sample_rental_flat.parking
+        assert inserted_flat.description == sample_rental_flat.description
 
         # 3. UPDATE - Test updating the flat
         updated_flat = FlatInfo(
@@ -121,13 +119,13 @@ class TestDatabaseOperations:
         updated_flats = db.get_rental_flats_by_date(query_date)
         updated_flat_data = None
         for flat in updated_flats:
-            if flat['flat_id'] == sample_rental_flat.flat_id:
+            if flat.flat_id == sample_rental_flat.flat_id:
                 updated_flat_data = flat
                 break
 
         assert updated_flat_data is not None, "Updated rental flat not found"
-        assert updated_flat_data['price'] == 160000, "Price not updated correctly"
-        assert updated_flat_data['description'] == "Updated description for rental flat", "Description not updated correctly"
+        assert updated_flat_data.price == 160000, "Price not updated correctly"
+        assert updated_flat_data.description == "Updated description for rental flat", "Description not updated correctly"
 
         # 4. DELETE - Test deleting the flat
         db.connect()
@@ -140,7 +138,7 @@ class TestDatabaseOperations:
 
         # Verify deletion
         remaining_flats = db.get_rental_flats_by_date(query_date)
-        flat_exists = any(flat['flat_id'] == sample_rental_flat.flat_id for flat in remaining_flats)
+        flat_exists = any(flat.flat_id == sample_rental_flat.flat_id for flat in remaining_flats)
         assert not flat_exists, "Rental flat was not deleted"
     
     def test_sales_flat_crud_operations(self, db, sample_sales_flat):
@@ -165,25 +163,23 @@ class TestDatabaseOperations:
         # Find our specific flat
         inserted_flat = None
         for flat in sales_flats:
-            if flat['flat_id'] == sample_sales_flat.flat_id:
+            if flat.flat_id == sample_sales_flat.flat_id:
                 inserted_flat = flat
                 break
         
         assert inserted_flat is not None, "Inserted sales flat not found"
         
         # Verify all fields match
-        assert inserted_flat['flat_id'] == sample_sales_flat.flat_id
-        assert inserted_flat['price'] == sample_sales_flat.price
-        assert inserted_flat['area'] == sample_sales_flat.area
-        assert inserted_flat['flat_type'] == sample_sales_flat.flat_type
-        assert inserted_flat['residential_complex'] == sample_sales_flat.residential_complex
-        assert inserted_flat['floor'] == sample_sales_flat.floor
-        assert inserted_flat['total_floors'] == sample_sales_flat.total_floors
-        assert inserted_flat['construction_year'] == sample_sales_flat.construction_year
-        assert inserted_flat['parking'] == sample_sales_flat.parking
-        assert inserted_flat['description'] == sample_sales_flat.description
-        assert inserted_flat['url'] == url
-        assert inserted_flat['query_date'] == query_date
+        assert inserted_flat.flat_id == sample_sales_flat.flat_id
+        assert inserted_flat.price == sample_sales_flat.price
+        assert inserted_flat.area == sample_sales_flat.area
+        assert inserted_flat.flat_type == sample_sales_flat.flat_type
+        assert inserted_flat.residential_complex == sample_sales_flat.residential_complex
+        assert inserted_flat.floor == sample_sales_flat.floor
+        assert inserted_flat.total_floors == sample_sales_flat.total_floors
+        assert inserted_flat.construction_year == sample_sales_flat.construction_year
+        assert inserted_flat.parking == sample_sales_flat.parking
+        assert inserted_flat.description == sample_sales_flat.description
         
         # 3. UPDATE - Test updating the flat
         updated_flat = FlatInfo(
@@ -207,13 +203,13 @@ class TestDatabaseOperations:
         updated_flats = db.get_sales_flats_by_date(query_date)
         updated_flat_data = None
         for flat in updated_flats:
-            if flat['flat_id'] == sample_sales_flat.flat_id:
+            if flat.flat_id == sample_sales_flat.flat_id:
                 updated_flat_data = flat
                 break
         
         assert updated_flat_data is not None, "Updated sales flat not found"
-        assert updated_flat_data['price'] == 26000000, "Price not updated correctly"
-        assert updated_flat_data['description'] == "Updated description for sales flat", "Description not updated correctly"
+        assert updated_flat_data.price == 26000000, "Price not updated correctly"
+        assert updated_flat_data.description == "Updated description for sales flat", "Description not updated correctly"
         
         # 4. DELETE - Test deleting the flat
         db.connect()
@@ -226,7 +222,7 @@ class TestDatabaseOperations:
         
         # Verify deletion
         remaining_flats = db.get_sales_flats_by_date(query_date)
-        flat_exists = any(flat['flat_id'] == sample_sales_flat.flat_id for flat in remaining_flats)
+        flat_exists = any(flat.flat_id == sample_sales_flat.flat_id for flat in remaining_flats)
         assert not flat_exists, "Sales flat was not deleted"
     
     def test_flat_type_classification(self, db):
@@ -263,9 +259,9 @@ class TestDatabaseOperations:
             
             # Verify flat type is stored correctly
             rental_flats = db.get_rental_flats_by_date(query_date)
-            inserted_flat = next((flat for flat in rental_flats if flat['flat_id'] == flat_id), None)
+            inserted_flat = next((flat for flat in rental_flats if flat.flat_id == flat_id), None)
             assert inserted_flat is not None, f"Flat {flat_id} not found"
-            assert inserted_flat['flat_type'] == expected_type, f"Flat type mismatch for {flat_id}: expected {expected_type}, got {inserted_flat['flat_type']}"
+            assert inserted_flat.flat_type == expected_type, f"Flat type mismatch for {flat_id}: expected {expected_type}, got {inserted_flat.flat_type}"
             
             # Clean up - delete the test flat
             db.connect()
@@ -320,30 +316,30 @@ class TestDatabaseOperations:
         """Test JK performance snapshot creation."""
         # Insert test data for a specific complex
         query_date = datetime.now().strftime('%Y-%m-%d')
-        complex_name = "Test Performance Complex"
+        residential_complex_name = "Test Performance Complex"
         
         # Insert rental data
         rental_flat = FlatInfo(
-            "perf_snap_rental_1", 100000, 50.0, "1BR", complex_name, 1, 5, 2020, "Да", "Test rental", True
+            "perf_snap_rental_1", 100000, 50.0, "1BR", residential_complex_name, 1, 5, 2020, "Да", "Test rental", True
         )
         db.insert_rental_flat(rental_flat, "https://krisha.kz/a/show/perf_rental_1", query_date, "1BR")
         
         # Insert sales data
         sales_flat = FlatInfo(
-            "perf_snap_sales_1", 10000000, 50.0, "1BR", complex_name, 1, 5, 2020, "Да", "Test sales", False
+            "perf_snap_sales_1", 10000000, 50.0, "1BR", residential_complex_name, 1, 5, 2020, "Да", "Test sales", False
         )
         db.insert_sales_flat(sales_flat, "https://krisha.kz/a/show/perf_sales_1", query_date, "1BR")
         
         # Create performance snapshot
-        success = db.create_jk_performance_snapshot(complex_name, query_date)
+        success = db.create_jk_performance_snapshot(residential_complex_name, query_date)
         assert success, "Failed to create performance snapshot"
         
         # Verify snapshot was created
-        snapshots = db.get_jk_performance_snapshots(residential_complex=complex_name)
+        snapshots = db.get_jk_performance_snapshots(residential_complex=residential_complex_name)
         assert len(snapshots) > 0, "No performance snapshots found"
         
         snapshot = snapshots[0]
-        assert snapshot['residential_complex'] == complex_name, "Incorrect complex name in snapshot"
+        assert snapshot['residential_complex'] == residential_complex_name, "Incorrect complex name in snapshot"
         assert snapshot['snapshot_date'] == query_date, "Incorrect snapshot date"
         assert snapshot['total_rental_flats'] == 1, "Incorrect rental count in snapshot"
         assert snapshot['total_sales_flats'] == 1, "Incorrect sales count in snapshot"
@@ -354,6 +350,6 @@ class TestDatabaseOperations:
         db.connect()
         db.conn.execute("DELETE FROM rental_flats WHERE flat_id = ? AND query_date = ?", (rental_flat.flat_id, query_date))
         db.conn.execute("DELETE FROM sales_flats WHERE flat_id = ? AND query_date = ?", (sales_flat.flat_id, query_date))
-        db.conn.execute("DELETE FROM jk_performance_snapshots WHERE residential_complex = ? AND snapshot_date = ?", (complex_name, query_date))
+        db.conn.execute("DELETE FROM jk_performance_snapshots WHERE residential_complex = ? AND snapshot_date = ?", (residential_complex_name, query_date))
         db.conn.commit()
         db.disconnect()

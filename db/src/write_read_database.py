@@ -229,13 +229,13 @@ class OrthancDB:
         return True
     
     # Query operations
-    def get_rental_flats_by_date(self, query_date: str, limit: Optional[int] = None) -> List[dict]:
+    def get_rental_flats_by_date(self, query_date: str, limit: Optional[int] = None) -> List[FlatInfo]:
         """
         Retrieve rental flats for a specific query date.
         
         :param query_date: str, query date (YYYY-MM-DD)
         :param limit: Optional[int], maximum number of records to return
-        :return: List[dict], list of rental flat information
+        :return: List[FlatInfo], list of rental flat information
         """
         self.connect()
         
@@ -244,17 +244,33 @@ class OrthancDB:
             query += f" LIMIT {limit}"
         
         cursor = self.conn.execute(query, (query_date,))
-        result = [dict(row) for row in cursor.fetchall()]
+        result = []
+        for row in cursor.fetchall():
+            flat = FlatInfo(
+                flat_id=row['flat_id'],
+                price=row['price'],
+                area=row['area'],
+                flat_type=row['flat_type'],
+                residential_complex=row['residential_complex'],
+                floor=row['floor'],
+                total_floors=row['total_floors'],
+                construction_year=row['construction_year'],
+                parking=row['parking'],
+                description=row['description'] or '',
+                is_rental=True
+            )
+            result.append(flat)
+        
         self.disconnect()
         return result
     
-    def get_sales_flats_by_date(self, query_date: str, limit: Optional[int] = None) -> List[dict]:
+    def get_sales_flats_by_date(self, query_date: str, limit: Optional[int] = None) -> List[FlatInfo]:
         """
         Retrieve sales flats for a specific query date.
         
         :param query_date: str, query date (YYYY-MM-DD)
         :param limit: Optional[int], maximum number of records to return
-        :return: List[dict], list of sales flat information
+        :return: List[FlatInfo], list of sales flat information
         """
         self.connect()
         
@@ -263,7 +279,23 @@ class OrthancDB:
             query += f" LIMIT {limit}"
         
         cursor = self.conn.execute(query, (query_date,))
-        result = [dict(row) for row in cursor.fetchall()]
+        result = []
+        for row in cursor.fetchall():
+            flat = FlatInfo(
+                flat_id=row['flat_id'],
+                price=row['price'],
+                area=row['area'],
+                flat_type=row['flat_type'],
+                residential_complex=row['residential_complex'],
+                floor=row['floor'],
+                total_floors=row['total_floors'],
+                construction_year=row['construction_year'],
+                parking=row['parking'],
+                description=row['description'] or '',
+                is_rental=False
+            )
+            result.append(flat)
+        
         self.disconnect()
         return result
     
@@ -403,85 +435,96 @@ class OrthancDB:
         self.disconnect()
         return result
     
-    def get_flats_by_complex(self, complex_name: str, flat_type: str = 'both') -> List[dict]:
+    def get_flats_for_residential_complex(self, residential_complex: str, sales_or_rentals: str = 'both') -> List[FlatInfo]:
         """
         Get all flats for a specific residential complex.
         
-        :param complex_name: str, name of the residential complex
-        :param flat_type: str, 'rental', 'sales', or 'both'
-        :return: List[dict], list of flats for the complex
+        :param residential_complex: str, name of the residential complex
+        :param sales_or_rentals: str, 'rental', 'sales', or 'both'
+        :return: List[FlatInfo], list of flats for the complex
         """
         self.connect()
         flats = []
         
-        if flat_type in ['rental', 'both']:
+        if sales_or_rentals in ['rental', 'both']:
             cursor = self.conn.execute("""
-                SELECT DISTINCT flat_id, price, area, residential_complex, floor, 
+                SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
                        total_floors, construction_year, parking, description, url, 
                        query_date, scraped_at
                 FROM rental_flats 
                 WHERE residential_complex LIKE ?
                 ORDER BY flat_id, query_date DESC
-            """, (f'%{complex_name}%',))
+            """, (f'%{residential_complex}%',))
             
             rental_data = {}
             for row in cursor.fetchall():
                 flat_id = row[0]
                 if flat_id not in rental_data:
-                    rental_data[flat_id] = {
-                        'flat_id': row[0],
-                        'price': row[1],
-                        'area': row[2],
-                        'residential_complex': row[3],
-                        'floor': row[4],
-                        'total_floors': row[5],
-                        'construction_year': row[6],
-                        'parking': row[7],
-                        'description': row[8],
-                        'url': row[9],
-                        'query_date': row[10],
-                        'scraped_at': row[11],
-                        'type': 'rental'
-                    }
+                    rental_data[flat_id] = FlatInfo(
+                        flat_id=row[0],
+                        price=row[1],
+                        area=row[2],
+                        flat_type=row[3],  # Use actual flat_type from database
+                        residential_complex=row[4],
+                        floor=row[5],
+                        total_floors=row[6],
+                        construction_year=row[7],
+                        parking=row[8],
+                        description=row[9] or '',
+                        is_rental=True
+                    )
             
             flats.extend(list(rental_data.values()))
         
-        if flat_type in ['sales', 'both']:
+        if sales_or_rentals in ['sales', 'both']:
             cursor = self.conn.execute("""
-                SELECT DISTINCT flat_id, price, area, residential_complex, floor, 
+                SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
                        total_floors, construction_year, parking, description, url, 
                        query_date, scraped_at
                 FROM sales_flats 
                 WHERE residential_complex LIKE ?
                 ORDER BY flat_id, query_date DESC
-            """, (f'%{complex_name}%',))
+            """, (f'%{residential_complex}%',))
             
             sales_data = {}
             for row in cursor.fetchall():
                 flat_id = row[0]
                 if flat_id not in sales_data:
-                    sales_data[flat_id] = {
-                        'flat_id': row[0],
-                        'price': row[1],
-                        'area': row[2],
-                        'residential_complex': row[3],
-                        'floor': row[4],
-                        'total_floors': row[5],
-                        'construction_year': row[6],
-                        'parking': row[7],
-                        'description': row[8],
-                        'url': row[9],
-                        'query_date': row[10],
-                        'scraped_at': row[11],
-                        'type': 'sales'
-                    }
+                    sales_data[flat_id] = FlatInfo(
+                        flat_id=row[0],
+                        price=row[1],
+                        area=row[2],
+                        flat_type=row[3],  # Use actual flat_type from database
+                        residential_complex=row[4],
+                        floor=row[5],
+                        total_floors=row[6],
+                        construction_year=row[7],
+                        parking=row[8],
+                        description=row[9] or '',
+                        is_rental=False
+                    )
             
             flats.extend(list(sales_data.values()))
         
         # Sort by price (rentals first, then sales)
-        flats.sort(key=lambda x: (x['type'] == 'sales', x['price']))
+        flats.sort(key=lambda x: (x.is_rental == False, x.price))
         
         return flats
+    
+    def get_flats_by_complex(self, residential_complex_name: str, flat_type: str) -> List[FlatInfo]:
+        """
+        Get flats for a specific complex and type.
+        
+        :param residential_complex_name: str, name of the residential complex
+        :param flat_type: str, 'rental' or 'sales'
+        :return: List[FlatInfo], list of flats for the complex
+        """
+        if flat_type == 'rental':
+            return self.get_flats_for_residential_complex(residential_complex_name, 'rental')
+        elif flat_type == 'sales':
+            return self.get_flats_for_residential_complex(residential_complex_name, 'sales')
+        else:
+            raise ValueError(f"Invalid flat_type: {flat_type}. Must be 'rental' or 'sales'")
     
     # Favorites operations
     def add_to_favorites(self, flat_id: str, flat_type: str, notes: str = None) -> bool:

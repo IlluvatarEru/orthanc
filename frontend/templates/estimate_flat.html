@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}♖ Estimate Flat Investment - Orthanc Capital{% endblock %}
+
+{% block content %}
+<!-- Estimate Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="mb-1"><i class="fas fa-calculator me-2"></i>Estimate Flat Investment</h2>
+                <p class="mb-0 text-muted">Analyze individual flats for investment potential and rental yield</p>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="row g-3">
+                    <div class="col-md-6">
+                        <label for="flat_id" class="form-label">Flat ID</label>
+                        <input type="text" class="form-control" id="flat_id" name="flat_id" 
+                               placeholder="Enter flat ID from Krisha.kz URL (e.g., 1003924251)" required>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            Find the ID in the URL: https://krisha.kz/a/show/<strong>1003924251</strong>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="area_tolerance" class="form-label">Area Tolerance (%)</label>
+                        <input type="number" class="form-control" id="area_tolerance" name="area_tolerance" 
+                               value="{{ default_area_tolerance|default(10) }}" min="5" max="50" step="5">
+                        <div class="form-text">
+                            <i class="fas fa-ruler-combined me-1"></i>
+                            Percentage range for finding similar flats
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>Analyze
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Instructions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>How to Use</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-list-ol me-2"></i>Steps:</h6>
+                        <ol class="text-muted">
+                            <li>Find a flat for sale on <a href="https://krisha.kz" target="_blank" class="text-primary">Krisha.kz</a></li>
+                            <li>Copy the flat ID from the URL</li>
+                            <li>Paste it in the form above</li>
+                            <li>Adjust area tolerance if needed</li>
+                            <li>Click "Analyze" to get investment insights</li>
+                        </ol>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-chart-line me-2"></i>What You'll Get:</h6>
+                        <ul class="text-muted">
+                            <li>Rental yield analysis</li>
+                            <li>Price comparison with similar flats</li>
+                            <li>Investment recommendations</li>
+                            <li>Discount scenario calculations</li>
+                            <li>Market insights</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="text-center">
+        <div class="loading-spinner mb-3"></div>
+        <h5 class="text-white" id="loadingMessage">Analyzing flat...</h5>
+        <p class="text-muted" id="loadingDetails">Gathering data and calculating investment potential</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Show loading overlay when form is submitted
+    const form = document.querySelector('form[method="POST"]');
+    if (form) {
+        form.addEventListener('submit', function() {
+            const flatId = document.getElementById('flat_id').value;
+            if (flatId.trim()) {
+                showLoading(`Analyzing flat ${flatId}...`, 'Scraping data and calculating investment metrics');
+            }
+        });
+    }
+});
+</script>
+{% endblock %} 

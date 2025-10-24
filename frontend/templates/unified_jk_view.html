@@ -1,0 +1,1194 @@
+{% extends "base.html" %}
+
+{% block title %}♖ {{ complex_info.name }} - Analysis & Flats - Orthanc Capital{% endblock %}
+
+{% block content %}
+<!-- Complex Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h2 class="mb-1"><i class="fas fa-building me-2"></i>{{ complex_info.name }}</h2>
+                        {% if complex_info.city %}
+                            <p class="mb-0 text-muted">
+                                <i class="fas fa-map-marker-alt me-1"></i>{{ complex_info.city }}
+                                {% if complex_info.district %}, {{ complex_info.district }}{% endif %}
+                            </p>
+                        {% endif %}
+                        <p class="mb-0 text-muted">
+                            Date: {{ analysis.query_date }} | Area limit: ≤{{ analysis.area_max }} m²
+                        </p>
+                        <p class="mb-0 text-muted small">
+                            <i class="fas fa-database me-1"></i>
+                            {% if analysis.rental_stats.count > 0 or analysis.sales_stats.count > 0 %}
+                                Data from database | {{ analysis.rental_stats.count + analysis.sales_stats.count }} flats analyzed
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="refreshAnalysisBtn" class="btn btn-primary" onclick="showRefreshConfirm();">
+                            <i class="fas fa-sync-alt me-1"></i>Refresh Analysis
+                        </button>
+                        <a href="{{ url_for('search_jk') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>Back
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Message Display -->
+<div id="successMessage" class="alert alert-success alert-dismissible fade" style="display: none;" role="alert">
+    <i class="fas fa-check-circle me-2"></i>
+    <span id="successMessageText"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+
+
+
+<!-- Data Quality Warnings -->
+
+<!-- Sales Statistics by Flat Type -->
+<!-- DEBUG: flat_type_buckets = {{ flat_type_buckets | tojson }} -->
+<!-- DEBUG: opportunities_by_flat_type = {{ opportunities_by_flat_type | tojson }} -->
+{% if flat_type_buckets %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card stats-card">
+            <div class="card-header">
+                <h4><i class="fas fa-money-bill-wave me-2"></i>Sales Statistics by Flat Type</h4>
+                <p class="mb-0 text-white-50">Detailed analysis and opportunities by room count</p>
+            </div>
+            <div class="card-body">
+                {% for flat_type, bucket_stats in flat_type_buckets.items() %}
+                {% if bucket_stats.count > 0 %}
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-home me-2"></i>{{ flat_type }} ({{ bucket_stats.count }} flats)</h5>
+                            </div>
+                            <div class="card-body">
+                                <!-- Price Statistics -->
+                                <div class="row mb-3">
+                                    <div class="col-md-3">
+                                        <h6 class="text-muted">Min Price</h6>
+                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.min) }}</p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <h6 class="text-muted">Max Price</h6>
+                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.max) }}</p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <h6 class="text-muted">Mean Price</h6>
+                                        <p class="text-white h5">₸{{ "{:,.0f}".format(bucket_stats.mean) }}</p>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <h6 class="text-muted">Median Price</h6>
+                                        <p class="text-white h5">₸{{ "{:,.0f}".format(bucket_stats.median) }}</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Opportunities -->
+                                {% if opportunities_by_flat_type[flat_type] %}
+                                <div class="mt-3">
+                                    <h6 class="text-success"><i class="fas fa-star me-1"></i>Good Opportunities (15%+ below median)</h6>
+                                    <div class="row">
+                                        {% for opp in opportunities_by_flat_type[flat_type] %}
+                                        <div class="col-md-6 col-lg-4 mb-2">
+                                            <div class="card border-success">
+                                                <div class="card-body p-2">
+                                                    <h6 class="card-title text-success">₸{{ "{:,}".format(opp.price) }}</h6>
+                                                    <p class="card-text small">
+                                                        <strong>Discount:</strong> {{ "{:.1f}".format(opp.discount_percentage_vs_median) }}%<br>
+                                                        <strong>Area:</strong> {{ opp.area }} m²<br>
+                                                        <strong>Floor:</strong> {{ opp.floor }}/{{ opp.total_floors }}<br>
+                                                        <strong>Year:</strong> {{ opp.construction_year or 'N/A' }}
+                                                    </p>
+                                                    <div class="mt-2">
+                                                        <a href="https://krisha.kz/a/show/{{ opp.flat_id }}" 
+                                                           target="_blank" 
+                                                           class="btn btn-sm btn-outline-success">
+                                                            <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="mt-3">
+                                    <p class="text-muted"><i class="fas fa-info-circle me-1"></i>No opportunities found for this flat type</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Global Statistics Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-chart-bar me-2"></i>Global Statistics</h4>
+                <p class="mb-0 text-muted">Min, Max, Mean, and Median prices across all flats</p>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <!-- Rental Global Stats -->
+                    <div class="col-md-6">
+                        <h5 class="text-primary"><i class="fas fa-home me-1"></i>Rental Flats ({{ analysis.rental_stats.count }})</h5>
+                        {% if analysis.rental_stats.count > 0 %}
+                            <div class="row">
+                                <div class="col-6">
+                                    <h6 class="text-muted">Min Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.min) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Max Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.max) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Mean Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Median Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median) }}</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Sales Global Stats -->
+                    <div class="col-md-6">
+                        <h5 class="text-success"><i class="fas fa-money-bill-wave me-1"></i>Sales Flats ({{ analysis.sales_stats.count }})</h5>
+                        {% if analysis.sales_stats.count > 0 %}
+                            <div class="row">
+                                <div class="col-6">
+                                    <h6 class="text-muted">Min Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.min) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Max Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.max) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Mean Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.avg) }}</p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Median Price</h6>
+                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.median) }}</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Best Opportunities Section -->
+{% if sales_opportunities or rental_opportunities %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-star me-2"></i>Best Opportunities</h4>
+                <p class="mb-0 text-muted">Properties with 20% discount vs median price</p>
+            </div>
+            <div class="card-body">
+                <!-- Sales Opportunities -->
+                {% if sales_opportunities %}
+                <div class="mb-4">
+                    <h5 class="text-success"><i class="fas fa-money-bill-wave me-1"></i>Sales Opportunities</h5>
+                    {% for flat_type, opportunities in sales_opportunities.items() %}
+                        {% if opportunities %}
+                        <div class="mb-3">
+                            <h6 class="text-muted">{{ flat_type }} ({{ opportunities|length }} opportunities)</h6>
+                            <div class="row">
+                                {% for opp in opportunities[:3] %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="card border-success">
+                                        <div class="card-body p-2">
+                                            <h6 class="card-title text-success">₸{{ "{:,}".format(opp.flat_info.price) }}</h6>
+                                            <p class="card-text small">
+                                                <strong>Discount:</strong> {{ "{:.1f}".format(opp.discount_percentage_vs_median) }}%<br>
+                                                <strong>Area:</strong> {{ opp.flat_info.area }}m²<br>
+                                                <strong>Floor:</strong> {{ opp.flat_info.floor }}/{{ opp.flat_info.total_floors }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+                
+                <!-- Rental Opportunities -->
+                {% if rental_opportunities %}
+                <div class="mb-4">
+                    <h5 class="text-primary"><i class="fas fa-home me-1"></i>Rental Opportunities</h5>
+                    {% for flat_type, opportunities in rental_opportunities.items() %}
+                        {% if opportunities %}
+                        <div class="mb-3">
+                            <h6 class="text-muted">{{ flat_type }} ({{ opportunities|length }} opportunities)</h6>
+                            <div class="row">
+                                {% for opp in opportunities[:3] %}
+                                <div class="col-md-4 mb-2">
+                                    <div class="card border-primary">
+                                        <div class="card-body p-2">
+                                            <h6 class="card-title text-primary">₸{{ "{:,}".format(opp.flat_info.price) }}</h6>
+                                            <p class="card-text small">
+                                                <strong>Yield:</strong> {{ "{:.1f}".format(opp.yield_percentage) }}%<br>
+                                                <strong>Area:</strong> {{ opp.flat_info.area }}m²<br>
+                                                <strong>Floor:</strong> {{ opp.flat_info.floor }}/{{ opp.flat_info.total_floors }}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Flat Type-Based Yield Analysis -->
+{% if flat_type_buckets %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card stats-card">
+            <div class="card-header">
+                <h4><i class="fas fa-chart-pie me-2"></i>Flat Type-Based Yield Analysis</h4>
+                <p class="mb-0 text-white-50">Accurate yield analysis by room count and area size</p>
+            </div>
+            <div class="card-body">
+                <!-- Overall Summary -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Overall Median Yield</h5>
+                            <h3 class="text-info">
+                                {% if bucket_overall_stats and bucket_overall_stats.median_yield is not none %}
+                                    {{ "{:.1f}%".format(bucket_overall_stats.median_yield) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Overall Mean Yield</h5>
+                            <h3 class="text-info">
+                                {% if bucket_overall_stats and bucket_overall_stats.mean_yield is not none %}
+                                    {{ "{:.1f}%".format(bucket_overall_stats.mean_yield) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Yield Range</h5>
+                            <h3 class="text-info">
+                                {% if bucket_overall_stats and bucket_overall_stats.yield_range %}
+                                    {{ "{:.1f}%".format(bucket_overall_stats.yield_range[0]) }} - {{ "{:.1f}%".format(bucket_overall_stats.yield_range[1]) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </h3>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="text-center">
+                            <h5 class="text-white">Valid Buckets</h5>
+                            <h3 class="text-info">
+                                {{ bucket_overall_stats.valid_buckets_count if bucket_overall_stats else 0 }}
+                            </h3>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Flat Type Details -->
+                <div class="row">
+                    {% for flat_type, bucket_stats in flat_type_buckets.items() %}
+                    {% if bucket_stats.count > 0 %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-home me-1"></i>{{ flat_type }}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <small class="text-muted">Sales: {{ bucket_stats.count }} flats</small><br>
+                                        <small class="text-success">
+                                            <span class="price-kzt">₸{{ "{:,.0f}".format(bucket_stats.median) }}</span>
+                                        </small>
+                                    </div>
+                                </div>
+                                <hr class="my-2">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <small class="text-muted">Min Price</small><br>
+                                        <small class="text-white">
+                                            ₸{{ "{:,.0f}".format(bucket_stats.min) }}
+                                        </small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Max Price</small><br>
+                                        <small class="text-white">
+                                            ₸{{ "{:,.0f}".format(bucket_stats.max) }}
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="row mt-1">
+                                    <div class="col-6">
+                                        <small class="text-muted">Mean Price</small><br>
+                                        <small class="text-white">
+                                            ₸{{ "{:,.0f}".format(bucket_stats.mean) }}
+                                        </small>
+                                    </div>
+                                    <div class="col-6">
+                                        <small class="text-muted">Median Price</small><br>
+                                        <small class="text-white">
+                                            ₸{{ "{:,.0f}".format(bucket_stats.median) }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+                
+                <!-- Flat types with only one type of data -->
+                {% set incomplete_flat_types = [] %}
+                
+                {% if incomplete_flat_types %}
+                <div class="mt-4">
+                    <h6 class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>Incomplete Data Flat Types</h6>
+                    <div class="row">
+                        {% for flat_type, flat_data in incomplete_flat_types %}
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <div class="card h-100" style="background: linear-gradient(135deg, #2d2d2d 0%, #1a1a1a 100%); opacity: 0.7;">
+                                <div class="card-header">
+                                    <h6 class="mb-0 text-muted">
+                                        <i class="fas fa-home me-1"></i>{{ flat_type }}
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <small class="text-muted">Rental: {{ flat_data.rental_count }}</small><br>
+                                            {% if flat_data.rental_count > 0 and flat_data.rental_stats %}
+                                            <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(flat_data.rental_stats.median_price) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(flat_data.rental_stats.median_price * 12) }}</span></small>
+                                            {% endif %}
+                                        </div>
+                                        <div class="col-6">
+                                            <small class="text-muted">Sales: {{ flat_data.sales_count }}</small><br>
+                                            {% if flat_data.sales_count > 0 and flat_data.sales_stats %}
+                                            <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(flat_data.sales_stats.median_price) }}</span></small>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <hr class="my-2">
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Yield Distribution by Bucket -->
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">Yield Distribution by Bucket</h5>
+    </div>
+    <div class="card-body">
+        <div style="height: 400px; position: relative;">
+            <canvas id="yieldDistributionChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+
+// Refresh Analysis functionality - Global functions
+window.showRefreshConfirm = function() {
+    console.log('🔍 showRefreshConfirm function called');
+    const complexName = '{{ complex_info.name | safe }}';
+    const refreshBtn = document.getElementById('refreshAnalysisBtn');
+    
+    console.log('🔍 complexName:', complexName);
+    console.log('🔍 refreshBtn:', refreshBtn);
+    
+    // Show confirmation dialog first
+    console.log('🔍 About to show confirm dialog...');
+    const confirmed = confirm(`⚠️ Refresh Analysis Warning ⚠️\n\nThis will fetch the latest data from Krisha.kz for ${complexName} and can take several minutes to complete.\n\nAre you sure you want to continue?`);
+    
+    console.log('🔍 confirm result:', confirmed);
+    
+    if (confirmed) {
+        console.log('🔍 User confirmed, calling performRefreshAnalysis...');
+        performRefreshAnalysis(complexName, refreshBtn);
+    } else {
+        console.log('🔍 User cancelled');
+    }
+};
+
+// Actual refresh function
+window.performRefreshAnalysis = function(complexName, refreshBtn) {
+    // Show loading state
+    refreshBtn.disabled = true;
+    refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Refreshing...';
+    
+    // Show loading overlay
+    showLoading(`Refreshing analysis for ${complexName}...`, 'Fetching latest data from Krisha.kz and updating analysis');
+    
+    // Make request to refresh endpoint
+    const refreshUrl = `/refresh_analysis/{{ residential_complex_name | safe }}`;
+    console.log('Calling refresh URL:', refreshUrl);
+    
+    fetch(refreshUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        console.log('Response headers:', response.headers);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        console.log('Data success:', data.success);
+        console.log('Data message:', data.message);
+        
+        // Hide loading overlay first
+        hideLoading();
+        
+        // Reset button state
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh Analysis';
+        
+        if (data.success) {
+            console.log('Success branch entered');
+            
+            // Show success message if elements exist
+            try {
+                const successMessage = document.getElementById('successMessage');
+                const successMessageText = document.getElementById('successMessageText');
+                console.log('Success message elements:', { successMessage, successMessageText });
+                if (successMessage && successMessageText) {
+                    successMessageText.textContent = data.message;
+                    successMessage.style.display = 'block';
+                    successMessage.classList.add('show');
+                    
+                    // Auto-hide after 5 seconds
+                    setTimeout(() => {
+                        successMessage.classList.remove('show');
+                        setTimeout(() => {
+                            successMessage.style.display = 'none';
+                        }, 150);
+                    }, 5000);
+                }
+            } catch (e) {
+                console.error('Error showing success message:', e);
+            }
+            
+            // Reload the page to show updated data after a short delay
+            setTimeout(() => {
+                window.location.reload();
+            }, 3000);
+        } else {
+            console.log('Error branch entered, throwing error');
+            throw new Error(data.error || 'Refresh failed');
+        }
+    })
+    .catch(error => {
+        console.error('Error refreshing analysis:', error);
+        console.error('Error stack:', error.stack);
+        
+        // Hide loading overlay
+        hideLoading();
+        
+        // Reset button state
+        refreshBtn.disabled = false;
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i>Refresh Analysis';
+        
+        // Show error message
+        alert('Failed to refresh analysis. Please try again.');
+    });
+};
+
+console.log('🔍 Main script block loaded!');
+console.log('🔍 window.showRefreshConfirm:', typeof window.showRefreshConfirm);
+console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshAnalysis);
+
+// Chart.js Box Plot Implementation - Using real yield data
+document.addEventListener('DOMContentLoaded', function() {
+        // Check if boxplot plugin is loaded
+        if (!Chart.controllers || !Chart.controllers.boxplot) {
+            console.error('Box plot plugin not loaded!');
+            console.log('Available controllers:', Object.keys(Chart.controllers || {}));
+            
+            // Try to create a simple bar chart as fallback
+            try {
+                const ctx = document.getElementById('yieldDistributionChart').getContext('2d');
+                const fallbackData = {
+                    labels: ['A', 'B', 'C', 'D'],
+                    datasets: [{
+                        label: 'Test Data',
+                        data: [50, 30, 70, 40],
+                        backgroundColor: 'rgba(0, 168, 132, 0.5)',
+                        borderColor: 'rgba(0, 168, 132, 1)',
+                        borderWidth: 1
+                    }]
+                };
+                
+                const fallbackConfig = {
+                    type: 'bar',
+                    data: fallbackData,
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Fallback Bar Chart - Box Plot Plugin Not Available',
+                                color: 'white'
+                            }
+                        },
+                        scales: {
+                            y: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            },
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                            }
+                        }
+                    }
+                };
+                
+                new Chart(ctx, fallbackConfig);
+                console.log('Created fallback bar chart');
+                return;
+            } catch (fallbackError) {
+                console.error('Fallback chart also failed:', fallbackError);
+                document.getElementById('yieldDistributionChart').parentElement.innerHTML = 
+                    '<p class="text-danger text-center">Chart creation failed. Box plot plugin not available.</p>';
+                return;
+            }
+        }
+        
+        console.log('Box plot plugin loaded successfully!');
+        
+        // Get real yield data from flat type analysis
+        const boxPlotData = {{ flat_type_buckets | tojson }};
+        
+        console.log('Box plot data:', boxPlotData);
+        
+        // Convert object to array and generate yield data for each bucket
+        const chartData = Object.values(boxPlotData)
+            .filter(bucket => bucket.rental_count > 0 && bucket.sales_count > 0 && bucket.yield_analysis)
+            .map(bucket => {
+                // Generate yield data points for this bucket
+                const yields = [];
+                
+                // Add yield data points based on rental and sales prices
+                if (bucket.rental_prices && bucket.sales_prices) {
+                    for (const rentalPrice of bucket.rental_prices) {
+                        for (const salesPrice of bucket.sales_prices) {
+                            if (salesPrice > 0) {
+                                const yield = (rentalPrice * 12 / salesPrice) * 100;
+                                yields.push(yield);
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    label: `${bucket.rooms}BR ${bucket.area_bucket}`,
+                    data: yields,
+                    rental_count: bucket.rental_count,
+                    sales_count: bucket.sales_count,
+                    avg_yield: bucket.yield_analysis ? bucket.yield_analysis.rental_yield : null
+                };
+            })
+            .filter(item => item.data.length > 0);
+        
+        console.log('Chart data:', chartData);
+        
+        if (chartData.length > 0) {
+            const ctx = document.getElementById('yieldDistributionChart').getContext('2d');
+            
+            // Prepare data in the correct format for Chart.js box plot
+            const data = {
+                labels: chartData.map(item => item.label),
+                datasets: [{
+                    label: 'Yield Distribution',
+                    data: chartData.map(item => item.data),
+                    backgroundColor: 'rgba(0, 168, 132, 0.5)',
+                    borderColor: 'rgba(0, 168, 132, 1)',
+                    borderWidth: 1,
+                    outlierBackgroundColor: 'rgba(255, 107, 107, 0.5)',
+                    outlierBorderColor: 'rgba(255, 107, 107, 1)',
+                    outlierRadius: 3
+                }]
+            };
+            
+            const config = {
+                type: 'boxplot',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Yield Distribution by Bucket',
+                            color: 'white'
+                        },
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            title: {
+                                display: true,
+                                text: 'Yield (%)',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white'
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Bucket',
+                                color: 'white'
+                            },
+                            ticks: {
+                                color: 'white',
+                                maxRotation: 45,
+                                minRotation: 0
+                            },
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            }
+                        }
+                    }
+                }
+            };
+            
+            try {
+                // Create the box plot with real yield data
+                new Chart(ctx, config);
+                console.log('Chart created successfully with real yield data!');
+            } catch (error) {
+                console.error('Error creating chart:', error);
+                document.getElementById('yieldDistributionChart').parentElement.innerHTML = 
+                    '<p class="text-danger text-center">Error creating box plot: ' + error.message + '</p>';
+            }
+            
+        }
+    });
+</script>
+
+<!-- Market Insights -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-lightbulb me-2"></i>Market Insights</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <h6>Rental Price per m²</h6>
+                        <p class="text-primary">
+                            {% if analysis.insights.price_per_sqm.rental %}
+                                <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental) }}</span>
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Sales Price per m²</h6>
+                        <p class="text-success">
+                            {% if analysis.insights.price_per_sqm.sales %}
+                                <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales) }}</span>
+                            {% else %}
+                                <span class="text-muted">N/A</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Investment Potential</h6>
+                        <p class="{% if analysis.insights.market_position.investment_potential == 'High' %}text-success{% elif analysis.insights.market_position.investment_potential == 'Medium' %}text-warning{% else %}text-danger{% endif %}">
+                            {{ analysis.insights.market_position.investment_potential or 'N/A' }}
+                        </p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-4">
+                        <h6>Data Reliability</h6>
+                        <p class="{% if analysis.insights.data_quality.reliability == 'High' %}text-success{% elif analysis.insights.data_quality.reliability == 'Medium' %}text-warning{% else %}text-danger{% endif %}">
+                            {{ analysis.insights.data_quality.reliability or 'Low' }}
+                        </p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Rental Sample Size</h6>
+                        <p>{{ analysis.insights.data_quality.rental_sample_size or 0 }} flats</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Sales Sample Size</h6>
+                        <p>{{ analysis.insights.data_quality.sales_sample_size or 0 }} flats</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endif %}
+
+
+<!-- Summary Statistics -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-home me-2"></i>Rental Flats ({{ rental_flats|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if rental_flats %}
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,}".format(rental_flats|map(attribute='price')|min) }}
+                                </div>
+                                <div class="kpi-label">Min Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,}".format(rental_flats|map(attribute='price')|max) }}
+                                </div>
+                                <div class="kpi-label">Max Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,.0f}".format((rental_flats|map(attribute='price')|sum) / rental_flats|length) }}
+                                </div>
+                                <div class="kpi-label">Avg Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,}".format(rental_median) }}
+                                </div>
+                                <div class="kpi-label">Median Price</div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No rental flats found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-money-bill-wave me-2"></i>Sales Flats ({{ sales_flats|length }})</h5>
+            </div>
+            <div class="card-body">
+                {% if sales_flats %}
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,}".format(sales_flats|map(attribute='price')|min) }}
+                                </div>
+                                <div class="kpi-label">Min Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,}".format(sales_flats|map(attribute='price')|max) }}
+                                </div>
+                                <div class="kpi-label">Max Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,.0f}".format((sales_flats|map(attribute='price')|sum) / sales_flats|length) }}
+                                </div>
+                                <div class="kpi-label">Avg Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {{ "{:,}".format(sales_median) }}
+                                </div>
+                                <div class="kpi-label">Median Price</div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No sales flats found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sales Flats -->
+{% if sales_flats %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header toggle-header" data-target="sales-flats-content" style="cursor: pointer;">
+                <h4 class="mb-0">
+                    <i class="fas fa-money-bill-wave me-2"></i>Sales Flats ({{ sales_flats|length }})
+                    <i class="fas fa-chevron-right toggle-icon ms-2" style="float: right; transition: transform 0.3s ease;"></i>
+                </h4>
+            </div>
+            <div class="card-body" id="sales-flats-content" style="display: none;">
+                <div class="row">
+                    {% for flat in sales_flats %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title text-success"><span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span></h6>
+                                    <span class="badge bg-success">Sale</span>
+                                </div>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <i class="fas fa-ruler-combined me-1"></i>{{ flat.area }} m²
+                                        {% if flat.floor %}<br><i class="fas fa-building me-1"></i>Floor {{ flat.floor }}{% endif %}
+                                        {% if flat.construction_year %}<br><i class="fas fa-calendar me-1"></i>{{ flat.construction_year }}{% endif %}
+                                        {% if flat.parking %}<br><i class="fas fa-car me-1"></i>{{ flat.parking }}{% endif %}
+                                    </small>
+                                </p>
+                                <p class="card-text small">{{ flat.description[:100] }}{% if flat.description|length > 100 %}...{% endif %}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">{{ flat.query_date }}</small>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-warning toggle-favorite" 
+                                                data-flat-id="{{ flat.flat_id }}" 
+                                                data-flat-type="sale"
+                                                data-price="{{ flat.price }}"
+                                                data-area="{{ flat.area }}"
+                                                data-residential-complex="{{ flat.residential_complex or '' }}"
+                                                data-floor="{{ flat.floor or '' }}"
+                                                data-total-floors="{{ flat.total_floors or '' }}"
+                                                data-construction-year="{{ flat.construction_year or '' }}"
+                                                data-parking="{{ flat.parking or '' }}"
+                                                data-description="{{ flat.description }}"
+                                                data-url="{{ flat.url }}">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                        <a href="{{ url_for('estimate_flat') }}?flat_id={{ flat.flat_id }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-calculator me-1"></i>Analyze
+                                        </a>
+                                        <a href="{{ flat.url }}" target="_blank" class="btn btn-sm btn-outline-success">
+                                            <i class="fas fa-external-link-alt me-1"></i>View on Krisha
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Rental Flats -->
+{% if rental_flats %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header toggle-header" data-target="rental-flats-content" style="cursor: pointer;">
+                <h4 class="mb-0">
+                    <i class="fas fa-home me-2"></i>Rental Flats ({{ rental_flats|length }})
+                    <i class="fas fa-chevron-right toggle-icon ms-2" style="float: right; transition: transform 0.3s ease;"></i>
+                </h4>
+            </div>
+            <div class="card-body" id="rental-flats-content" style="display: none;">
+                <div class="row">
+                    {% for flat in rental_flats %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title text-primary"><span class="price-kzt">₸{{ "{:,}".format(flat.price) }}</span></h6>
+                                    <span class="badge bg-primary">Rental</span>
+                                </div>
+                                <p class="card-text">
+                                    <small class="text-muted">
+                                        <i class="fas fa-ruler-combined me-1"></i>{{ flat.area }} m²
+                                        {% if flat.floor %}<br><i class="fas fa-building me-1"></i>Floor {{ flat.floor }}{% endif %}
+                                        {% if flat.construction_year %}<br><i class="fas fa-calendar me-1"></i>{{ flat.construction_year }}{% endif %}
+                                        {% if flat.parking %}<br><i class="fas fa-car me-1"></i>{{ flat.parking }}{% endif %}
+                                    </small>
+                                </p>
+                                <p class="card-text small">{{ flat.description[:100] }}{% if flat.description|length > 100 %}...{% endif %}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">{{ flat.query_date }}</small>
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-warning toggle-favorite" 
+                                                data-flat-id="{{ flat.flat_id }}" 
+                                                data-flat-type="rental"
+                                                data-price="{{ flat.price }}"
+                                                data-area="{{ flat.area }}"
+                                                data-residential-complex="{{ flat.residential_complex or '' }}"
+                                                data-floor="{{ flat.floor or '' }}"
+                                                data-total-floors="{{ flat.total_floors or '' }}"
+                                                data-construction-year="{{ flat.construction_year or '' }}"
+                                                data-parking="{{ flat.parking or '' }}"
+                                                data-description="{{ flat.description }}"
+                                                data-url="{{ flat.url }}">
+                                            <i class="fas fa-heart"></i>
+                                        </button>
+                                        <a href="{{ flat.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-external-link-alt me-1"></i>View on Krisha
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+console.log('🔍 extra_js script block loaded!');
+console.log('🔍 About to define window functions...');
+
+// Toggle functionality for rental and sales flats sections
+const toggleHeaders = document.querySelectorAll('.toggle-header');
+    
+toggleHeaders.forEach(function(header) {
+    header.addEventListener('click', function() {
+        const targetId = this.getAttribute('data-target');
+        const content = document.getElementById(targetId);
+        const icon = this.querySelector('.toggle-icon');
+        
+        if (content.style.display === 'none') {
+            // Show content
+            content.style.display = 'block';
+            icon.style.transform = 'rotate(90deg)';
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+        } else {
+            // Hide content
+            content.style.display = 'none';
+            icon.style.transform = 'rotate(0deg)';
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        }
+    });
+});
+    
+// Favorite functionality is now handled by the optimized favorites manager
+// No additional JavaScript needed here
+    
+    // Plotly.js Box Plot Implementation
+    document.addEventListener('DOMContentLoaded', function() {
+        const boxPlotData = {{ flat_type_buckets | tojson }};
+        
+        console.log('Box plot data:', boxPlotData);
+        
+        // Transform data for Plotly box plot
+        const chartData = Object.values(boxPlotData)
+            .filter(bucket => bucket.rental_count > 0 && bucket.sales_count > 0 && bucket.yield_analysis)
+            .map(bucket => {
+                // Generate yield data points for this bucket
+                const yields = [];
+                
+                // Add yield data points based on rental and sales prices
+                if (bucket.rental_prices && bucket.sales_prices) {
+                    for (const rentalPrice of bucket.rental_prices) {
+                        for (const salesPrice of bucket.sales_prices) {
+                            if (salesPrice > 0) {
+                                const yield = (rentalPrice * 12 / salesPrice) * 100;
+                                yields.push(yield);
+                            }
+                        }
+                    }
+                }
+                
+                return {
+                    label: `${bucket.rooms}BR ${bucket.area_bucket}`,
+                    data: yields,
+                    rental_count: bucket.rental_count,
+                    sales_count: bucket.sales_count,
+                    avg_yield: bucket.yield_analysis ? bucket.yield_analysis.rental_yield : null
+                };
+            })
+            .filter(item => item.data.length > 0);
+        
+        console.log('Chart data:', chartData);
+        
+        if (chartData.length > 0) {
+            const chartContainer = document.getElementById('yieldDistributionChart').parentElement;
+            
+            // Prepare data for Plotly box plot
+            const traces = chartData.map(bucket => ({
+                y: bucket.data,
+                type: 'box',
+                name: bucket.label,
+                boxpoints: 'outliers',
+                jitter: 0.3,
+                pointpos: -1.8,
+                marker: {
+                    color: '#00a884',
+                    outliercolor: '#ff6b6b',
+                    line: {
+                        outliercolor: '#ff6b6b',
+                        outlierwidth: 1
+                    }
+                },
+                line: {
+                    color: '#00a884'
+                },
+                fillcolor: 'rgba(0, 168, 132, 0.3)'
+            }));
+            
+            const layout = {
+                title: {
+                    text: 'Yield Distribution by Bucket',
+                    font: {
+                        color: 'white'
+                    }
+                },
+                yaxis: {
+                    title: 'Yield (%)',
+                    titlefont: {
+                        color: 'white'
+                    },
+                    tickfont: {
+                        color: 'white'
+                    },
+                    gridcolor: 'rgba(255, 255, 255, 0.1)',
+                    zerolinecolor: 'rgba(255, 255, 255, 0.1)'
+                },
+                xaxis: {
+                    title: 'Bucket',
+                    titlefont: {
+                        color: 'white'
+                    },
+                    tickfont: {
+                        color: 'white'
+                    },
+                    gridcolor: 'rgba(255, 255, 255, 0.1)',
+                    zerolinecolor: 'rgba(255, 255, 255, 0.1)'
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: {
+                    color: 'white'
+                },
+                showlegend: false,
+                height: 400,
+                margin: {
+                    l: 60,
+                    r: 30,
+                    t: 60,
+                    b: 80
+                }
+            };
+            
+            const config = {
+                responsive: true,
+                displayModeBar: false
+            };
+            
+            // Create the box plot
+            Plotly.newPlot('yieldDistributionChart', traces, layout, config);
+            
+        }
+    });
+    
+    console.log('🔍 extra_js script block completed!');
+    console.log('🔍 window.showRefreshConfirm:', typeof window.showRefreshConfirm);
+    console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshAnalysis);
+</script>
+{% endblock %} 

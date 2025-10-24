@@ -164,7 +164,7 @@ class TestRentalsScraping:
         logger.info(f"URL: https://krisha.kz/a/show/{krisha_id}")
 
         # Scrape the rental flat
-        flat_info = scrape_rental_flat(krisha_id)
+        flat_info = scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(krisha_id)
 
         # CRITICAL: Test should fail if scraping returns None
         assert flat_info is not None, "Failed to scrape rental flat - returned None. This indicates the scraper is not working properly."

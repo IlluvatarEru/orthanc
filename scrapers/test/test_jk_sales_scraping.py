@@ -43,7 +43,6 @@ class TestJKSalesScraping:
         # Verify results
         assert isinstance(flats, list), f"Expected list, got {type(flats)}"
         unique_flat_ids = [flat.flat_id for flat in flats]
-        raise Exception(f"Found {len(flats)} sales flats for {TEST_JK_NAME_1} with {len(unique_flat_ids)} unique flat ids")
 
         # CRITICAL: Test should fail if no flats found - this indicates scraping is not working
         assert len(

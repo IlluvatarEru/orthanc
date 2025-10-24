@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="♖ Orthanc Capital - Professional Real Estate Analytics & Investment Intelligence Platform">
+    <title>{% block title %}♖ Orthanc Capital - Real Estate Analytics{% endblock %}</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♖</text></svg>">
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Box Plot Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.4/build/index.umd.min.js"></script>
+    
+    <style>
+        :root {
+            --dark-bg: #1a1a1a;
+            --dark-card: #2d2d2d;
+            --dark-header: #252525;
+            --dark-sidebar: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --text-muted: #888888;
+            --border-color: #404040;
+            --accent-green: #00d4aa;
+            --accent-blue: #4f9eff;
+            --accent-orange: #ff6b35;
+            --accent-red: #ff4757;
+            --accent-yellow: #ffa502;
+            --accent-purple: #a55eea;
+            --accent-cyan: #26de81;
+        }
+
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header */
+        .navbar {
+            background-color: var(--dark-header);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0.75rem 0;
+        }
+
+        .navbar-brand {
+            color: var(--text-primary) !important;
+            font-weight: 300;
+            font-size: 1.8rem;
+            font-family: 'Georgia', 'Times New Roman', serif;
+            text-decoration: none;
+        }
+        
+        .navbar-brand .brand-icon {
+            color: var(--text-primary) !important;
+            font-size: 1.8rem;
+            margin-right: 0.5rem;
+        }
+        
+        .navbar-brand .brand-tagline {
+            display: block;
+            font-size: 0.9rem;
+            font-weight: 300;
+            color: var(--text-primary) !important;
+            margin-top: 0.2rem;
+        }
+
+        .navbar-nav .nav-link {
+            color: var(--text-secondary) !important;
+            font-weight: 500;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            margin: 0 0.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .navbar-nav .nav-link:hover,
+        .navbar-nav .nav-link.active {
+            color: var(--text-primary) !important;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Cards */
+        .card {
+            background-color: var(--dark-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            margin-bottom: 1.5rem;
+        }
+
+        /* EUR Toggle Button - Sober Style */
+        #eurToggle {
+            background-color: #6c757d !important;
+            border-color: #6c757d !important;
+            width: 3rem !important;
+            height: 1.5rem !important;
+        }
+
+        #eurToggle:checked {
+            background-color: #495057 !important;
+            border-color: #495057 !important;
+        }
+
+        #eurToggle:focus {
+            box-shadow: 0 0 0 0.2rem rgba(108, 117, 125, 0.25) !important;
+        }
+
+        .form-check-input:checked {
+            background-color: #495057 !important;
+            border-color: #495057 !important;
+        }
+
+        /* EUR Toggle Alignment */
+        .nav-item .form-check {
+            margin: 0;
+            padding: 0;
+        }
+
+        .nav-item .form-check-label {
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+
+        .nav-item .form-check-input {
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        /* EUR Toggle Spacing and Alignment */
+        .nav-item .form-check {
+            margin-right: 1rem;
+        }
+
+        #eurRateDisplay {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            width: 100px;
+            display: inline-block;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+
+        /* Make KZT prices bigger */
+        .price-kzt {
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        /* Extra spacing for EUR toggle */
+        .nav-item.me-5 {
+            margin-right: 3rem !important;
+        }
+
+        /* Fix vertical alignment for EUR toggle */
+        .nav-item .nav-link {
+            display: flex !important;
+            align-items: center !important;
+            height: 100%;
+        }
+
+        .nav-item .form-check {
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+
+        .nav-item .form-check-label {
+            display: flex;
+            align-items: center;
+            height: 100%;
+        }
+
+        /* Ensure EUR toggle nav-item has same alignment as others */
+        .nav-item.me-5 .nav-link {
+            padding: 0.5rem 1rem !important;
+            display: flex !important;
+            align-items: center !important;
+        }
+
+
+
+        .card-header {
+            background-color: transparent;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-weight: 600;
+            padding: 1rem 1.5rem;
+        }
+
+        .card-body {
+            padding: 1.5rem;
+            color: var(--text-secondary);
+        }
+
+        /* Stats Cards */
+        .stats-card {
+            background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .stats-card .card-header {
+            background: transparent;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .stats-card .card-header h4 {
+            color: var(--text-primary) !important;
+            font-weight: bold;
+        }
+
+        .stats-card .yield-high { color: var(--accent-green) !important; }
+        .stats-card .yield-medium { color: var(--accent-yellow) !important; }
+        .stats-card .yield-low { color: var(--accent-red) !important; }
+        .stats-card .price-good { color: var(--accent-green) !important; }
+        .stats-card .price-fair { color: var(--accent-yellow) !important; }
+        .stats-card .price-high { color: var(--accent-red) !important; }
+
+        /* KPI Cards */
+        .kpi-card {
+            background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-label {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .kpi-change {
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .kpi-change.positive { color: var(--accent-green); }
+        .kpi-change.negative { color: var(--accent-red); }
+
+        /* Buttons */
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            padding: 0.5rem 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+            border: none;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 158, 255, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, var(--accent-green) 0%, #00b894 100%);
+            border: none;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--dark-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+
+        .btn-outline-primary {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        .btn-outline-primary:hover {
+            background-color: var(--accent-blue);
+            border-color: var(--accent-blue);
+        }
+
+        /* Forms */
+        .form-control {
+            background-color: var(--dark-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+        }
+
+        .form-control:focus {
+            background-color: var(--dark-card);
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            box-shadow: 0 0 0 0.2rem rgba(79, 158, 255, 0.25);
+        }
+
+        .form-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        /* Alerts */
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+
+        .alert-info {
+            background-color: rgba(79, 158, 255, 0.1);
+            color: var(--accent-blue);
+            border-left: 4px solid var(--accent-blue);
+        }
+
+        .alert-success {
+            background-color: rgba(0, 212, 170, 0.1);
+            color: var(--accent-green);
+            border-left: 4px solid var(--accent-green);
+        }
+
+        .alert-warning {
+            background-color: rgba(255, 107, 53, 0.1);
+            color: var(--accent-orange);
+            border-left: 4px solid var(--accent-orange);
+        }
+
+        .alert-error {
+            background-color: rgba(255, 71, 87, 0.1);
+            color: var(--accent-red);
+            border-left: 4px solid var(--accent-red);
+        }
+
+        /* Badges */
+        .badge {
+            border-radius: 6px;
+            font-weight: 500;
+            padding: 0.4rem 0.8rem;
+        }
+
+        .bg-primary {
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%) !important;
+        }
+
+        .bg-success {
+            background: linear-gradient(135deg, var(--accent-green) 0%, #00b894 100%) !important;
+        }
+
+        /* Tables */
+        .table {
+            color: var(--text-secondary);
+        }
+
+        .table th {
+            background-color: var(--dark-header);
+            color: var(--text-primary);
+            border-color: var(--border-color);
+            font-weight: 600;
+        }
+
+        .table td {
+            border-color: var(--border-color);
+        }
+
+        /* Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(26, 26, 26, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid var(--border-color);
+            border-top: 4px solid var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 1rem 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .kpi-value {
+                font-size: 2rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--dark-bg);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+    </style>
+
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <span class="brand-icon">♖</span>
+                <span>Orthanc Capital</span>
+                <span class="brand-tagline">International Real Estate Investments</span>
+            </a>
+            
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('index') }}">
+                            <i class="fas fa-home me-1"></i>Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('search_jk') }}">
+                            <i class="fas fa-search me-1"></i>Search JK
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('estimate_flat') }}">
+                            <i class="fas fa-calculator me-1"></i>Estimate Flat
+                        </a>
+                    </li>
+                    <li class="nav-item me-5">
+                        <a class="nav-link" href="{{ url_for('favorites') }}">
+                            <i class="fas fa-heart me-1"></i>Favorites
+                        </a>
+                    </li>
+                    <li class="nav-item me-5">
+                        <a class="nav-link" href="#" style="pointer-events: none;">
+                            <div class="d-flex align-items-center">
+                                <div class="form-check form-switch mb-0 me-3">
+                                    <input class="form-check-input" type="checkbox" id="eurToggle" style="cursor: pointer; pointer-events: auto;">
+                                    <label class="form-check-label text-light mb-0" for="eurToggle" style="cursor: pointer; pointer-events: auto;">
+                                        <i class="fas fa-euro-sign me-1"></i>EUR
+                                    </label>
+                                </div>
+                                <small class="text-muted" id="eurRateDisplay" style="opacity: 0;">1 EUR = ₸<span id="currentEurRate">-</span></small>
+                            </div>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container-fluid py-4">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'error' if category == 'error' else category }} alert-dismissible fade show" role="alert">
+                        <i class="fas fa-{{ 'exclamation-triangle' if category == 'error' else 'info-circle' if category == 'info' else 'check-circle' if category == 'success' else 'exclamation-circle' }} me-2"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="text-center">
+            <div class="loading-spinner mb-3"></div>
+            <h5 class="text-white" id="loadingMessage">Loading...</h5>
+            <p class="text-muted" id="loadingDetails"></p>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Global loading functions
+        function showLoading(message = 'Loading...', details = '') {
+            document.getElementById('loadingMessage').textContent = message;
+            document.getElementById('loadingDetails').textContent = details;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        // Auto-hide alerts after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() {
+                const alerts = document.querySelectorAll('.alert');
+                alerts.forEach(function(alert) {
+                    const bsAlert = new bootstrap.Alert(alert);
+                    bsAlert.close();
+                });
+            }, 5000);
+            
+            // EUR toggle functionality
+            const eurToggle = document.getElementById('eurToggle');
+            if (eurToggle) {
+                // Load saved preference
+                const showEur = localStorage.getItem('showEur') === 'true';
+                eurToggle.checked = showEur;
+                
+                // Update prices when toggle changes
+                eurToggle.addEventListener('change', function() {
+                    const showEur = this.checked;
+                    localStorage.setItem('showEur', showEur);
+                    updatePricesWithEur(showEur);
+                });
+                
+                // Initial update
+                updatePricesWithEur(showEur);
+            }
+        });
+        
+        // Function to update prices with EUR conversion
+        function updatePricesWithEur(showEur) {
+            if (!showEur) {
+                // Remove EUR conversions
+                document.querySelectorAll('.price-eur').forEach(el => el.remove());
+                document.getElementById('eurRateDisplay').style.opacity = '0';
+                return;
+            }
+            
+            // Get exchange rate
+            fetch('/api/exchange_rates')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.EUR) {
+                        const eurRate = data.EUR;
+                        
+                        // Show EUR rate next to toggle
+                        document.getElementById('currentEurRate').textContent = eurRate.toLocaleString('en-US', {maximumFractionDigits: 0});
+                        document.getElementById('eurRateDisplay').style.opacity = '0.8';
+                        
+                        // Find all KZT prices and add EUR conversion
+                        document.querySelectorAll('.price-kzt').forEach(el => {
+                            const kztText = el.textContent;
+                            const kztAmount = parseFloat(kztText.replace(/[₸,\s]/g, ''));
+                            
+                            if (!isNaN(kztAmount)) {
+                                const eurAmount = kztAmount / eurRate;
+                                
+                                // Remove existing EUR conversion
+                                const existingEur = el.parentElement.querySelector('.price-eur');
+                                if (existingEur) {
+                                    existingEur.remove();
+                                }
+                                
+                                // Add new EUR conversion (without rate)
+                                const eurSpan = document.createElement('span');
+                                eurSpan.className = 'price-eur text-muted ms-2';
+                                eurSpan.textContent = `(€${eurAmount.toLocaleString('en-US', {maximumFractionDigits: 0})})`;
+                                el.parentElement.appendChild(eurSpan);
+                            }
+                        });
+                        
+                        // Handle price ranges (elements containing multiple price-kzt spans)
+                        document.querySelectorAll('p, h6, small').forEach(container => {
+                            const priceElements = container.querySelectorAll('.price-kzt');
+                            if (priceElements.length > 1) {
+                                // This is a price range
+                                const kztAmounts = [];
+                                priceElements.forEach(el => {
+                                    const kztText = el.textContent;
+                                    const kztAmount = parseFloat(kztText.replace(/[₸,\s]/g, ''));
+                                    if (!isNaN(kztAmount)) {
+                                        kztAmounts.push(kztAmount);
+                                    }
+                                });
+                                
+                                if (kztAmounts.length > 1) {
+                                    const eurAmounts = kztAmounts.map(amount => amount / eurRate);
+                                    const eurRange = eurAmounts.map(amount => 
+                                        `€${amount.toLocaleString('en-US', {maximumFractionDigits: 0})}`
+                                    ).join(' - ');
+                                    
+                                    // Remove existing EUR conversion for this container
+                                    const existingEur = container.querySelector('.price-eur');
+                                    if (existingEur) {
+                                        existingEur.remove();
+                                    }
+                                    
+                                    // Add EUR range conversion (without rate)
+                                    const eurSpan = document.createElement('span');
+                                    eurSpan.className = 'price-eur text-muted ms-2';
+                                    eurSpan.textContent = `(${eurRange})`;
+                                    container.appendChild(eurSpan);
+                                }
+                            }
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching exchange rates:', error);
+                });
+        }
+    </script>
+
+    <!-- Optimized Favorites Management -->
+    <script src="{{ url_for('static', filename='js/favorites-optimized.js') }}"></script>
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html> 

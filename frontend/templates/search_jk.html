@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}♖ Search Residential Complexes - Orthanc Capital{% endblock %}
+
+{% block content %}
+<!-- Search Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="mb-1"><i class="fas fa-search me-2"></i>Search Residential Complexes</h2>
+                <p class="mb-0 text-muted">Find and analyze residential complexes (JK) for investment opportunities</p>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="row g-3">
+                    <div class="col-md-8">
+                        <label for="complex_name" class="form-label">Complex Name</label>
+                        <input type="text" class="form-control" id="complex_name" name="complex_name" 
+                               placeholder="Enter complex name (e.g., Meridian, 4YOU)" required>
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-search me-2"></i>Search
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search Results -->
+{% if complexes %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0"><i class="fas fa-list me-2"></i>Search Results ({{ complexes|length }})</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for complex in complexes %}
+                    <div class="col-md-6 col-lg-4 mb-3">
+                        <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h6 class="card-title">
+                                        <a href="{{ url_for('view_jk_flats', residential_complex_name=complex.name) }}" 
+                                           class="text-decoration-none text-primary jk-name-link">{{ complex.name }}</a>
+                                    </h6>
+                                    <span class="badge bg-info">JK</span>
+                                </div>
+                                <p class="card-text small text-muted">
+                                    {% if complex.city %}<i class="fas fa-map-marker-alt me-1"></i>{{ complex.city }}{% endif %}
+                                    {% if complex.district %}<br><i class="fas fa-building me-1"></i>{{ complex.district }}{% endif %}
+                                </p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted">ID: {{ complex.complex_id }}</small>
+                                    <a href="{{ url_for('analyze_jk', residential_complex_name=complex.name) }}" 
+                                       class="btn btn-sm btn-primary analyze-btn">
+                                        <i class="fas fa-chart-line me-1"></i>Analyze
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                
+                {% if deduplication_info %}
+                <div class="alert alert-info mt-3">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Note:</strong> {{ deduplication_info }}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay" style="display: none;">
+    <div class="text-center">
+        <div class="loading-spinner mb-3"></div>
+        <h5 class="text-white" id="loadingMessage">Analyzing complex...</h5>
+        <p class="text-muted" id="loadingDetails">This may take a few moments</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Clear flash messages when search form is submitted
+    const searchForm = document.querySelector('form[method="POST"]');
+    if (searchForm) {
+        searchForm.addEventListener('submit', function() {
+            const flashMessages = document.querySelectorAll('.alert');
+            flashMessages.forEach(function(message) {
+                message.remove();
+            });
+        });
+    }
+    
+    // Show loading overlay when analyze button is clicked
+    const analyzeButtons = document.querySelectorAll('.analyze-btn');
+    analyzeButtons.forEach(function(button) {
+        button.addEventListener('click', function(e) {
+            const complexName = this.closest('.card').querySelector('.card-title a').textContent;
+            showLoading(`Analyzing ${complexName}...`, 'Gathering market data and calculating investment returns');
+        });
+    });
+    
+    // Show loading overlay when JK name link is clicked
+    const jkNameLinks = document.querySelectorAll('.jk-name-link');
+    jkNameLinks.forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            const complexName = this.textContent;
+            showLoading(`Loading ${complexName}...`, 'Fetching complex data and preparing analysis');
+        });
+    });
+});
+</script>
+{% endblock %} 
