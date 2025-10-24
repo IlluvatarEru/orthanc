@@ -77,19 +77,19 @@
                                 <div class="row mb-3">
                                     <div class="col-md-3">
                                         <h6 class="text-muted">Min Price</h6>
-                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.min) }}</p>
+                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.min|int) }}</p>
                                     </div>
                                     <div class="col-md-3">
                                         <h6 class="text-muted">Max Price</h6>
-                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.max) }}</p>
+                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.max|int) }}</p>
                                     </div>
                                     <div class="col-md-3">
                                         <h6 class="text-muted">Mean Price</h6>
-                                        <p class="text-white h5">₸{{ "{:,.0f}".format(bucket_stats.mean) }}</p>
+                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.mean|int) }}</p>
                                     </div>
                                     <div class="col-md-3">
                                         <h6 class="text-muted">Median Price</h6>
-                                        <p class="text-white h5">₸{{ "{:,.0f}".format(bucket_stats.median) }}</p>
+                                        <p class="text-white h5">₸{{ "{:,}".format(bucket_stats.median|int) }}</p>
                                     </div>
                                 </div>
                                 
@@ -105,11 +105,17 @@
                                                     <h6 class="card-title text-success">₸{{ "{:,}".format(opp.price) }}</h6>
                                                     <p class="card-text small">
                                                         <strong>Discount:</strong> {{ "{:.1f}".format(opp.discount_percentage_vs_median) }}%<br>
+                                                        {% set return_pct = ((opp.market_stats.median_price - opp.price) / opp.price) * 100 %}
+                                                        <strong>Return:</strong> <span class="text-success">{{ "{:.2f}".format(return_pct) }}%</span><br>
                                                         <strong>Area:</strong> {{ opp.area }} m²<br>
                                                         <strong>Floor:</strong> {{ opp.floor }}/{{ opp.total_floors }}<br>
                                                         <strong>Year:</strong> {{ opp.construction_year or 'N/A' }}
                                                     </p>
                                                     <div class="mt-2">
+                                                        <a href="{{ url_for('view_opportunity', residential_complex_name=residential_complex_name, flat_id=opp.flat_id) }}" 
+                                                           class="btn btn-sm btn-success me-2">
+                                                            <i class="fas fa-info-circle me-1"></i>View Details
+                                                        </a>
                                                         <a href="https://krisha.kz/a/show/{{ opp.flat_id }}" 
                                                            target="_blank" 
                                                            class="btn btn-sm btn-outline-success">
@@ -155,19 +161,19 @@
                             <div class="row">
                                 <div class="col-6">
                                     <h6 class="text-muted">Min Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.min) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.min|int) }}</p>
                                 </div>
                                 <div class="col-6">
                                     <h6 class="text-muted">Max Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.max) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.max|int) }}</p>
                                 </div>
                                 <div class="col-6">
                                     <h6 class="text-muted">Mean Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.avg|int) }}</p>
                                 </div>
                                 <div class="col-6">
                                     <h6 class="text-muted">Median Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.rental_stats.price_stats.median|int) }}</p>
                                 </div>
                             </div>
                         {% endif %}
@@ -180,19 +186,19 @@
                             <div class="row">
                                 <div class="col-6">
                                     <h6 class="text-muted">Min Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.min) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.min|int) }}</p>
                                 </div>
                                 <div class="col-6">
                                     <h6 class="text-muted">Max Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.max) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.max|int) }}</p>
                                 </div>
                                 <div class="col-6">
                                     <h6 class="text-muted">Mean Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.avg) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.avg|int) }}</p>
                                 </div>
                                 <div class="col-6">
                                     <h6 class="text-muted">Median Price</h6>
-                                    <p class="text-white h5">₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.median) }}</p>
+                                    <p class="text-white h5">₸{{ "{:,}".format(analysis.sales_stats.price_stats.median|int) }}</p>
                                 </div>
                             </div>
                         {% endif %}
@@ -352,7 +358,7 @@
                                     <div class="col-12">
                                         <small class="text-muted">Sales: {{ bucket_stats.count }} flats</small><br>
                                         <small class="text-success">
-                                            <span class="price-kzt">₸{{ "{:,.0f}".format(bucket_stats.median) }}</span>
+                                            <span class="price-kzt">₸{{ "{:,}".format(bucket_stats.median|int) }}</span>
                                         </small>
                                     </div>
                                 </div>
@@ -361,13 +367,13 @@
                                     <div class="col-6">
                                         <small class="text-muted">Min Price</small><br>
                                         <small class="text-white">
-                                            ₸{{ "{:,.0f}".format(bucket_stats.min) }}
+                                            ₸{{ "{:,}".format(bucket_stats.min|int) }}
                                         </small>
                                     </div>
                                     <div class="col-6">
                                         <small class="text-muted">Max Price</small><br>
                                         <small class="text-white">
-                                            ₸{{ "{:,.0f}".format(bucket_stats.max) }}
+                                            ₸{{ "{:,}".format(bucket_stats.max|int) }}
                                         </small>
                                     </div>
                                 </div>
@@ -375,13 +381,13 @@
                                     <div class="col-6">
                                         <small class="text-muted">Mean Price</small><br>
                                         <small class="text-white">
-                                            ₸{{ "{:,.0f}".format(bucket_stats.mean) }}
+                                            ₸{{ "{:,}".format(bucket_stats.mean|int) }}
                                         </small>
                                     </div>
                                     <div class="col-6">
                                         <small class="text-muted">Median Price</small><br>
                                         <small class="text-white">
-                                            ₸{{ "{:,.0f}".format(bucket_stats.median) }}
+                                            ₸{{ "{:,}".format(bucket_stats.median|int) }}
                                         </small>
                                     </div>
                                 </div>
@@ -412,13 +418,13 @@
                                         <div class="col-6">
                                             <small class="text-muted">Rental: {{ flat_data.rental_count }}</small><br>
                                             {% if flat_data.rental_count > 0 and flat_data.rental_stats %}
-                                            <small class="text-primary"><span class="price-kzt">₸{{ "{:,.0f}".format(flat_data.rental_stats.median_price) }}</span> / <span class="price-kzt">₸{{ "{:,.0f}".format(flat_data.rental_stats.median_price * 12) }}</span></small>
+                                            <small class="text-primary"><span class="price-kzt">₸{{ "{:,}".format(flat_data.rental_stats.median_price|int) }}</span> / <span class="price-kzt">₸{{ "{:,}".format((flat_data.rental_stats.median_price * 12)|int) }}</span></small>
                                             {% endif %}
                                         </div>
                                         <div class="col-6">
                                             <small class="text-muted">Sales: {{ flat_data.sales_count }}</small><br>
                                             {% if flat_data.sales_count > 0 and flat_data.sales_stats %}
-                                            <small class="text-success"><span class="price-kzt">₸{{ "{:,.0f}".format(flat_data.sales_stats.median_price) }}</span></small>
+                                            <small class="text-success"><span class="price-kzt">₸{{ "{:,}".format(flat_data.sales_stats.median_price|int) }}</span></small>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -761,7 +767,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <h6>Rental Price per m²</h6>
                         <p class="text-primary">
                             {% if analysis.insights.price_per_sqm.rental %}
-                                <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental) }}</span>
+                                <span class="price-kzt">₸{{ "{:,}".format(analysis.insights.price_per_sqm.rental|int) }}</span>
                             {% else %}
                                 <span class="text-muted">N/A</span>
                             {% endif %}
@@ -771,7 +777,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <h6>Sales Price per m²</h6>
                         <p class="text-success">
                             {% if analysis.insights.price_per_sqm.sales %}
-                                <span class="price-kzt">₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales) }}</span>
+                                <span class="price-kzt">₸{{ "{:,}".format(analysis.insights.price_per_sqm.sales|int) }}</span>
                             {% else %}
                                 <span class="text-muted">N/A</span>
                             {% endif %}
@@ -837,7 +843,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,.0f}".format((rental_flats|map(attribute='price')|sum) / rental_flats|length) }}
+                                    {{ "{:,}".format(((rental_flats|map(attribute='price')|sum) / rental_flats|length)|int) }}
                                 </div>
                                 <div class="kpi-label">Avg Price</div>
                             </div>
@@ -885,7 +891,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,.0f}".format((sales_flats|map(attribute='price')|sum) / sales_flats|length) }}
+                                    {{ "{:,}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length)|int) }}
                                 </div>
                                 <div class="kpi-label">Avg Price</div>
                             </div>

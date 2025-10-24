@@ -86,7 +86,8 @@ async def get_jk_sales_analysis(
                     "max_price": opp.stats_for_flat_type.max_price,
                     "count": opp.stats_for_flat_type.count
                 },
-                query_date=opp.query_date
+                query_date=opp.query_date,
+                bucket_flats=opp.bucket_flats  # Include bucket flats for comparison
             ) for opp in opportunities
         ]
 

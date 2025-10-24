@@ -53,6 +53,7 @@ class FlatOpportunity:
     stats_for_flat_type: StatsForFlatType
     discount_percentage_vs_median: float
     query_date: str
+    bucket_flats: List[FlatInfo]  # All flats in the same area bucket for comparison
 
 
 @dataclass
@@ -268,26 +269,34 @@ class JKAnalytics:
     def _find_opportunities(self, sales_data: List[Dict], flat_type_buckets: Dict[str, PriceStats], 
                            discount_percentage: float, jk_name: str) -> Dict[str, List[FlatOpportunity]]:
         """
-        Find good opportunity flats based on discount percentage.
+        Find good opportunity flats based on area similarity (within 20%) instead of flat type.
         
         :param sales_data: List[Dict], current sales data
-        :param flat_type_buckets: Dict[str, PriceStats], price statistics by flat type
+        :param flat_type_buckets: Dict[str, PriceStats], price statistics by flat type (not used in new logic)
         :param discount_percentage: float, discount percentage threshold
-        :return: Dict[str, List[FlatOpportunity]], opportunities grouped by flat type
+        :return: Dict[str, List[FlatOpportunity]], opportunities grouped by area bucket
         """
+        # Group flats by area similarity (within 20% of each other)
+        area_buckets = self._group_flats_by_area_similarity(sales_data)
+        
         opportunities_by_type = {}
         
         for sale in sales_data:
             flat_type = sale['flat_type']
-            if flat_type in flat_type_buckets:
-                market_avg = flat_type_buckets[flat_type].mean
-                market_median = flat_type_buckets[flat_type].median
-                threshold_price = market_avg * (1 - discount_percentage)
+            area = sale['area']
+            
+            # Find the area bucket for this flat
+            area_bucket = self._find_area_bucket(area, area_buckets)
+            
+            if area_bucket and len(area_bucket) > 1:  # Need at least 2 flats for meaningful comparison
+                # Calculate median price for this area bucket
+                area_prices = [flat['price'] for flat in area_bucket]
+                area_median = sorted(area_prices)[len(area_prices) // 2]
                 
-                if sale['price'] <= threshold_price:
-                    # Calculate discount vs median (more meaningful than vs mean)
-                    discount_vs_median = ((market_median - sale['price']) / market_median) * 100
-                    
+                # Check if this flat is a good opportunity
+                discount_vs_median = ((area_median - sale['price']) / area_median) * 100
+                
+                if discount_vs_median >= discount_percentage * 100:  # Convert to percentage
                     # Create FlatInfo object
                     flat_info = FlatInfo(
                         flat_id=sale['flat_id'],
@@ -303,26 +312,46 @@ class JKAnalytics:
                         is_rental=False  # This is sales data
                     )
                     
-                    # Create StatsForFlatType object
+                    # Create StatsForFlatType object with area bucket stats
+                    area_prices_sorted = sorted(area_prices)
                     stats_for_flat_type = StatsForFlatType(
                         date=sale['query_date'],
-                        flat_type=flat_type,
+                        flat_type=f"Area {area:.0f}m²",  # Use area range as "flat type"
                         residential_complex=jk_name,
-                        mean_price=market_avg,
-                        median_price=market_median,
-                        min_price=flat_type_buckets[flat_type].min,
-                        max_price=flat_type_buckets[flat_type].max,
-                        count=flat_type_buckets[flat_type].count
+                        mean_price=sum(area_prices) / len(area_prices),
+                        median_price=area_median,
+                        min_price=min(area_prices),
+                        max_price=max(area_prices),
+                        count=len(area_prices)
                     )
+                    
+                    # Create FlatInfo objects for all flats in the bucket
+                    bucket_flat_infos = []
+                    for bucket_flat in area_bucket:
+                        bucket_flat_info = FlatInfo(
+                            flat_id=bucket_flat['flat_id'],
+                            price=bucket_flat['price'],
+                            area=bucket_flat['area'],
+                            flat_type=bucket_flat['flat_type'],
+                            residential_complex=bucket_flat.get('residential_complex'),
+                            floor=bucket_flat['floor'],
+                            total_floors=bucket_flat['total_floors'],
+                            construction_year=bucket_flat.get('construction_year'),
+                            parking=bucket_flat.get('parking'),
+                            description=bucket_flat.get('description', ''),
+                            is_rental=False  # This is sales data
+                        )
+                        bucket_flat_infos.append(bucket_flat_info)
                     
                     opportunity = FlatOpportunity(
                         flat_info=flat_info,
                         stats_for_flat_type=stats_for_flat_type,
                         discount_percentage_vs_median=round(discount_vs_median, 2),
-                        query_date=sale['query_date']
+                        query_date=sale['query_date'],
+                        bucket_flats=bucket_flat_infos
                     )
                     
-                    # Group by flat type
+                    # Group by flat type (but now represents area similarity)
                     if flat_type not in opportunities_by_type:
                         opportunities_by_type[flat_type] = []
                     opportunities_by_type[flat_type].append(opportunity)
@@ -332,6 +361,60 @@ class JKAnalytics:
             opportunities_by_type[flat_type].sort(key=lambda x: x.discount_percentage_vs_median, reverse=True)
         
         return opportunities_by_type
+
+    def _group_flats_by_area_similarity(self, sales_data: List[Dict], similarity_threshold: float = 0.20) -> List[List[Dict]]:
+        """
+        Group flats by area similarity (within 20% of each other).
+        
+        :param sales_data: List[Dict], sales data
+        :param similarity_threshold: float, area similarity threshold (0.20 = 20%)
+        :return: List[List[Dict]], groups of flats with similar areas
+        """
+        if not sales_data:
+            return []
+        
+        # Sort by area for easier grouping
+        sorted_data = sorted(sales_data, key=lambda x: x['area'])
+        area_buckets = []
+        
+        for flat in sorted_data:
+            area = flat['area']
+            added_to_bucket = False
+            
+            # Try to add to existing bucket
+            for bucket in area_buckets:
+                bucket_areas = [f['area'] for f in bucket]
+                bucket_avg_area = sum(bucket_areas) / len(bucket_areas)
+                
+                # Check if this flat's area is within 20% of the bucket's average area
+                if abs(area - bucket_avg_area) / bucket_avg_area <= similarity_threshold:
+                    bucket.append(flat)
+                    added_to_bucket = True
+                    break
+            
+            # If not added to any bucket, create new bucket
+            if not added_to_bucket:
+                area_buckets.append([flat])
+        
+        return area_buckets
+
+    def _find_area_bucket(self, area: float, area_buckets: List[List[Dict]]) -> Optional[List[Dict]]:
+        """
+        Find the area bucket that contains flats with similar area.
+        
+        :param area: float, area to find bucket for
+        :param area_buckets: List[List[Dict]], area buckets
+        :return: Optional[List[Dict]], the bucket containing similar areas
+        """
+        for bucket in area_buckets:
+            bucket_areas = [f['area'] for f in bucket]
+            bucket_avg_area = sum(bucket_areas) / len(bucket_areas)
+            
+            # Check if this area is within 20% of the bucket's average area
+            if abs(area - bucket_avg_area) / bucket_avg_area <= 0.20:
+                return bucket
+        
+        return None
 
     def get_jk_list(self) -> List[str]:
         """

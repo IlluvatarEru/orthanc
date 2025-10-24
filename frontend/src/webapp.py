@@ -253,6 +253,34 @@ def analyze_jk(residential_complex_name, db_path='flats.db', allow_scraping_data
                            opportunities_by_flat_type=opportunities_by_flat_type)
 
 
+@app.route('/opportunity/<residential_complex_name>/<flat_id>')
+def view_opportunity(residential_complex_name, flat_id):
+    """View detailed opportunity information with bucket comparison."""
+    residential_complex_name = unquote(residential_complex_name)
+    
+    # Get sales analysis to find the opportunity
+    sales_analysis = api_client.get_jk_sales_analysis(residential_complex_name, 0.15)
+    if not sales_analysis.success:
+        raise Exception(f"Sales analysis API failed: {sales_analysis.error}")
+    
+    # Find the opportunity with this flat_id
+    opportunity = None
+    for flat_type, opportunities in sales_analysis.current_market.opportunities.items():
+        for opp in opportunities:
+            if opp.flat_id == flat_id:
+                opportunity = opp
+                break
+        if opportunity:
+            break
+    
+    if not opportunity:
+        raise Exception(f"Opportunity not found for flat_id: {flat_id}")
+    
+    return render_template('opportunity_detail.html',
+                           residential_complex_name=residential_complex_name,
+                           opportunity=opportunity)
+
+
 @app.route('/refresh_analysis/<residential_complex_name>', methods=['POST'])
 def refresh_analysis(residential_complex_name):
     """Refresh analysis by fetching latest data."""

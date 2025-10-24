@@ -64,6 +64,7 @@ class Opportunity:
     yield_percentage: Optional[float] = None
     market_stats: Optional[Dict] = None
     query_date: Optional[str] = None
+    bucket_flats: Optional[List['FlatInfo']] = None  # All flats in the same area bucket
 
 
 @dataclass
