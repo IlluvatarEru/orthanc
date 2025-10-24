@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Opportunity Details - {{ residential_complex_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2><i class="fas fa-star text-success me-2"></i>Investment Opportunity</h2>
+                    <p class="mb-0 text-muted">{{ residential_complex_name }}</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('analyze_jk', residential_complex_name=residential_complex_name) }}" 
+                       class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left me-1"></i>Back to Analysis
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Opportunity Details -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="fas fa-home me-2"></i>Opportunity Details</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="text-success">₸{{ "{:,}".format(opportunity.price) }}</h5>
+                            <p class="mb-2">
+                                <strong>Discount:</strong> 
+                                <span class="badge bg-success">{{ "{:.1f}".format(opportunity.discount_percentage_vs_median) }}% below median</span>
+                            </p>
+                            <p class="mb-2">
+                                {% set return_pct = ((opportunity.market_stats.median_price - opportunity.price) / opportunity.price) * 100 %}
+                                <strong>Potential Return:</strong> 
+                                <span class="badge bg-info">{{ "{:.2f}".format(return_pct) }}%</span>
+                                <small class="text-muted">(if sold at median price)</small>
+                            </p>
+                            <p class="mb-1"><strong>Area:</strong> {{ opportunity.area }} m²</p>
+                            <p class="mb-1"><strong>Type:</strong> {{ opportunity.flat_type }}</p>
+                            <p class="mb-1"><strong>Floor:</strong> {{ opportunity.floor }}/{{ opportunity.total_floors }}</p>
+                            {% if opportunity.construction_year %}
+                            <p class="mb-1"><strong>Year:</strong> {{ opportunity.construction_year }}</p>
+                            {% endif %}
+                            {% if opportunity.parking %}
+                            <p class="mb-1"><strong>Parking:</strong> Yes</p>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-end">
+                                <a href="https://krisha.kz/a/show/{{ opportunity.flat_id }}" 
+                                   target="_blank" 
+                                   class="btn btn-success btn-lg">
+                                    <i class="fas fa-external-link-alt me-2"></i>View on Krisha
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Market Context -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-chart-bar me-2"></i>Market Context</h4>
+                    <p class="mb-0 text-muted">This flat was compared against similar-sized properties in the same area bucket</p>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Median Price</h6>
+                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Mean Price</h6>
+                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.mean_price|int) }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Min Price</h6>
+                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.min_price|int) }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6 class="text-muted">Max Price</h6>
+                            <p class="text-white h5">₸{{ "{:,}".format(opportunity.market_stats.max_price|int) }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <p class="text-muted">
+                            <strong>Sample Size:</strong> {{ opportunity.market_stats.count }} similar properties
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Comparison with Other Flats in Bucket -->
+    {% if opportunity.bucket_flats %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="fas fa-list me-2"></i>Similar Properties (Area Bucket)</h4>
+                    <p class="mb-0 text-muted">All properties in the same area range for comparison</p>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for bucket_flat in opportunity.bucket_flats %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card {% if bucket_flat.flat_id == opportunity.flat_id %}border-success{% else %}border-light{% endif %}">
+                                <div class="card-body">
+                                    {% if bucket_flat.flat_id == opportunity.flat_id %}
+                                    <div class="badge bg-success mb-2">This Opportunity</div>
+                                    {% endif %}
+                                    <h6 class="card-title">
+                                        ₸{{ "{:,}".format(bucket_flat.price) }}
+                                        {% if bucket_flat.flat_id != opportunity.flat_id %}
+                                            {% set price_diff = ((bucket_flat.price - opportunity.price) / opportunity.price) * 100 %}
+                                            {% if price_diff > 0 %}
+                                                <span class="text-success">+{{ "{:.1f}".format(price_diff) }}%</span>
+                                            {% else %}
+                                                <span class="text-danger">{{ "{:.1f}".format(price_diff) }}%</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </h6>
+                                    <p class="card-text small">
+                                        <strong>Area:</strong> {{ bucket_flat.area }} m²<br>
+                                        <strong>Type:</strong> {{ bucket_flat.flat_type }}<br>
+                                        <strong>Floor:</strong> {{ bucket_flat.floor }}/{{ bucket_flat.total_floors }}<br>
+                                        {% if bucket_flat.construction_year %}
+                                        <strong>Year:</strong> {{ bucket_flat.construction_year }}<br>
+                                        {% endif %}
+                                        {% if bucket_flat.parking %}
+                                        <strong>Parking:</strong> Yes
+                                        {% endif %}
+                                    </p>
+                                    <a href="https://krisha.kz/a/show/{{ bucket_flat.flat_id }}" 
+                                       target="_blank" 
+                                       class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-external-link-alt me-1"></i>View on Krisha
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -45,7 +45,7 @@ async def get_flat_details(flat_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting flat details for {flat_id}: {e}")
+        logger.exception(f"Error getting flat details for {flat_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/{flat_id}/similar")
@@ -76,27 +76,27 @@ async def get_similar_flats(
                 "min_required": min_flats
             }
         
-        # Convert to dict format for JSON serialization
+        # Convert FlatInfo objects to dict format for JSON serialization
         rental_data = []
         for rental in similar_rentals:
             rental_data.append({
-                "flat_id": rental[0],
-                "price": rental[1],
-                "area": rental[2],
-                "residential_complex": rental[3],
-                "floor": rental[4],
-                "construction_year": rental[5]
+                "flat_id": rental.flat_id,
+                "price": rental.price,
+                "area": rental.area,
+                "residential_complex": rental.residential_complex,
+                "floor": rental.floor,
+                "construction_year": rental.construction_year
             })
         
         sales_data = []
         for sale in similar_sales:
             sales_data.append({
-                "flat_id": sale[0],
-                "price": sale[1],
-                "area": sale[2],
-                "residential_complex": sale[3],
-                "floor": sale[4],
-                "construction_year": sale[5]
+                "flat_id": sale.flat_id,
+                "price": sale.price,
+                "area": sale.area,
+                "residential_complex": sale.residential_complex,
+                "floor": sale.floor,
+                "construction_year": sale.construction_year
             })
         
         return {
@@ -122,10 +122,10 @@ async def get_similar_flats(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting similar flats for {flat_id}: {e}")
+        logger.exception(f"Error getting similar flats for {flat_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-def get_similar_properties(flat_info: FlatInfo, area_tolerance: float, db_path: str = "flats.db") -> Tuple[List, List]:
+def get_similar_properties(flat_info: FlatInfo, area_tolerance: float, db_path: str = "flats.db") -> Tuple[List[FlatInfo], List[FlatInfo]]:
     """
     Get similar rental and sales properties for analysis.
     
@@ -135,53 +135,83 @@ def get_similar_properties(flat_info: FlatInfo, area_tolerance: float, db_path: 
     :return: tuple of (similar_rentals, similar_sales)
     """
     db = OrthancDB(db_path)
-    try:
-        db.connect()
+    db.connect()
 
-        # Calculate area range
-        area_min = flat_info.area * (1 - area_tolerance / 100)
-        area_max = flat_info.area * (1 + area_tolerance / 100)
+    # Calculate area range
+    area_min = flat_info.area * (1 - area_tolerance / 100)
+    area_max = flat_info.area * (1 + area_tolerance / 100)
 
-        # Query similar rentals
-        jk_arg = f'%{flat_info.residential_complex}%' if flat_info.residential_complex else '%'
-        rental_query = f"""
-            SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
-            FROM rental_flats 
-            WHERE residential_complex LIKE '{jk_arg}'
-            AND area BETWEEN {area_min} AND {area_max}
-            ORDER BY flat_id, query_date DESC
-        """
-        
-        cursor = db.conn.execute(rental_query)
-        rental_data = {}
-        for row in cursor.fetchall():
-            flat_id = row[0]
-            if flat_id not in rental_data:
-                rental_data[flat_id] = row[1:]
+    # Query similar rentals
+    jk_arg = f'%{flat_info.residential_complex}%' if flat_info.residential_complex else '%'
+    cursor = db.conn.execute("""
+        SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
+        FROM rental_flats 
+        WHERE residential_complex LIKE ? 
+        AND area BETWEEN ? AND ?
+        ORDER BY flat_id, query_date DESC
+    """, (jk_arg, area_min, area_max))
 
-        similar_rentals = list(rental_data.values())
+    logger.info(f"Searching for flats in complex: {flat_info.residential_complex}, area range: {area_min}-{area_max}")
 
-        # Query similar sales
-        cursor = db.conn.execute("""
-            SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
-            FROM sales_flats 
-            WHERE residential_complex LIKE ? 
-            AND area BETWEEN ? AND ?
-            ORDER BY flat_id, query_date DESC
-        """, (f'%{flat_info.residential_complex}%' if flat_info.residential_complex else '%', area_min, area_max))
+    similar_rentals = []
+    rows = cursor.fetchall()
+    logger.info(f"Found {len(rows)} rental rows")
 
-        sales_data = {}
-        for row in cursor.fetchall():
-            flat_id = row[0]
-            if flat_id not in sales_data:
-                sales_data[flat_id] = row[1:]
+    for i, row in enumerate(rows):
+        logger.info(f"Processing rental row {i}: length={len(row)}, row={row}")
+        # Create FlatInfo object from row data
+        rental_flat = FlatInfo(
+            flat_id=row[0],
+            price=row[1],
+            area=row[2],
+            flat_type=row[3],  # residential_complex from query
+            residential_complex=row[3],
+            floor=row[4],
+            total_floors=0,  # Not in query, use default
+            construction_year=row[5],
+            parking=False,  # Not in query, use default
+            description="",  # Not in query, use default
+            is_rental=True
+        )
+        similar_rentals.append(rental_flat)
 
-        similar_sales = list(sales_data.values())
+    # Query similar sales
+    cursor = db.conn.execute("""
+        SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
+        FROM sales_flats 
+        WHERE residential_complex LIKE ? 
+        AND area BETWEEN ? AND ?
+        ORDER BY flat_id, query_date DESC
+    """, (f'%{flat_info.residential_complex}%' if flat_info.residential_complex else '%', area_min, area_max))
 
-        return similar_rentals, similar_sales
+    logger.info(f"Searching for sales flats in complex: {flat_info.residential_complex}, area range: {area_min}-{area_max}")
 
-    finally:
-        db.disconnect()
+    similar_sales = []
+    sales_rows = cursor.fetchall()
+    logger.info(f"Found {len(sales_rows)} sales rows")
+
+    for i, row in enumerate(sales_rows):
+        logger.info(f"Processing sales row {i}: length={len(row)}, row={row}")
+        # Create FlatInfo object from row data
+        sales_flat = FlatInfo(
+            flat_id=row[0],
+            price=row[1],
+            area=row[2],
+            flat_type=row[3],  # residential_complex from query
+            residential_complex=row[3],
+            floor=row[4],
+            total_floors=0,  # Not in query, use default
+            construction_year=row[5],
+            parking=False,  # Not in query, use default
+            description="",  # Not in query, use default
+            is_rental=False
+        )
+        similar_sales.append(sales_flat)
+
+
+    logger.info(f"Returning {len(similar_rentals)} rental flats and {len(similar_sales)} sales flats")
+
+    return similar_rentals, similar_sales
 
 def _get_flat_info_direct(flat_id: str) -> Optional[FlatInfo]:
     """
@@ -190,11 +220,66 @@ def _get_flat_info_direct(flat_id: str) -> Optional[FlatInfo]:
     :param flat_id: str, flat ID to get info for
     :return: Optional[FlatInfo], flat information or None if not found
     """
-    try:
-        # For now, return None as placeholder
-        # In a real implementation, this would query the database
-        logger.info(f"Getting flat info for {flat_id} (placeholder implementation)")
-        return None
-    except Exception as e:
-        logger.error(f"Error getting flat info for {flat_id}: {e}")
-        return None
+    db = OrthancDB()
+    db.connect()
+    
+    # Try to find the flat in rental_flats first
+    cursor = db.conn.execute("""
+        SELECT flat_id, price, area, flat_type, residential_complex, floor, 
+               total_floors, construction_year, parking, description, url, query_date
+        FROM rental_flats 
+        WHERE flat_id = ?
+        ORDER BY query_date DESC
+        LIMIT 1
+    """, (flat_id,))
+    
+    row = cursor.fetchone()
+    if row:
+        flat_info = FlatInfo(
+            flat_id=row[0],
+            price=row[1],
+            area=row[2],
+            flat_type=row[3],
+            residential_complex=row[4],
+            floor=row[5],
+            total_floors=row[6],
+            construction_year=row[7],
+            parking=row[8],
+            description=row[9],
+            is_rental=True
+        )
+        flat_info.url = row[10] if row[10] else f'https://krisha.kz/a/show/{flat_id}'
+        db.disconnect()
+        return flat_info
+    
+    # If not found in rental_flats, try sales_flats
+    cursor = db.conn.execute("""
+        SELECT flat_id, price, area, flat_type, residential_complex, floor, 
+               total_floors, construction_year, parking, description, url, query_date
+        FROM sales_flats 
+        WHERE flat_id = ?
+        ORDER BY query_date DESC
+        LIMIT 1
+    """, (flat_id,))
+    
+    row = cursor.fetchone()
+    if row:
+        flat_info = FlatInfo(
+            flat_id=row[0],
+            price=row[1],
+            area=row[2],
+            flat_type=row[3],
+            residential_complex=row[4],
+            floor=row[5],
+            total_floors=row[6],
+            construction_year=row[7],
+            parking=row[8],
+            description=row[9],
+            is_rental=False
+        )
+        flat_info.url = row[10] if row[10] else f'https://krisha.kz/a/show/{flat_id}'
+        db.disconnect()
+        return flat_info
+    
+    db.disconnect()
+    return None

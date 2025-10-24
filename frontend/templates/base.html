@@ -560,103 +560,22 @@
             // EUR toggle functionality
             const eurToggle = document.getElementById('eurToggle');
             if (eurToggle) {
-                // Load saved preference
-                const showEur = localStorage.getItem('showEur') === 'true';
+                // Load saved preference from cookie (not localStorage)
+                const showEur = document.cookie.includes('showEur=true');
                 eurToggle.checked = showEur;
                 
                 // Update prices when toggle changes
                 eurToggle.addEventListener('change', function() {
                     const showEur = this.checked;
-                    localStorage.setItem('showEur', showEur);
                     updatePricesWithEur(showEur);
                 });
-                
-                // Initial update
-                updatePricesWithEur(showEur);
             }
         });
         
-        // Function to update prices with EUR conversion
+        // Function to toggle between KZT and EUR display
         function updatePricesWithEur(showEur) {
-            if (!showEur) {
-                // Remove EUR conversions
-                document.querySelectorAll('.price-eur').forEach(el => el.remove());
-                document.getElementById('eurRateDisplay').style.opacity = '0';
-                return;
-            }
-            
-            // Get exchange rate
-            fetch('/api/exchange_rates')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.EUR) {
-                        const eurRate = data.EUR;
-                        
-                        // Show EUR rate next to toggle
-                        document.getElementById('currentEurRate').textContent = eurRate.toLocaleString('en-US', {maximumFractionDigits: 0});
-                        document.getElementById('eurRateDisplay').style.opacity = '0.8';
-                        
-                        // Find all KZT prices and add EUR conversion
-                        document.querySelectorAll('.price-kzt').forEach(el => {
-                            const kztText = el.textContent;
-                            const kztAmount = parseFloat(kztText.replace(/[₸,\s]/g, ''));
-                            
-                            if (!isNaN(kztAmount)) {
-                                const eurAmount = kztAmount / eurRate;
-                                
-                                // Remove existing EUR conversion
-                                const existingEur = el.parentElement.querySelector('.price-eur');
-                                if (existingEur) {
-                                    existingEur.remove();
-                                }
-                                
-                                // Add new EUR conversion (without rate)
-                                const eurSpan = document.createElement('span');
-                                eurSpan.className = 'price-eur text-muted ms-2';
-                                eurSpan.textContent = `(€${eurAmount.toLocaleString('en-US', {maximumFractionDigits: 0})})`;
-                                el.parentElement.appendChild(eurSpan);
-                            }
-                        });
-                        
-                        // Handle price ranges (elements containing multiple price-kzt spans)
-                        document.querySelectorAll('p, h6, small').forEach(container => {
-                            const priceElements = container.querySelectorAll('.price-kzt');
-                            if (priceElements.length > 1) {
-                                // This is a price range
-                                const kztAmounts = [];
-                                priceElements.forEach(el => {
-                                    const kztText = el.textContent;
-                                    const kztAmount = parseFloat(kztText.replace(/[₸,\s]/g, ''));
-                                    if (!isNaN(kztAmount)) {
-                                        kztAmounts.push(kztAmount);
-                                    }
-                                });
-                                
-                                if (kztAmounts.length > 1) {
-                                    const eurAmounts = kztAmounts.map(amount => amount / eurRate);
-                                    const eurRange = eurAmounts.map(amount => 
-                                        `€${amount.toLocaleString('en-US', {maximumFractionDigits: 0})}`
-                                    ).join(' - ');
-                                    
-                                    // Remove existing EUR conversion for this container
-                                    const existingEur = container.querySelector('.price-eur');
-                                    if (existingEur) {
-                                        existingEur.remove();
-                                    }
-                                    
-                                    // Add EUR range conversion (without rate)
-                                    const eurSpan = document.createElement('span');
-                                    eurSpan.className = 'price-eur text-muted ms-2';
-                                    eurSpan.textContent = `(${eurRange})`;
-                                    container.appendChild(eurSpan);
-                                }
-                            }
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching exchange rates:', error);
-                });
+            // Redirect to toggle route
+            window.location.href = `/toggle_currency?eur=${showEur}`;
         }
     </script>
 

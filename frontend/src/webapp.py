@@ -25,6 +25,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = 'your-secret-key-here'
 
+# Context processor to make currency preference available in all templates
+@app.context_processor
+def inject_currency_preference():
+    show_eur = request.cookies.get('showEur', 'false') == 'true'
+    return dict(show_eur=show_eur)
+
 # Initialize API client
 api_client = WebappAPIClient()
 
@@ -92,19 +98,19 @@ def index():
     """Dashboard home page."""
     stats_result = api_client.get_database_stats()
 
-    if not stats_result.get("success"):
-        raise Exception(f"Database stats API failed: {stats_result.get('error', 'Unknown error')}")
+    if not stats_result["success"]:
+        raise Exception(f"Database stats API failed: {stats_result['error']}")
 
-    stats = stats_result.get("stats", {})
+    stats = stats_result["stats"]
     return render_template('index.html',
-                           total_flats=stats.get('total_flats', 0),
-                           rental_flats=stats.get('rental_flats', 0),
-                           sales_flats=stats.get('sales_flats', 0),
-                           complexes=stats.get('complexes', 0),
-                           new_flats=stats.get('new_flats', 0),
-                           new_rentals=stats.get('new_rentals', 0),
-                           new_sales=stats.get('new_sales', 0),
-                           new_complexes=stats.get('new_complexes', 0))
+                           total_flats=stats['total_flats'],
+                           rental_flats=stats['rental_flats'],
+                           sales_flats=stats['sales_flats'],
+                           complexes=stats['complexes'],
+                           new_flats=stats['new_flats'],
+                           new_rentals=stats['new_rentals'],
+                           new_sales=stats['new_sales'],
+                           new_complexes=stats['new_complexes'])
 
 
 @app.route('/search_jk', methods=['GET', 'POST'])
@@ -117,11 +123,11 @@ def search_jk():
 
         result = api_client.search_complexes(search_term)
 
-        if not result.get("success"):
-            raise Exception(f"Search API failed: {result.get('error', 'Unknown error')}")
+        if not result["success"]:
+            raise Exception(f"Search API failed: {result['error']}")
 
-        complexes = result.get("complexes", [])
-        deduplication_info = result.get("deduplication_info")
+        complexes = result["complexes"]
+        deduplication_info = result["deduplication_info"]
 
         return render_template('search_jk.html',
                                complexes=complexes,
@@ -152,12 +158,11 @@ def analyze_jk(residential_complex_name, db_path='flats.db', allow_scraping_data
     # If no flats found, scrape data
     if not rental_flats and not sales_flats and allow_scraping_data_if_not_in_db:
         logger.info(f"No data in db, scraping it")
-        complex_id = complex_info.get('complex_id')
+        complex_id = complex_info['complex_id']
         scrape_result = api_client.scrape_complex_data(residential_complex_name, complex_id)
 
-        if not scrape_result.get("success"):
-            raise Exception(
-                f"Failed to scrape data for {residential_complex_name}: {scrape_result.get('error', 'Unknown error')}")
+        if not scrape_result["success"]:
+            raise Exception(f"Failed to scrape data for {residential_complex_name}: {scrape_result['error']}")
 
         # Get flats again after scraping
         db = OrthancDB(db_path)
@@ -293,8 +298,8 @@ def refresh_analysis(residential_complex_name):
 
     # Refresh analysis using API
     refresh_result = api_client.refresh_complex_analysis(residential_complex_name)
-    if not refresh_result.get("success"):
-        raise Exception(f"Refresh analysis API failed: {refresh_result.get('error', 'Unknown error')}")
+    if not refresh_result["success"]:
+        raise Exception(f"Refresh analysis API failed: {refresh_result['error']}")
 
     return jsonify({
         'success': True,
@@ -302,15 +307,51 @@ def refresh_analysis(residential_complex_name):
     })
 
 
+def extract_flat_id_from_input(user_input):
+    """
+    Extract flat ID from either a Krisha URL or a plain ID.
+    
+    :param user_input: str, either a Krisha URL or flat ID
+    :return: str, extracted flat ID
+    """
+    user_input = user_input.strip()
+    
+    # If it's already just a number/ID, return it
+    if user_input.isdigit():
+        return user_input
+    
+    # If it's a Krisha URL, extract the ID
+    if 'krisha.kz/a/show/' in user_input:
+        # Extract ID from URL like https://krisha.kz/a/show/1000383479
+        import re
+        match = re.search(r'/a/show/(\d+)', user_input)
+        if match:
+            return match.group(1)
+    
+    # If it's some other format, try to extract any number
+    import re
+    numbers = re.findall(r'\d+', user_input)
+    if numbers:
+        return numbers[-1]  # Return the last number found
+    
+    # If no number found, return the original input
+    return user_input
+
+
 @app.route('/estimate_flat', methods=['GET', 'POST'])
 def estimate_flat():
     """Estimate flat investment potential."""
     if request.method == 'POST':
-        flat_id = request.form.get('flat_id', '').strip()
+        user_input = request.form.get('flat_id', '').strip()
         area_tolerance = float(request.form.get('area_tolerance', 10.0))
 
-        if not flat_id:
-            raise Exception("Flat ID is required")
+        if not user_input:
+            raise Exception("Flat ID or Krisha URL is required")
+
+        # Extract flat ID from user input (handles both URLs and plain IDs)
+        logger.info(f"user_input={user_input}")
+        flat_id = extract_flat_id_from_input(user_input)
+        logger.info(f"got flat_id={flat_id}")
 
         # Get flat information using API
         flat_data = api_client.get_flat_info(flat_id)
@@ -319,11 +360,11 @@ def estimate_flat():
 
         # Get similar flats using API
         similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
-        if not similar_result.get("success"):
-            raise Exception(f"Failed to get similar flats: {similar_result.get('error', 'Unknown error')}")
+        if not similar_result["success"]:
+            raise Exception(f"Failed to get similar flats: {similar_result['error']}")
 
-        similar_rentals = similar_result.get("similar_rentals", [])
-        similar_sales = similar_result.get("similar_sales", [])
+        similar_rentals = similar_result["similar_rentals"]
+        similar_sales = similar_result["similar_sales"]
 
         if not similar_rentals or not similar_sales:
             raise Exception(
@@ -345,6 +386,7 @@ def calculate_investment_analysis(flat_data, similar_rentals, similar_sales, are
     yield_percentage = (annual_rental_income / sales_avg) * 100
 
     return render_template('estimate_result.html',
+                           flat_info=flat_data,
                            flat_data=flat_data,
                            similar_rentals=similar_rentals,
                            similar_sales=similar_sales,
@@ -495,6 +537,42 @@ def api_complexes():
     """API endpoint to get all complexes for autocomplete."""
     complexes = api_client.get_all_complexes()
     return jsonify({'complexes': complexes})
+
+
+@app.route('/api/exchange_rates')
+def api_exchange_rates():
+    """API endpoint to get current exchange rates."""
+    # Get rates from database first
+    db = OrthancDB()
+    eur_rate = db.get_latest_rate('EUR')
+    usd_rate = db.get_latest_rate('USD')
+    db.disconnect()
+    
+    # If no rates in database, fetch from web
+    if not eur_rate or not usd_rate:
+        from price.src.currency import CurrencyManager
+        currency_manager = CurrencyManager()
+        rates = currency_manager.fetch_mig_exchange_rates()
+        
+        if rates:
+            eur_rate = rates['EUR']
+            usd_rate = rates['USD']
+        else:
+            raise Exception("Failed to fetch exchange rates from web")
+    
+    return jsonify({
+        'EUR': eur_rate,
+        'USD': usd_rate
+    })
+
+
+@app.route('/toggle_currency')
+def toggle_currency():
+    """Toggle currency preference and redirect back."""
+    show_eur = request.args.get('eur', 'false') == 'true'
+    response = redirect(request.referrer or url_for('index'))
+    response.set_cookie('showEur', str(show_eur).lower())
+    return response
 
 
 if __name__ == '__main__':
