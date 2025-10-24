@@ -111,7 +111,7 @@ def index():
 def search_jk():
     """Search for residential complexes."""
     if request.method == 'POST':
-        search_term = request.form.get('residential_complex_name', '').strip()
+        search_term = request.form.get('complex_name', '').strip()
         if not search_term:
             raise Exception("Search term is required")
 
