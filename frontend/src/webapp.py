@@ -258,16 +258,71 @@ def analyze_jk(residential_complex_name, db_path='flats.db', allow_scraping_data
                            opportunities_by_flat_type=opportunities_by_flat_type)
 
 
+@app.route('/flat/<flat_id>')
+def view_flat_details(flat_id, area_tolerance=10.0):
+    """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
+    # Get flat information using API
+    flat_data = api_client.get_flat_info(flat_id)
+    if not flat_data:
+        raise Exception(f"Flat {flat_id} not found")
+
+    # Get similar flats using API
+    similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
+    if not similar_result["success"]:
+        raise Exception(f"Failed to get similar flats: {similar_result['error']}")
+
+    similar_rentals = similar_result["similar_rentals"]
+    similar_sales = similar_result["similar_sales"]
+
+    if not similar_rentals or not similar_sales:
+        raise Exception(
+            f"Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.")
+
+    # Calculate investment analysis
+    investment_analysis = calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance)
+    
+    # Create opportunity-like object for template compatibility
+    opportunity = type('Opportunity', (), {
+        'flat_id': flat_id,
+        'price': flat_data['price'],
+        'area': flat_data['area'],
+        'flat_type': flat_data['flat_type'],
+        'residential_complex': flat_data['residential_complex'],
+        'floor': flat_data['floor'],
+        'total_floors': flat_data['total_floors'],
+        'construction_year': flat_data['construction_year'],
+        'parking': flat_data['parking'],
+        'description': flat_data['description'],
+        'discount_percentage_vs_median': None,  # Will be calculated
+        'market_stats': {
+            'median_price': (similar_sales[0]['price'] + similar_sales[-1]['price']) / 2 if similar_sales else 0,
+            'mean_price': sum(flat['price'] for flat in similar_sales) / len(similar_sales) if similar_sales else 0,
+            'min_price': min(flat['price'] for flat in similar_sales) if similar_sales else 0,
+            'max_price': max(flat['price'] for flat in similar_sales) if similar_sales else 0,
+            'count': len(similar_sales)
+        },
+        'bucket_flats': similar_sales  # Use similar sales as bucket flats for comparison
+    })()
+
+    return render_template('unified_flat_view.html',
+                          flat_data=flat_data,
+                          opportunity=opportunity,
+                          similar_rentals=similar_rentals,
+                          similar_sales=similar_sales,
+                          investment_analysis=investment_analysis,
+                          area_tolerance=area_tolerance)
+
+
 @app.route('/opportunity/<residential_complex_name>/<flat_id>')
 def view_opportunity(residential_complex_name, flat_id):
     """View detailed opportunity information with bucket comparison."""
     residential_complex_name = unquote(residential_complex_name)
-    
+
     # Get sales analysis to find the opportunity
     sales_analysis = api_client.get_jk_sales_analysis(residential_complex_name, 0.15)
     if not sales_analysis.success:
         raise Exception(f"Sales analysis API failed: {sales_analysis.error}")
-    
+
     # Find the opportunity with this flat_id
     opportunity = None
     for flat_type, opportunities in sales_analysis.current_market.opportunities.items():
@@ -277,13 +332,12 @@ def view_opportunity(residential_complex_name, flat_id):
                 break
         if opportunity:
             break
-    
+
     if not opportunity:
         raise Exception(f"Opportunity not found for flat_id: {flat_id}")
-    
-    return render_template('opportunity_detail.html',
-                           residential_complex_name=residential_complex_name,
-                           opportunity=opportunity)
+
+    # Redirect to the unified flat view
+    return redirect(url_for('view_flat_details', flat_id=flat_id))
 
 
 @app.route('/refresh_analysis/<residential_complex_name>', methods=['POST'])
@@ -349,29 +403,10 @@ def estimate_flat():
             raise Exception("Flat ID or Krisha URL is required")
 
         # Extract flat ID from user input (handles both URLs and plain IDs)
-        logger.info(f"user_input={user_input}")
         flat_id = extract_flat_id_from_input(user_input)
-        logger.info(f"got flat_id={flat_id}")
 
-        # Get flat information using API
-        flat_data = api_client.get_flat_info(flat_id)
-        if not flat_data:
-            raise Exception(f"Flat {flat_id} not found")
-
-        # Get similar flats using API
-        similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
-        if not similar_result["success"]:
-            raise Exception(f"Failed to get similar flats: {similar_result['error']}")
-
-        similar_rentals = similar_result["similar_rentals"]
-        similar_sales = similar_result["similar_sales"]
-
-        if not similar_rentals or not similar_sales:
-            raise Exception(
-                f"Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.")
-
-        # Calculate investment analysis
-        return calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance)
+        # Redirect to the unified flat view page
+        return redirect(url_for('view_flat_details', flat_id=flat_id, area_tolerance=area_tolerance))
 
     return render_template('estimate_flat.html', default_area_tolerance=10.0, flat_id='')
 
