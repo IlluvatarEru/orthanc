@@ -26,7 +26,7 @@
                     <h6 class="card-title">
                         <span class="{% if flat.flat_type == 'sale' %}text-success{% else %}text-primary{% endif %}">
                             {% if show_eur %}
-                                €{{ "{:,}".format(flat.price / 500) }}
+                                €{{ "{:,.0f}".format(flat.price / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,}".format(flat.price) }}
                             {% endif %}

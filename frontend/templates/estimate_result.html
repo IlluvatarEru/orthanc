@@ -54,7 +54,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-primary">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format((flat_info.price or 0) / 500) }}
+                                    €{{ "{:,.0f}".format((flat_info.price or 0) / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(flat_info.price or 0) }}
                                 {% endif %}
@@ -163,7 +163,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-primary">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(rental_stats_fmt.min_price / 500) }}
+                                    €{{ "{:,.0f}".format(rental_stats_fmt.min_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(rental_stats_fmt.min_price) }}
                                 {% endif %}
@@ -175,7 +175,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-primary">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(rental_stats_fmt.max_price / 500) }}
+                                    €{{ "{:,.0f}".format(rental_stats_fmt.max_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(rental_stats_fmt.max_price) }}
                                 {% endif %}
@@ -189,7 +189,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-success">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(rental_stats_fmt.avg_price / 500) }}
+                                    €{{ "{:,.0f}".format(rental_stats_fmt.avg_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(rental_stats_fmt.avg_price) }}
                                 {% endif %}
@@ -201,7 +201,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-warning">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(rental_stats_fmt.median_price / 500) }}
+                                    €{{ "{:,.0f}".format(rental_stats_fmt.median_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(rental_stats_fmt.median_price) }}
                                 {% endif %}
@@ -233,7 +233,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-success">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(sales_stats_fmt.min_price / 500) }}
+                                    €{{ "{:,.0f}".format(sales_stats_fmt.min_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(sales_stats_fmt.min_price) }}
                                 {% endif %}
@@ -245,7 +245,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-success">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(sales_stats_fmt.max_price / 500) }}
+                                    €{{ "{:,.0f}".format(sales_stats_fmt.max_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(sales_stats_fmt.max_price) }}
                                 {% endif %}
@@ -259,7 +259,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-warning">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(sales_stats_fmt.avg_price / 500) }}
+                                    €{{ "{:,.0f}".format(sales_stats_fmt.avg_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(sales_stats_fmt.avg_price) }}
                                 {% endif %}
@@ -271,7 +271,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-info">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(sales_stats_fmt.median_price / 500) }}
+                                    €{{ "{:,.0f}".format(sales_stats_fmt.median_price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(sales_stats_fmt.median_price) }}
                                 {% endif %}
@@ -324,7 +324,7 @@
                         <div class="kpi-card estimate-kpi">
                             <div class="kpi-value text-primary">
                                 {% if show_eur %}
-                                    €{{ "{:,.0f}".format((investment_analysis.annual_rental_income or 0) / 500) }}
+                                    €{{ "{:,.0f}".format((investment_analysis.annual_rental_income or 0) / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,.0f}".format(investment_analysis.annual_rental_income or 0) }}
                                 {% endif %}
@@ -393,7 +393,7 @@
                                         <div class="kpi-card estimate-kpi">
                                             <div class="kpi-value text-primary">
                                                 {% if show_eur %}
-                                                    €{{ "{:,.0f}".format((scenario.discounted_price or 0) / 500) }}
+                                                    €{{ "{:,.0f}".format((scenario.discounted_price or 0) / eur_rate) }}
                                                 {% else %}
                                                     ₸{{ "{:,.0f}".format(scenario.discounted_price or 0) }}
                                                 {% endif %}
@@ -405,7 +405,7 @@
                                         <div class="kpi-card estimate-kpi">
                                             <div class="kpi-value text-success">
                                                 {% if show_eur %}
-                                                    €{{ "{:,.0f}".format((scenario.savings or 0) / 500) }}
+                                                    €{{ "{:,.0f}".format((scenario.savings or 0) / eur_rate) }}
                                                 {% else %}
                                                     ₸{{ "{:,.0f}".format(scenario.savings or 0) }}
                                                 {% endif %}

@@ -29,7 +29,17 @@ app.secret_key = 'your-secret-key-here'
 @app.context_processor
 def inject_currency_preference():
     show_eur = request.cookies.get('showEur', 'false') == 'true'
-    return dict(show_eur=show_eur)
+    
+    # Get EUR rate from database
+    db = OrthancDB()
+    eur_rate = db.get_latest_rate('EUR')
+    db.disconnect()
+    
+    # If no rate in database, use fallback
+    if not eur_rate:
+        eur_rate = 500.0  # Fallback rate
+    
+    return dict(show_eur=show_eur, eur_rate=eur_rate)
 
 # Initialize API client
 api_client = WebappAPIClient()

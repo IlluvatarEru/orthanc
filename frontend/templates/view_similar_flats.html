@@ -37,8 +37,8 @@
                         <h6>Price Range</h6>
                         <p class="text-{% if flat_type == 'rental' %}primary{% else %}success{% endif %}">
                             {% if show_eur %}
-                                €{{ "{:,}".format((flats|map(attribute='price')|min) / 500) }} - 
-                                €{{ "{:,}".format((flats|map(attribute='price')|max) / 500) }}
+                                €{{ "{:,.0f}".format((flats|map(attribute='price')|min) / eur_rate) }} - 
+                                €{{ "{:,.0f}".format((flats|map(attribute='price')|max) / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,}".format(flats|map(attribute='price')|min) }} - 
                                 ₸{{ "{:,}".format(flats|map(attribute='price')|max) }}
@@ -49,7 +49,7 @@
                         <h6>Average Price</h6>
                         <p class="text-{% if flat_type == 'rental' %}primary{% else %}success{% endif %}">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(((flats|map(attribute='price')|sum) / flats|length) / 500) }}
+                                €{{ "{:,.0f}".format(((flats|map(attribute='price')|sum) / flats|length) / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format((flats|map(attribute='price')|sum) / flats|length) }}
                             {% endif %}
@@ -89,7 +89,7 @@
                                 <div class="d-flex justify-content-between align-items-start mb-2">
                                     <h6 class="card-title text-{% if flat_type == 'rental' %}primary{% else %}success{% endif %}">
                                         {% if show_eur %}
-                                            €{{ "{:,}".format(flat.price / 500) }}
+                                            €{{ "{:,.0f}".format(flat.price / eur_rate) }}
                                         {% else %}
                                             ₸{{ "{:,}".format(flat.price) }}
                                         {% endif %}
