@@ -3,7 +3,7 @@ Flat management API endpoints.
 """
 
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 import logging
 
 from db.src.write_read_database import OrthancDB
@@ -21,7 +21,8 @@ async def get_flat_details(flat_id: str):
     Get details for a specific flat.
     """
     try:
-        flat_info = _get_flat_info_direct(flat_id)
+        db = OrthancDB()
+        flat_info = db.get_flat_info_by_id(flat_id)
         if not flat_info:
             raise HTTPException(status_code=404, detail=f"Flat {flat_id} not found")
 
@@ -60,13 +61,14 @@ async def get_similar_flats(
     """
     try:
         # Get flat info
-        flat_info = _get_flat_info_direct(flat_id)
+        db = OrthancDB()
+        flat_info = db.get_flat_info_by_id(flat_id)
         if not flat_info:
             raise HTTPException(status_code=404, detail=f"Flat {flat_id} not found")
 
         # Get similar properties
         similar_rentals, similar_sales = get_similar_properties(
-            flat_info, area_tolerance
+            flat_info, area_tolerance, db=db
         )
 
         # Check if we have enough data
@@ -134,188 +136,42 @@ async def get_similar_flats(
 
 
 def get_similar_properties(
-    flat_info: FlatInfo, area_tolerance: float, db_path: str = "flats.db"
+    flat_info: FlatInfo,
+    area_tolerance: float,
+    db: OrthancDB = None,
+    db_path: str = "flats.db",
 ) -> Tuple[List[FlatInfo], List[FlatInfo]]:
     """
     Get similar rental and sales properties for analysis.
 
     :param flat_info: FlatInfo object
     :param area_tolerance: float, area tolerance percentage
-    :param db_path: str, path to database
+    :param db: Optional[OrthancDB], database instance to use (if None, creates new one)
+    :param db_path: str, path to database (used only if db is None)
     :return: tuple of (similar_rentals, similar_sales)
     """
-    db = OrthancDB(db_path)
-    db.connect()
+    if db is None:
+        db = OrthancDB(db_path)
 
     # Calculate area range
     area_min = flat_info.area * (1 - area_tolerance / 100)
     area_max = flat_info.area * (1 + area_tolerance / 100)
 
-    # Query similar rentals
-    jk_arg = (
-        f"%{flat_info.residential_complex}%" if flat_info.residential_complex else "%"
-    )
-    cursor = db.conn.execute(
-        """
-        SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
-        FROM rental_flats 
-        WHERE residential_complex LIKE ? 
-        AND area BETWEEN ? AND ?
-        ORDER BY flat_id, query_date DESC
-    """,
-        (jk_arg, area_min, area_max),
-    )
-
     logger.info(
         f"Searching for flats in complex: {flat_info.residential_complex}, area range: {area_min}-{area_max}"
     )
 
-    similar_rentals = []
-    rows = cursor.fetchall()
-    logger.info(f"Found {len(rows)} rental rows")
+    # Get similar rentals and sales using database methods
+    similar_rentals = db.get_similar_rentals_by_area_and_complex(
+        flat_info.residential_complex, area_min, area_max
+    )
 
-    for i, row in enumerate(rows):
-        logger.info(f"Processing rental row {i}: length={len(row)}, row={row}")
-        # Create FlatInfo object from row data
-        rental_flat = FlatInfo(
-            flat_id=row[0],
-            price=row[1],
-            area=row[2],
-            flat_type=row[3],  # residential_complex from query
-            residential_complex=row[3],
-            floor=row[4],
-            total_floors=0,  # Not in query, use default
-            construction_year=row[5],
-            parking=False,  # Not in query, use default
-            description="",  # Not in query, use default
-            is_rental=True,
-        )
-        similar_rentals.append(rental_flat)
-
-    # Query similar sales
-    cursor = db.conn.execute(
-        """
-        SELECT DISTINCT flat_id, price, area, residential_complex, floor, construction_year
-        FROM sales_flats 
-        WHERE residential_complex LIKE ? 
-        AND area BETWEEN ? AND ?
-        ORDER BY flat_id, query_date DESC
-    """,
-        (
-            f"%{flat_info.residential_complex}%"
-            if flat_info.residential_complex
-            else "%",
-            area_min,
-            area_max,
-        ),
+    similar_sales = db.get_similar_sales_by_area_and_complex(
+        flat_info.residential_complex, area_min, area_max
     )
 
     logger.info(
-        f"Searching for sales flats in complex: {flat_info.residential_complex}, area range: {area_min}-{area_max}"
-    )
-
-    similar_sales = []
-    sales_rows = cursor.fetchall()
-    logger.info(f"Found {len(sales_rows)} sales rows")
-
-    for i, row in enumerate(sales_rows):
-        logger.info(f"Processing sales row {i}: length={len(row)}, row={row}")
-        # Create FlatInfo object from row data
-        sales_flat = FlatInfo(
-            flat_id=row[0],
-            price=row[1],
-            area=row[2],
-            flat_type=row[3],  # residential_complex from query
-            residential_complex=row[3],
-            floor=row[4],
-            total_floors=0,  # Not in query, use default
-            construction_year=row[5],
-            parking=False,  # Not in query, use default
-            description="",  # Not in query, use default
-            is_rental=False,
-        )
-        similar_sales.append(sales_flat)
-
-    logger.info(
-        f"Returning {len(similar_rentals)} rental flats and {len(similar_sales)} sales flats"
+        f"Found {len(similar_rentals)} rental flats and {len(similar_sales)} sales flats"
     )
 
     return similar_rentals, similar_sales
-
-
-def _get_flat_info_direct(flat_id: str) -> Optional[FlatInfo]:
-    """
-    Direct implementation of get_flat_info when the module is not available.
-
-    :param flat_id: str, flat ID to get info for
-    :return: Optional[FlatInfo], flat information or None if not found
-    """
-    db = OrthancDB()
-    db.connect()
-
-    # Try to find the flat in rental_flats first
-    cursor = db.conn.execute(
-        """
-        SELECT flat_id, price, area, flat_type, residential_complex, floor, 
-               total_floors, construction_year, parking, description, url, query_date
-        FROM rental_flats 
-        WHERE flat_id = ?
-        ORDER BY query_date DESC
-        LIMIT 1
-    """,
-        (flat_id,),
-    )
-
-    row = cursor.fetchone()
-    if row:
-        flat_info = FlatInfo(
-            flat_id=row[0],
-            price=row[1],
-            area=row[2],
-            flat_type=row[3],
-            residential_complex=row[4],
-            floor=row[5],
-            total_floors=row[6],
-            construction_year=row[7],
-            parking=row[8],
-            description=row[9],
-            is_rental=True,
-        )
-        flat_info.url = row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
-        db.disconnect()
-        return flat_info
-
-    # If not found in rental_flats, try sales_flats
-    cursor = db.conn.execute(
-        """
-        SELECT flat_id, price, area, flat_type, residential_complex, floor, 
-               total_floors, construction_year, parking, description, url, query_date
-        FROM sales_flats 
-        WHERE flat_id = ?
-        ORDER BY query_date DESC
-        LIMIT 1
-    """,
-        (flat_id,),
-    )
-
-    row = cursor.fetchone()
-    if row:
-        flat_info = FlatInfo(
-            flat_id=row[0],
-            price=row[1],
-            area=row[2],
-            flat_type=row[3],
-            residential_complex=row[4],
-            floor=row[5],
-            total_floors=row[6],
-            construction_year=row[7],
-            parking=row[8],
-            description=row[9],
-            is_rental=False,
-        )
-        flat_info.url = row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
-        db.disconnect()
-        return flat_info
-
-    db.disconnect()
-    return None

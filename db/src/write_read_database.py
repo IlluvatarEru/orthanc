@@ -1770,6 +1770,179 @@ class OrthancDB:
         self.disconnect()
         return sales
 
+    def get_flat_info_by_id(self, flat_id: str) -> Optional[FlatInfo]:
+        """
+        Get flat information by flat_id, checking both rental and sales tables.
+        Returns the most recent entry (by query_date).
+
+        :param flat_id: str, flat ID to get info for
+        :return: Optional[FlatInfo], flat information or None if not found
+        """
+        self.connect()
+
+        # Try to find the flat in rental_flats first
+        cursor = self.conn.execute(
+            """
+            SELECT flat_id, price, area, flat_type, residential_complex, floor, 
+                   total_floors, construction_year, parking, description, url, query_date
+            FROM rental_flats 
+            WHERE flat_id = ?
+            ORDER BY query_date DESC
+            LIMIT 1
+        """,
+            (flat_id,),
+        )
+
+        row = cursor.fetchone()
+        if row:
+            flat_info = FlatInfo(
+                flat_id=row[0],
+                price=row[1],
+                area=row[2],
+                flat_type=row[3],
+                residential_complex=row[4],
+                floor=row[5],
+                total_floors=row[6],
+                construction_year=row[7],
+                parking=row[8],
+                description=row[9],
+                is_rental=True,
+            )
+            flat_info.url = (
+                row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
+            )
+            self.disconnect()
+            return flat_info
+
+        # If not found in rental_flats, try sales_flats
+        cursor = self.conn.execute(
+            """
+            SELECT flat_id, price, area, flat_type, residential_complex, floor, 
+                   total_floors, construction_year, parking, description, url, query_date
+            FROM sales_flats 
+            WHERE flat_id = ?
+            ORDER BY query_date DESC
+            LIMIT 1
+        """,
+            (flat_id,),
+        )
+
+        row = cursor.fetchone()
+        if row:
+            flat_info = FlatInfo(
+                flat_id=row[0],
+                price=row[1],
+                area=row[2],
+                flat_type=row[3],
+                residential_complex=row[4],
+                floor=row[5],
+                total_floors=row[6],
+                construction_year=row[7],
+                parking=row[8],
+                description=row[9],
+                is_rental=False,
+            )
+            flat_info.url = (
+                row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
+            )
+            self.disconnect()
+            return flat_info
+
+        self.disconnect()
+        return None
+
+    def get_similar_rentals_by_area_and_complex(
+        self, residential_complex: Optional[str], area_min: float, area_max: float
+    ) -> List[FlatInfo]:
+        """
+        Get similar rental flats by residential complex and area range.
+
+        :param residential_complex: Optional[str], residential complex name (can be None or use LIKE pattern)
+        :param area_min: float, minimum area
+        :param area_max: float, maximum area
+        :return: List[FlatInfo], list of similar rental flats
+        """
+        self.connect()
+
+        jk_arg = f"%{residential_complex}%" if residential_complex else "%"
+
+        query = """
+            SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
+                   construction_year, total_floors, parking, description
+            FROM rental_flats 
+            WHERE residential_complex LIKE ? 
+            AND area BETWEEN ? AND ?
+            ORDER BY flat_id, query_date DESC
+        """
+
+        cursor = self.conn.execute(query, (jk_arg, area_min, area_max))
+
+        similar_rentals = []
+        for row in cursor.fetchall():
+            rental_flat = FlatInfo(
+                flat_id=row[0],
+                price=row[1],
+                area=row[2],
+                flat_type=row[3],
+                residential_complex=row[4],
+                floor=row[5],
+                construction_year=row[6],
+                total_floors=row[7] if row[7] else 0,
+                parking=row[8] if row[8] else False,
+                description=row[9] if row[9] else "",
+                is_rental=True,
+            )
+            similar_rentals.append(rental_flat)
+
+        self.disconnect()
+        return similar_rentals
+
+    def get_similar_sales_by_area_and_complex(
+        self, residential_complex: Optional[str], area_min: float, area_max: float
+    ) -> List[FlatInfo]:
+        """
+        Get similar sales flats by residential complex and area range.
+
+        :param residential_complex: Optional[str], residential complex name (can be None or use LIKE pattern)
+        :param area_min: float, minimum area
+        :param area_max: float, maximum area
+        :return: List[FlatInfo], list of similar sales flats
+        """
+        self.connect()
+
+        jk_arg = f"%{residential_complex}%" if residential_complex else "%"
+
+        query = """
+            SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
+                   construction_year, total_floors, parking, description
+            FROM sales_flats 
+            WHERE residential_complex LIKE ? 
+            AND area BETWEEN ? AND ?
+            ORDER BY flat_id, query_date DESC
+        """
+
+        cursor = self.conn.execute(query, (jk_arg, area_min, area_max))
+
+        similar_sales = []
+        for row in cursor.fetchall():
+            sales_flat = FlatInfo(
+                flat_id=row[0],
+                price=row[1],
+                area=row[2],
+                flat_type=row[3],
+                residential_complex=row[4],
+                floor=row[5],
+                construction_year=row[6],
+                total_floors=row[7] if row[7] else 0,
+                parking=row[8] if row[8] else False,
+                description=row[9] if row[9] else "",
+                is_rental=False,
+            )
+            similar_sales.append(sales_flat)
+
+        self.disconnect()
+        return similar_sales
+
     def _calculate_median(self, values: List[float]) -> float:
         """
         Calculate median of a list of values.

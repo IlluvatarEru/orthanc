@@ -71,33 +71,6 @@ class TestMiscQueries:
                 f"No recent sales data found for {jk_name} (updated within 24 hours)"
             )
 
-        #     # Verify all sales are from the correct JK
-        #     for sale in recent_sales:
-        #         assert sale['residential_complex'] == jk_name
-        #         # Verify query_date is recent (within past 24 hours)
-        #         assert sale['query_date'] is not None
-        #
-        #         # Parse the query_date and verify it's within the past 24 hours
-        #         query_date_str = sale['query_date']
-        #         if isinstance(query_date_str, str):
-        #             # Parse the date string (could be YYYY-MM-DD or datetime format)
-        #             try:
-        #                 query_date = datetime.strptime(query_date_str, '%Y-%m-%d')
-        #             except ValueError:
-        #                 # Try datetime format
-        #                 query_date = datetime.strptime(query_date_str, '%Y-%m-%d %H:%M:%S')
-        #         else:
-        #             query_date = query_date_str
-        #
-        #         # Check if query_date is within the past 24 hours
-        #         now = datetime.now()
-        #         time_diff = now - query_date
-        #         assert time_diff <= timedelta(hours=24), f"Sale {sale['flat_id']} query_date {query_date_str} is older than 24 hours (diff: {time_diff})"
-        #
-        #     logging.info(f"Found {len(recent_sales)} recent sales for {jk_name} (query_date within past 24h)")
-        # else:
-        #     logging.info(f"No recent sales data found for {jk_name} (query_date within past 24 hours)")
-
         # Test with non-existent JK
         non_existent_sales = db.get_latest_sales_by_jk("Non-Existent JK")
         assert isinstance(non_existent_sales, list)
