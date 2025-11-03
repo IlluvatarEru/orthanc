@@ -79,7 +79,7 @@
                                         <h6 class="text-muted">Min Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
-                                                €{{ "{:,}".format((bucket_stats.min|int / 500)|int) }}
+                                                €{{ "{:,.0f}".format((bucket_stats.min|int / eur_rate)|int) }}
                                             {% else %}
                                                 ₸{{ "{:,}".format(bucket_stats.min|int) }}
                                             {% endif %}
@@ -89,7 +89,7 @@
                                         <h6 class="text-muted">Max Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
-                                                €{{ "{:,}".format((bucket_stats.max|int / 500)|int) }}
+                                                €{{ "{:,.0f}".format((bucket_stats.max|int / eur_rate)|int) }}
                                             {% else %}
                                                 ₸{{ "{:,}".format(bucket_stats.max|int) }}
                                             {% endif %}
@@ -99,7 +99,7 @@
                                         <h6 class="text-muted">Mean Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
-                                                €{{ "{:,}".format((bucket_stats.mean|int / 500)|int) }}
+                                                €{{ "{:,.0f}".format((bucket_stats.mean|int / eur_rate)|int) }}
                                             {% else %}
                                                 ₸{{ "{:,}".format(bucket_stats.mean|int) }}
                                             {% endif %}
@@ -109,7 +109,7 @@
                                         <h6 class="text-muted">Median Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
-                                                €{{ "{:,}".format((bucket_stats.median|int / 500)|int) }}
+                                                €{{ "{:,.0f}".format((bucket_stats.median|int / eur_rate)|int) }}
                                             {% else %}
                                                 ₸{{ "{:,}".format(bucket_stats.median|int) }}
                                             {% endif %}

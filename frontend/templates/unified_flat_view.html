@@ -19,7 +19,7 @@
                         <div class="col-md-6">
                             <h5 class="text-white">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(flat_data.price / 500) }}
+                                    €{{ "{:,.0f}".format(flat_data.price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(flat_data.price) }}
                                 {% endif %}
@@ -48,7 +48,7 @@
                                     <h6 class="text-muted">Median Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
-                                            €{{ "{:,}".format((opportunity.market_stats.median_price|int) / 500) }}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.median_price|int) / eur_rate) }}
                                         {% else %}
                                             ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
                                         {% endif %}
@@ -58,7 +58,7 @@
                                     <h6 class="text-muted">Mean Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
-                                            €{{ "{:,}".format((opportunity.market_stats.mean_price|int) / 500) }}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.mean_price|int) / eur_rate) }}
                                         {% else %}
                                             ₸{{ "{:,}".format(opportunity.market_stats.mean_price|int) }}
                                         {% endif %}
@@ -68,7 +68,7 @@
                                     <h6 class="text-muted">Min Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
-                                            €{{ "{:,}".format((opportunity.market_stats.min_price|int) / 500) }}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.min_price|int) / eur_rate) }}
                                         {% else %}
                                             ₸{{ "{:,}".format(opportunity.market_stats.min_price|int) }}
                                         {% endif %}
@@ -78,7 +78,7 @@
                                     <h6 class="text-muted">Max Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
-                                            €{{ "{:,}".format((opportunity.market_stats.max_price|int) / 500) }}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.max_price|int) / eur_rate) }}
                                         {% else %}
                                             ₸{{ "{:,}".format(opportunity.market_stats.max_price|int) }}
                                         {% endif %}
@@ -110,14 +110,14 @@
                             <p class="text-white mb-2">
                                 <strong>Current Price:</strong>
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(flat_data.price / 500) }}
+                                    €{{ "{:,.0f}".format(flat_data.price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(flat_data.price) }}
                                 {% endif %}
                                 | 
                                 <strong>Median Price (similar flats):</strong>
                                 {% if show_eur %}
-                                    €{{ "{:,}".format((opportunity.market_stats.median_price|int) / 500) }}
+                                    €{{ "{:,.0f}".format((opportunity.market_stats.median_price|int) / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
                                 {% endif %}
@@ -166,7 +166,7 @@
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.annual_rental_income %}
                                     {% if show_eur %}
-                                        €{{ "{:,.0f}".format(investment_analysis.annual_rental_income / 500) }}
+                                        €{{ "{:,.0f}".format(investment_analysis.annual_rental_income / eur_rate) }}
                                     {% else %}
                                         ₸{{ "{:,.0f}".format(investment_analysis.annual_rental_income) }}
                                     {% endif %}
@@ -190,7 +190,7 @@
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.rental_median %}
                                     {% if show_eur %}
-                                        €{{ "{:,.0f}".format(investment_analysis.rental_median / 500) }}
+                                        €{{ "{:,.0f}".format(investment_analysis.rental_median / eur_rate) }}
                                     {% else %}
                                         ₸{{ "{:,.0f}".format(investment_analysis.rental_median) }}
                                     {% endif %}
@@ -204,7 +204,7 @@
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.sales_avg %}
                                     {% if show_eur %}
-                                        €{{ "{:,.0f}".format(investment_analysis.sales_avg / 500) }}
+                                        €{{ "{:,.0f}".format(investment_analysis.sales_avg / eur_rate) }}
                                     {% else %}
                                         ₸{{ "{:,.0f}".format(investment_analysis.sales_avg) }}
                                     {% endif %}
@@ -233,7 +233,7 @@
                         <div class="card-body">
                             <h5 class="card-title text-white">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(flat.price / 500) }}
+                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(flat.price) }}
                                 {% endif %}
@@ -282,7 +282,7 @@
                         <div class="card-body">
                             <h5 class="card-title text-white">
                                 {% if show_eur %}
-                                    €{{ "{:,}".format(flat.price / 500) }}
+                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
                                 {% else %}
                                     ₸{{ "{:,}".format(flat.price) }}
                                 {% endif %}

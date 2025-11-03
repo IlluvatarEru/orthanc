@@ -30,7 +30,7 @@
                         <h6>Price Range</h6>
                         <p class="text-primary">
                             {% if show_eur %}
-                                €{{ "{:,}".format(analysis.rental_stats.price_stats.min / 500) }} - €{{ "{:,}".format(analysis.rental_stats.price_stats.max / 500) }}
+                                €{{ "{:,.0f}".format(analysis.rental_stats.price_stats.min / eur_rate) }} - €{{ "{:,.0f}".format(analysis.rental_stats.price_stats.max / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,}".format(analysis.rental_stats.price_stats.min) }} - ₸{{ "{:,}".format(analysis.rental_stats.price_stats.max) }}
                             {% endif %}
@@ -40,7 +40,7 @@
                         <h6>Average Price</h6>
                         <p class="text-primary">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg / 500) }}
+                                €{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.avg) }}
                             {% endif %}
@@ -52,7 +52,7 @@
                         <h6>Median Price</h6>
                         <p class="text-primary">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median / 500) }}
+                                €{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.rental_stats.price_stats.median) }}
                             {% endif %}
@@ -79,7 +79,7 @@
                         <h6>Price Range</h6>
                         <p class="text-success">
                             {% if show_eur %}
-                                €{{ "{:,}".format(analysis.sales_stats.price_stats.min / 500) }} - €{{ "{:,}".format(analysis.sales_stats.price_stats.max / 500) }}
+                                €{{ "{:,.0f}".format(analysis.sales_stats.price_stats.min / eur_rate) }} - €{{ "{:,.0f}".format(analysis.sales_stats.price_stats.max / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,}".format(analysis.sales_stats.price_stats.min) }} - ₸{{ "{:,}".format(analysis.sales_stats.price_stats.max) }}
                             {% endif %}
@@ -89,7 +89,7 @@
                         <h6>Average Price</h6>
                         <p class="text-success">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.sales_stats.price_stats.avg / 500) }}
+                                €{{ "{:,.0f}".format(analysis.sales_stats.price_stats.avg / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.avg) }}
                             {% endif %}
@@ -101,7 +101,7 @@
                         <h6>Median Price</h6>
                         <p class="text-success">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.sales_stats.price_stats.median / 500) }}
+                                €{{ "{:,.0f}".format(analysis.sales_stats.price_stats.median / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.sales_stats.price_stats.median) }}
                             {% endif %}
@@ -130,7 +130,7 @@
                         <h6>Median Annual Rent</h6>
                         <p class="h4">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.yield_analysis.median_annual_rent / 500) }}
+                                €{{ "{:,.0f}".format(analysis.yield_analysis.median_annual_rent / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.yield_analysis.median_annual_rent) }}
                             {% endif %}
@@ -140,7 +140,7 @@
                         <h6>Median Sale Price</h6>
                         <p class="h4">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.yield_analysis.median_sale_price / 500) }}
+                                €{{ "{:,.0f}".format(analysis.yield_analysis.median_sale_price / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.yield_analysis.median_sale_price) }}
                             {% endif %}
@@ -177,7 +177,7 @@
                         <h6>Rental Price per m²</h6>
                         <p class="text-primary">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental / 500) }}
+                                €{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.rental) }}
                             {% endif %}
@@ -187,7 +187,7 @@
                         <h6>Sales Price per m²</h6>
                         <p class="text-success">
                             {% if show_eur %}
-                                €{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales / 500) }}
+                                €{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales / eur_rate) }}
                             {% else %}
                                 ₸{{ "{:,.0f}".format(analysis.insights.price_per_sqm.sales) }}
                             {% endif %}
