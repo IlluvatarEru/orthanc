@@ -72,7 +72,26 @@ class WebappAPIClient:
         return data.get("flat") if data.get("success") else None
     
     def get_similar_flats(self, flat_id: str, area_tolerance: float = 10.0, min_flats: int = 3) -> Dict:
-        """Get similar flats for analysis."""
+        """
+        Get similar flats for investment analysis.
+        
+        :param flat_id: str, ID of the flat to find similar properties for
+        :param area_tolerance: float, area tolerance percentage (default: 10.0)
+        :param min_flats: int, minimum number of similar flats required in each category (default: 3)
+        :return: dict, response containing:
+            - On success (success=True):
+                - flat_info: dict, information about the queried flat
+                - similar_rentals: list, list of similar rental flat dicts (flat_id, price, area, residential_complex, floor, construction_year)
+                - similar_sales: list, list of similar sales flat dicts (flat_id, price, area, residential_complex, floor, construction_year)
+                - rental_count: int, number of similar rental flats found
+                - sales_count: int, number of similar sales flats found
+                - area_tolerance: float, area tolerance used
+            - On failure (success=False):
+                - error: str, error message explaining why the request failed
+                - rental_count: int, number of rental flats found (may be less than min_flats)
+                - sales_count: int, number of sales flats found (may be less than min_flats)
+                - min_required: int, minimum required flats per category
+        """
         response = requests.get(
             f"{self.base_url}/api/flats/{flat_id}/similar",
             params={"area_tolerance": area_tolerance, "min_flats": min_flats}
