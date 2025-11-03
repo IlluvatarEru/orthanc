@@ -600,7 +600,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(rental_flats|map(attribute='price')|min) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format((rental_flats|map(attribute='price')|min) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(rental_flats|map(attribute='price')|min) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Min Price</div>
                             </div>
@@ -608,7 +612,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(rental_flats|map(attribute='price')|max) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format((rental_flats|map(attribute='price')|max) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(rental_flats|map(attribute='price')|max) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Max Price</div>
                             </div>
@@ -616,7 +624,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(((rental_flats|map(attribute='price')|sum) / rental_flats|length)|int) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(((rental_flats|map(attribute='price')|sum) / rental_flats|length) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(((rental_flats|map(attribute='price')|sum) / rental_flats|length)|int) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Avg Price</div>
                             </div>
@@ -624,7 +636,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(rental_median) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(rental_median / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(rental_median|int) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Median Price</div>
                             </div>
@@ -648,7 +664,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(sales_flats|map(attribute='price')|min) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format((sales_flats|map(attribute='price')|min) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(sales_flats|map(attribute='price')|min) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Min Price</div>
                             </div>
@@ -656,7 +676,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(sales_flats|map(attribute='price')|max) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format((sales_flats|map(attribute='price')|max) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(sales_flats|map(attribute='price')|max) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Max Price</div>
                             </div>
@@ -664,7 +688,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length)|int) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length)|int) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Avg Price</div>
                             </div>
@@ -672,7 +700,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
-                                    {{ "{:,}".format(sales_median) }}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(sales_median / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(sales_median|int) }}
+                                    {% endif %}
                                 </div>
                                 <div class="kpi-label">Median Price</div>
                             </div>
