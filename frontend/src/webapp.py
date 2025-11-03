@@ -33,15 +33,7 @@ def inject_currency_preference():
     db = OrthancDB()
     eur_rate = db.get_latest_rate('EUR')
     db.disconnect()
-
-    # If no rate in database, fetch from web
-    if not eur_rate:
-        from price.src.currency import CurrencyManager
-        currency_manager = CurrencyManager()
-        rates = currency_manager.fetch_mig_exchange_rates()
-        if rates:
-            eur_rate = rates['EUR']
-            return dict(show_eur=show_eur, eur_rate=eur_rate)
+    return dict(show_eur=show_eur, eur_rate=eur_rate)
 
 
 # Initialize API client
@@ -385,7 +377,7 @@ def estimate_flat():
 def calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance):
     """
     Calculate investment analysis for a flat.
-    
+
     :param flat_data: dict, flat information
     :param similar_rentals: list, similar rental flats
     :param similar_sales: list, similar sales flats

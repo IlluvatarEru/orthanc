@@ -59,6 +59,7 @@ def launch_realtime_market_data(db_path: str = "flats.db", log_level: int = logg
             logger.info(f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             logger.info(f"Next fetch scheduled for: {next_midday.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             logger.info(f"Sleeping for {sleep_duration / 3600:.1f} hours")
+            sleep_duration=0
 
             # Sleep until next midday
             time.sleep(sleep_duration)

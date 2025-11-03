@@ -143,8 +143,8 @@
 
         #eurRateDisplay {
             font-size: 0.9rem;
-            opacity: 0.8;
-            width: 100px;
+            opacity: 1;
+            width: 120px;
             display: inline-block;
             white-space: nowrap;
             overflow: hidden;
@@ -497,7 +497,7 @@
                                         <i class="fas fa-euro-sign me-1"></i>EUR
                                     </label>
                                 </div>
-                                <small class="text-muted" id="eurRateDisplay" style="opacity: 0;">1 EUR = ₸<span id="currentEurRate">-</span></small>
+                                <small class="text-muted" id="eurRateDisplay">1 EUR = ₸<span id="currentEurRate">-</span></small>
                             </div>
                         </a>
                     </li>
@@ -557,6 +557,9 @@
                 });
             }, 5000);
             
+            // Load EUR rate
+            loadEurRate();
+            
             // EUR toggle functionality
             const eurToggle = document.getElementById('eurToggle');
             if (eurToggle) {
@@ -571,6 +574,25 @@
                 });
             }
         });
+        
+        // Function to load EUR rate from API
+        function loadEurRate() {
+            fetch('/api/exchange_rates')
+                .then(response => response.json())
+                .then(data => {
+                    const eurRateElement = document.getElementById('currentEurRate');
+                    if (eurRateElement && data.EUR) {
+                        eurRateElement.textContent = data.EUR.toFixed(2);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading EUR rate:', error);
+                    const eurRateElement = document.getElementById('currentEurRate');
+                    if (eurRateElement) {
+                        eurRateElement.textContent = 'Error';
+                    }
+                });
+        }
         
         // Function to toggle between KZT and EUR display
         function updatePricesWithEur(showEur) {
