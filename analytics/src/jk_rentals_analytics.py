@@ -256,27 +256,41 @@ class JKRentalAnalytics:
         :return: List[Dict], list of similar sales flats
         """
         similar = []
-        rental_area = rental["area"]
-        rental_flat_type = rental["flat_type"]
+        rental_area = rental.get("area")
+        rental_flat_type = rental.get("flat_type")
+
+        if rental_area is None or rental_flat_type is None:
+            logger.warning(
+                f"Rental {rental.get('flat_id')} missing area or flat_type: area={rental_area}, flat_type={rental_flat_type}"
+            )
+            return similar
 
         for sale in sales_flats:
+            sale_flat_type = sale.get("flat_type")
+            sale_area = sale.get("area")
+
+            if sale_flat_type is None or sale_area is None:
+                continue
+
             # Match by flat_type and area within tolerance (Studio and 1BR mixed because kazakhs are bad at distinguishing them)
             if (
-                (sale["flat_type"] == rental_flat_type)
+                (sale_flat_type == rental_flat_type)
                 or (
                     rental_flat_type == FlatType.STUDIO.value
-                    and sale["flat_type"] == FlatType.ONE_BEDROOM.value
+                    and sale_flat_type == FlatType.ONE_BEDROOM.value
                 )
                 or (
                     rental_flat_type == FlatType.ONE_BEDROOM.value
-                    and sale["flat_type"] == FlatType.STUDIO.value
+                    and sale_flat_type == FlatType.STUDIO.value
                 )
             ):
-                sale_area = sale["area"]
                 # Check if areas are within tolerance (20% of each other)
-                area_diff = abs(sale_area - rental_area) / max(sale_area, rental_area)
-                if area_diff <= area_tolerance:
-                    similar.append(sale)
+                if max(sale_area, rental_area) > 0:
+                    area_diff = abs(sale_area - rental_area) / max(
+                        sale_area, rental_area
+                    )
+                    if area_diff <= area_tolerance:
+                        similar.append(sale)
 
         return similar
 

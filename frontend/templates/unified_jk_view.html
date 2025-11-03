@@ -636,8 +636,11 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                         <div class="col-6">
                             <div class="kpi-card">
                                 <div class="kpi-value text-white">
+                                    {% set prices = rental_flats|map(attribute='price')|sort %}
+                                    {% set n = prices|length %}
+                                    {% set rental_median = (prices[n // 2 - 1] + prices[n // 2]) / 2 if n % 2 == 0 else prices[n // 2] %}
                                     {% if show_eur %}
-                                        €{{ "{:,.0f}".format(rental_median / eur_rate) }}
+                                        €{{ "{:,.0f}".format(rental_median / eur_rate|int) }}
                                     {% else %}
                                         ₸{{ "{:,}".format(rental_median|int) }}
                                     {% endif %}
