@@ -10,6 +10,7 @@ from typing import Optional, List, Dict
 import logging
 from datetime import datetime
 from common.src.flat_info import FlatInfo
+from common.src.flat_type import FLAT_TYPE_VALUES
 from .table_creation import DatabaseSchema
 
 
@@ -938,7 +939,7 @@ class OrthancDB:
         )
 
         # Calculate statistics by flat type
-        flat_types = ["Studio", "1BR", "2BR", "3BR+"]
+        flat_types = FLAT_TYPE_VALUES
         type_stats = {}
 
         for flat_type in flat_types:

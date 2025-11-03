@@ -10,7 +10,7 @@ from typing import Dict, List, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 
-from common.src.flat_type import FlatType
+from common.src.flat_type import FlatType, FLAT_TYPE_VALUES
 from db.src.write_read_database import OrthancDB
 from common.src.flat_info import FlatInfo
 
@@ -221,7 +221,7 @@ class JKRentalAnalytics:
 
         # Calculate statistics by flat type
         flat_type_buckets = {}
-        for flat_type in ["Studio", "1BR", "2BR", "3BR+"]:
+        for flat_type in FLAT_TYPE_VALUES:
             type_rentals = [
                 r
                 for r in latest_rentals
