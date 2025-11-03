@@ -21,11 +21,8 @@ from scrapers.src.residential_complex_scraper import update_complex_database
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('jk_scraping.log'),
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("jk_scraping.log"), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 
@@ -33,11 +30,13 @@ logger = logging.getLogger(__name__)
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     """
     Get all residential complexes (JKs) from the residential_complexes table, excluding blacklisted ones.
-    
+
     :param db_path: str, path to database file
     :return: List[Dict], list of JK information
     """
-    logger.info("Fetching all JKs from residential_complexes table (excluding blacklisted)")
+    logger.info(
+        "Fetching all JKs from residential_complexes table (excluding blacklisted)"
+    )
 
     db = OrthancDB(db_path)
     db.connect()
@@ -53,12 +52,16 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
         """)
 
         jks = [dict(row) for row in cursor.fetchall()]
-        logger.info(f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)")
+        logger.info(
+            f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
+        )
 
         # Log blacklisted JKs for transparency
         blacklisted_jks = db.get_blacklisted_jks()
         if blacklisted_jks:
-            logger.info(f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}")
+            logger.info(
+                f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
+            )
 
         return jks
 
@@ -69,10 +72,12 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
         db.disconnect()
 
 
-def scrape_all_jk_rentals(db_path: str = "flats.db", max_pages: int = 1) -> Dict[str, int]:
+def scrape_all_jk_rentals(
+    db_path: str = "flats.db", max_pages: int = 1
+) -> Dict[str, int]:
     """
     Scrape all JK rentals from the database.
-    
+
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :return: Dict[str, int], results with JK names and saved counts
@@ -88,14 +93,12 @@ def scrape_all_jk_rentals(db_path: str = "flats.db", max_pages: int = 1) -> Dict
     total_saved = 0
 
     for i, jk_info in enumerate(jks, 1):
-        jk_name = jk_info['residential_complex']
+        jk_name = jk_info["residential_complex"]
         logger.info(f"[{i}/{len(jks)}] Scraping rentals for: {jk_name}")
 
         try:
             saved_count = scrape_and_save_jk_rentals(
-                jk_name=jk_name,
-                max_pages=max_pages,
-                db_path=db_path
+                jk_name=jk_name, max_pages=max_pages, db_path=db_path
             )
 
             results[jk_name] = saved_count
@@ -114,10 +117,12 @@ def scrape_all_jk_rentals(db_path: str = "flats.db", max_pages: int = 1) -> Dict
     return results
 
 
-def scrape_all_jk_sales(db_path: str = "flats.db", max_pages: int = 1) -> Dict[str, int]:
+def scrape_all_jk_sales(
+    db_path: str = "flats.db", max_pages: int = 1
+) -> Dict[str, int]:
     """
     Scrape all JK sales from the database.
-    
+
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :return: Dict[str, int], results with JK names and saved counts
@@ -133,14 +138,12 @@ def scrape_all_jk_sales(db_path: str = "flats.db", max_pages: int = 1) -> Dict[s
     total_saved = 0
 
     for i, jk_info in enumerate(jks, 1):
-        jk_name = jk_info['residential_complex']
+        jk_name = jk_info["residential_complex"]
         logger.info(f"[{i}/{len(jks)}] Scraping sales for: {jk_name}")
 
         try:
             saved_count = scrape_and_save_jk_sales(
-                jk_name=jk_name,
-                max_pages=max_pages,
-                db_path=db_path
+                jk_name=jk_name, max_pages=max_pages, db_path=db_path
             )
 
             results[jk_name] = saved_count
@@ -159,17 +162,20 @@ def scrape_all_jk_sales(db_path: str = "flats.db", max_pages: int = 1) -> Dict[s
     return results
 
 
-def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
-                               run_time: str = "12:00") -> None:
+def daily_rental_scraping_loop(
+    db_path: str = "flats.db", max_pages: int = 1, run_time: str = "12:00"
+) -> None:
     """
     Run daily rental scraping in a continuous loop.
     Starts immediately when launched, then runs at the specified time each day.
-    
+
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param run_time: str, time to run scraping (format: "HH:MM")
     """
-    logger.info(f"Starting daily rental scraping loop (immediate run, then daily at {run_time})")
+    logger.info(
+        f"Starting daily rental scraping loop (immediate run, then daily at {run_time})"
+    )
 
     # Run immediately on startup
     logger.info("Running initial rental scraping immediately...")
@@ -180,7 +186,7 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
         total_saved = sum(results.values())
         successful_jks = len([r for r in results.values() if r > 0])
 
-        logger.info(f"Initial rental scraping completed:")
+        logger.info("Initial rental scraping completed:")
         logger.info(f"  - JKs processed: {len(results)}")
         logger.info(f"  - Successful JKs: {successful_jks}")
         logger.info(f"  - Total flats saved: {total_saved}")
@@ -188,11 +194,13 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
         logger.error(f"Error in initial rental scraping: {e}")
 
     # Parse target time
-    target_hour, target_minute = map(int, run_time.split(':'))
+    target_hour, target_minute = map(int, run_time.split(":"))
 
     # Calculate next run time
     now = datetime.now()
-    next_run = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+    next_run = now.replace(
+        hour=target_hour, minute=target_minute, second=0, microsecond=0
+    )
     if next_run <= now:
         next_run = next_run + timedelta(days=1)
 
@@ -204,8 +212,9 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
             current_time = now.strftime("%H:%M")
 
             # Check if it's time to run (within 1 minute of target time)
-            if (now.hour == target_hour and now.minute == target_minute) or \
-                    (now.hour == target_hour and now.minute == target_minute + 1):
+            if (now.hour == target_hour and now.minute == target_minute) or (
+                now.hour == target_hour and now.minute == target_minute + 1
+            ):
                 logger.info(f"Starting daily rental scraping at {current_time}")
 
                 results = scrape_all_jk_rentals(db_path, max_pages)
@@ -214,7 +223,7 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
                 total_saved = sum(results.values())
                 successful_jks = len([r for r in results.values() if r > 0])
 
-                logger.info(f"Daily rental scraping completed:")
+                logger.info("Daily rental scraping completed:")
                 logger.info(f"  - JKs processed: {len(results)}")
                 logger.info(f"  - Successful JKs: {successful_jks}")
                 logger.info(f"  - Total flats saved: {total_saved}")
@@ -225,9 +234,12 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
                 logger.info(f"Waiting {wait_seconds / 3600:.1f} hours until next run")
 
                 # Calculate and log the next scheduled run time
-                tomorrow_run = (now + timedelta(days=1)).replace(hour=target_hour, minute=target_minute, second=0,
-                                                                 microsecond=0)
-                logger.info(f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                tomorrow_run = (now + timedelta(days=1)).replace(
+                    hour=target_hour, minute=target_minute, second=0, microsecond=0
+                )
+                logger.info(
+                    f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
 
                 time.sleep(wait_seconds)
             else:
@@ -242,17 +254,20 @@ def daily_rental_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
             time.sleep(300)  # Wait 5 minutes before retrying
 
 
-def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
-                              run_time: str = "13:00") -> None:
+def daily_sales_scraping_loop(
+    db_path: str = "flats.db", max_pages: int = 1, run_time: str = "13:00"
+) -> None:
     """
     Run daily sales scraping in a continuous loop.
     Starts immediately when launched, then runs at the specified time each day.
-    
+
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param run_time: str, time to run scraping (format: "HH:MM")
     """
-    logger.info(f"Starting daily sales scraping loop (immediate run, then daily at {run_time})")
+    logger.info(
+        f"Starting daily sales scraping loop (immediate run, then daily at {run_time})"
+    )
 
     # Run immediately on startup
     logger.info("Running initial sales scraping immediately...")
@@ -263,7 +278,7 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
         total_saved = sum(results.values())
         successful_jks = len([r for r in results.values() if r > 0])
 
-        logger.info(f"Initial sales scraping completed:")
+        logger.info("Initial sales scraping completed:")
         logger.info(f"  - JKs processed: {len(results)}")
         logger.info(f"  - Successful JKs: {successful_jks}")
         logger.info(f"  - Total flats saved: {total_saved}")
@@ -271,11 +286,13 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
         logger.error(f"Error in initial sales scraping: {e}")
 
     # Parse target time
-    target_hour, target_minute = map(int, run_time.split(':'))
+    target_hour, target_minute = map(int, run_time.split(":"))
 
     # Calculate next run time
     now = datetime.now()
-    next_run = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
+    next_run = now.replace(
+        hour=target_hour, minute=target_minute, second=0, microsecond=0
+    )
     if next_run <= now:
         next_run = next_run + timedelta(days=1)
 
@@ -287,8 +304,9 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
             current_time = now.strftime("%H:%M")
 
             # Check if it's time to run (within 1 minute of target time)
-            if (now.hour == target_hour and now.minute == target_minute) or \
-                    (now.hour == target_hour and now.minute == target_minute + 1):
+            if (now.hour == target_hour and now.minute == target_minute) or (
+                now.hour == target_hour and now.minute == target_minute + 1
+            ):
                 logger.info(f"Starting daily sales scraping at {current_time}")
 
                 results = scrape_all_jk_sales(db_path, max_pages)
@@ -297,7 +315,7 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
                 total_saved = sum(results.values())
                 successful_jks = len([r for r in results.values() if r > 0])
 
-                logger.info(f"Daily sales scraping completed:")
+                logger.info("Daily sales scraping completed:")
                 logger.info(f"  - JKs processed: {len(results)}")
                 logger.info(f"  - Successful JKs: {successful_jks}")
                 logger.info(f"  - Total flats saved: {total_saved}")
@@ -308,9 +326,12 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
                 logger.info(f"Waiting {wait_seconds / 3600:.1f} hours until next run")
 
                 # Calculate and log the next scheduled run time
-                tomorrow_run = (now + timedelta(days=1)).replace(hour=target_hour, minute=target_minute, second=0,
-                                                                 microsecond=0)
-                logger.info(f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}")
+                tomorrow_run = (now + timedelta(days=1)).replace(
+                    hour=target_hour, minute=target_minute, second=0, microsecond=0
+                )
+                logger.info(
+                    f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}"
+                )
 
                 time.sleep(wait_seconds)
             else:
@@ -325,11 +346,15 @@ def daily_sales_scraping_loop(db_path: str = "flats.db", max_pages: int = 1,
             time.sleep(300)  # Wait 5 minutes before retrying
 
 
-def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 1,
-                           scrape_rentals: bool = True, scrape_sales: bool = True) -> None:
+def run_immediate_scraping(
+    db_path: str = "flats.db",
+    max_pages: int = 1,
+    scrape_rentals: bool = True,
+    scrape_sales: bool = True,
+) -> None:
     """
     Run immediate scraping of all JKs (rentals and/or sales).
-    
+
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param scrape_rentals: bool, whether to scrape rentals
@@ -344,7 +369,8 @@ def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 1,
         rental_total = sum(rental_results.values())
         rental_successful = len([r for r in rental_results.values() if r > 0])
         logger.info(
-            f"Rental scraping completed: {rental_successful}/{len(rental_results)} JKs successful, {rental_total} flats saved")
+            f"Rental scraping completed: {rental_successful}/{len(rental_results)} JKs successful, {rental_total} flats saved"
+        )
 
     if scrape_sales:
         logger.info("Scraping all JK sales...")
@@ -353,7 +379,8 @@ def run_immediate_scraping(db_path: str = "flats.db", max_pages: int = 1,
         sales_total = sum(sales_results.values())
         sales_successful = len([r for r in sales_results.values() if r > 0])
         logger.info(
-            f"Sales scraping completed: {sales_successful}/{len(sales_results)} JKs successful, {sales_total} flats saved")
+            f"Sales scraping completed: {sales_successful}/{len(sales_results)} JKs successful, {sales_total} flats saved"
+        )
 
     logger.info("Immediate scraping completed!")
 
@@ -362,7 +389,7 @@ def fetch_all_jks(db_path: str = "flats.db") -> int:
     """
     Fetch all residential complexes (JKs) from Krisha.kz and save them to the database.
     First clears the existing data to ensure fresh, complete data.
-    
+
     :param db_path: str, path to database file
     :return: int, number of JKs fetched and saved
     """
@@ -391,7 +418,9 @@ def fetch_all_jks(db_path: str = "flats.db") -> int:
         saved_count = update_complex_database(db_path)
 
         if saved_count > 0:
-            logger.info(f"✅ Successfully fetched and saved {saved_count} residential complexes")
+            logger.info(
+                f"✅ Successfully fetched and saved {saved_count} residential complexes"
+            )
 
             # Get some statistics about what was saved
             db = OrthancDB(db_path)
@@ -410,10 +439,16 @@ def fetch_all_jks(db_path: str = "flats.db") -> int:
                 """)
                 sample_complexes = cursor.fetchall()
 
-                logger.info(f"📊 Database now contains {total_count} total residential complexes")
+                logger.info(
+                    f"📊 Database now contains {total_count} total residential complexes"
+                )
                 logger.info("📋 Sample complexes:")
-                for i, (name, complex_id, city, district) in enumerate(sample_complexes, 1):
-                    location_info = f" ({city}, {district})" if city and district else ""
+                for i, (name, complex_id, city, district) in enumerate(
+                    sample_complexes, 1
+                ):
+                    location_info = (
+                        f" ({city}, {district})" if city and district else ""
+                    )
                     logger.info(f"   {i}. {name} (ID: {complex_id}){location_info}")
 
             finally:
@@ -429,11 +464,16 @@ def fetch_all_jks(db_path: str = "flats.db") -> int:
         return 0
 
 
-def scrape_single_jk(jk_name: str, db_path: str = "flats.db", max_pages: int = 10,
-                     scrape_rentals: bool = True, scrape_sales: bool = True) -> Dict[str, int]:
+def scrape_single_jk(
+    jk_name: str,
+    db_path: str = "flats.db",
+    max_pages: int = 10,
+    scrape_rentals: bool = True,
+    scrape_sales: bool = True,
+) -> Dict[str, int]:
     """
     Scrape a specific JK if it doesn't already have data in the database.
-    
+
     :param jk_name: str, name of the residential complex to scrape
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
@@ -447,27 +487,24 @@ def scrape_single_jk(jk_name: str, db_path: str = "flats.db", max_pages: int = 1
     db.connect()
 
     try:
-
         results = {
-            'rentals_saved': 0,
-            'sales_saved': 0,
+            "rentals_saved": 0,
+            "sales_saved": 0,
         }
 
         if scrape_rentals:
             logger.info(f"📥 No rental data found for {jk_name}. Scraping rentals...")
-            results['rentals_saved'] = scrape_and_save_jk_rentals(
-                jk_name=jk_name,
-                max_pages=max_pages,
-                db_path=db_path
+            results["rentals_saved"] = scrape_and_save_jk_rentals(
+                jk_name=jk_name, max_pages=max_pages, db_path=db_path
             )
-            logger.info(f"✅ Saved {results['rentals_saved']} rental flats for {jk_name}")
+            logger.info(
+                f"✅ Saved {results['rentals_saved']} rental flats for {jk_name}"
+            )
 
         if scrape_sales:
             logger.info(f"📥 No sales data found for {jk_name}. Scraping sales...")
-            results['sales_saved'] = scrape_and_save_jk_sales(
-                jk_name=jk_name,
-                max_pages=max_pages,
-                db_path=db_path
+            results["sales_saved"] = scrape_and_save_jk_sales(
+                jk_name=jk_name, max_pages=max_pages, db_path=db_path
             )
             logger.info(f"✅ Saved {results['sales_saved']} sales flats for {jk_name}")
 
@@ -477,11 +514,16 @@ def scrape_single_jk(jk_name: str, db_path: str = "flats.db", max_pages: int = 1
         db.disconnect()
 
 
-def manage_blacklist(db_path: str = "flats.db", action: str = "list",
-                     krisha_id: str = None, name: str = None, notes: str = None) -> None:
+def manage_blacklist(
+    db_path: str = "flats.db",
+    action: str = "list",
+    krisha_id: str = None,
+    name: str = None,
+    notes: str = None,
+) -> None:
     """
     Manage blacklisted JKs.
-    
+
     :param db_path: str, path to database file
     :param action: str, action to perform ('list', 'add', 'remove')
     :param krisha_id: str, Krisha ID of the JK
@@ -495,7 +537,9 @@ def manage_blacklist(db_path: str = "flats.db", action: str = "list",
         if blacklisted:
             logger.info(f"Blacklisted JKs ({len(blacklisted)}):")
             for jk in blacklisted:
-                logger.info(f"  - {jk['name']} (ID: {jk['krisha_id']}) - {jk['notes'] or 'No notes'}")
+                logger.info(
+                    f"  - {jk['name']} (ID: {jk['krisha_id']}) - {jk['notes'] or 'No notes'}"
+                )
         else:
             logger.info("No blacklisted JKs found")
 
@@ -512,7 +556,9 @@ def manage_blacklist(db_path: str = "flats.db", action: str = "list",
 
     elif action == "remove":
         if not krisha_id and not name:
-            logger.error("Either krisha_id or name is required for removing from blacklist")
+            logger.error(
+                "Either krisha_id or name is required for removing from blacklist"
+            )
             return
 
         success = db.whitelist_jk(krisha_id, name)
@@ -529,20 +575,46 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Launch JK scraping operations")
-    parser.add_argument("--mode",
-                        choices=["immediate", "daily-rentals", "daily-sales", "blacklist", "fetch-jks", "scrape-jk"],
-                        default="immediate", help="Scraping mode")
+    parser.add_argument(
+        "--mode",
+        choices=[
+            "immediate",
+            "daily-rentals",
+            "daily-sales",
+            "blacklist",
+            "fetch-jks",
+            "scrape-jk",
+        ],
+        default="immediate",
+        help="Scraping mode",
+    )
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
     parser.add_argument("--max-pages", type=int, default=1, help="Maximum pages per JK")
-    parser.add_argument("--rentals", action="store_true", help="Include rentals (immediate mode or scrape-jk mode)")
-    parser.add_argument("--sales", action="store_true", help="Include sales (immediate mode or scrape-jk mode)")
-    parser.add_argument("--run-time", default="12:00", help="Time to run daily scraping (HH:MM)")
+    parser.add_argument(
+        "--rentals",
+        action="store_true",
+        help="Include rentals (immediate mode or scrape-jk mode)",
+    )
+    parser.add_argument(
+        "--sales",
+        action="store_true",
+        help="Include sales (immediate mode or scrape-jk mode)",
+    )
+    parser.add_argument(
+        "--run-time", default="12:00", help="Time to run daily scraping (HH:MM)"
+    )
 
     # Blacklist management arguments
-    parser.add_argument("--blacklist-action", choices=["list", "add", "remove"],
-                        default="list", help="Blacklist action")
+    parser.add_argument(
+        "--blacklist-action",
+        choices=["list", "add", "remove"],
+        default="list",
+        help="Blacklist action",
+    )
     parser.add_argument("--krisha-id", help="Krisha ID for blacklist operations")
-    parser.add_argument("--jk-name", help="JK name for blacklist operations or scrape-jk mode")
+    parser.add_argument(
+        "--jk-name", help="JK name for blacklist operations or scrape-jk mode"
+    )
     parser.add_argument("--notes", help="Notes for blacklisting")
 
     args = parser.parse_args()
@@ -552,19 +624,15 @@ if __name__ == "__main__":
             db_path=args.db_path,
             max_pages=args.max_pages,
             scrape_rentals=args.rentals or not (args.rentals or args.sales),
-            scrape_sales=args.sales or not (args.rentals or args.sales)
+            scrape_sales=args.sales or not (args.rentals or args.sales),
         )
     elif args.mode == "daily-rentals":
         daily_rental_scraping_loop(
-            db_path=args.db_path,
-            max_pages=args.max_pages,
-            run_time=args.run_time
+            db_path=args.db_path, max_pages=args.max_pages, run_time=args.run_time
         )
     elif args.mode == "daily-sales":
         daily_sales_scraping_loop(
-            db_path=args.db_path,
-            max_pages=args.max_pages,
-            run_time=args.run_time
+            db_path=args.db_path, max_pages=args.max_pages, run_time=args.run_time
         )
     elif args.mode == "blacklist":
         manage_blacklist(
@@ -572,7 +640,7 @@ if __name__ == "__main__":
             action=args.blacklist_action,
             krisha_id=args.krisha_id,
             name=args.jk_name,
-            notes=args.notes
+            notes=args.notes,
         )
     elif args.mode == "fetch-jks":
         saved_count = fetch_all_jks(db_path=args.db_path)
@@ -594,5 +662,5 @@ if __name__ == "__main__":
             db_path=args.db_path,
             max_pages=args.max_pages,
             scrape_rentals=scrape_rentals,
-            scrape_sales=scrape_sales
+            scrape_sales=scrape_sales,
         )

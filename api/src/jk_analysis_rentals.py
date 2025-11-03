@@ -1,6 +1,7 @@
 """
 JK (Residential Complex) rentals analysis endpoints.
 """
+
 import logging
 from typing import Optional
 
@@ -8,8 +9,13 @@ from fastapi import APIRouter, HTTPException, Query
 
 from analytics.src.jk_rentals_analytics import JKRentalAnalytics, analyze_jk_for_rentals
 from api.src.analysis_objects import (
-    RentalAnalysisResponse, RentalCurrentMarket, RentalGlobalStats, RentalFlatTypeStats,
-    Opportunity, RentalHistoricalAnalysis, RentalHistoricalPoint
+    RentalAnalysisResponse,
+    RentalCurrentMarket,
+    RentalGlobalStats,
+    RentalFlatTypeStats,
+    Opportunity,
+    RentalHistoricalAnalysis,
+    RentalHistoricalPoint,
 )
 from db.src.write_read_database import OrthancDB
 
@@ -40,12 +46,10 @@ async def get_jk_rentals_summary(jk_name: str):
     try:
         summary = analytics_engine.get_jk_rentals_summary(jk_name)
         if not summary:
-            raise HTTPException(status_code=404, detail=f"No rental summary found for JK: {jk_name}")
-        return {
-            "success": True,
-            "jk_name": jk_name,
-            "summary": summary
-        }
+            raise HTTPException(
+                status_code=404, detail=f"No rental summary found for JK: {jk_name}"
+            )
+        return {"success": True, "jk_name": jk_name, "summary": summary}
     except Exception as e:
         logger.error(f"Error getting rental summary for JK {jk_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -53,8 +57,10 @@ async def get_jk_rentals_summary(jk_name: str):
 
 @router.get("/{jk_name}/analysis")
 async def get_jk_rentals_analysis(
-        jk_name: str,
-        min_yield_percentage: float = Query(0.05, description="Minimum yield percentage threshold for opportunities")
+    jk_name: str,
+    min_yield_percentage: float = Query(
+        0.05, description="Minimum yield percentage threshold for opportunities"
+    ),
 ) -> RentalAnalysisResponse:
     """
     Get comprehensive rental analysis for a residential complex.
@@ -62,7 +68,7 @@ async def get_jk_rentals_analysis(
     analysis = analyze_jk_for_rentals(jk_name, min_yield_percentage)
 
     # Convert opportunities to objects
-    opportunities_by_type = analysis['current_market'].opportunities
+    opportunities_by_type = analysis["current_market"].opportunities
     opportunity_objects = {}
 
     for flat_type, opportunities in opportunities_by_type.items():
@@ -86,19 +92,20 @@ async def get_jk_rentals_analysis(
                     "median_yield": opp.stats_for_flat_type.median_yield,
                     "min_yield": opp.stats_for_flat_type.min_yield,
                     "max_yield": opp.stats_for_flat_type.max_yield,
-                    "count": opp.stats_for_flat_type.count
+                    "count": opp.stats_for_flat_type.count,
                 },
-                query_date=opp.query_date
-            ) for opp in opportunities
+                query_date=opp.query_date,
+            )
+            for opp in opportunities
         ]
 
     # Create global stats object
     global_stats = RentalGlobalStats(
-        mean_yield=analysis['current_market'].global_stats.mean_yield,
-        median_yield=analysis['current_market'].global_stats.median_yield,
-        min_yield=analysis['current_market'].global_stats.min_yield,
-        max_yield=analysis['current_market'].global_stats.max_yield,
-        count=analysis['current_market'].global_stats.count
+        mean_yield=analysis["current_market"].global_stats.mean_yield,
+        median_yield=analysis["current_market"].global_stats.median_yield,
+        min_yield=analysis["current_market"].global_stats.min_yield,
+        max_yield=analysis["current_market"].global_stats.max_yield,
+        count=analysis["current_market"].global_stats.count,
     )
 
     # Create flat type buckets objects
@@ -108,20 +115,23 @@ async def get_jk_rentals_analysis(
             median_yield=stats.median_yield,
             min_yield=stats.min_yield,
             max_yield=stats.max_yield,
-            count=stats.count
-        ) for flat_type, stats in analysis['current_market'].flat_type_buckets.items()
+            count=stats.count,
+        )
+        for flat_type, stats in analysis["current_market"].flat_type_buckets.items()
     }
 
     # Create current market object
     current_market = RentalCurrentMarket(
         global_stats=global_stats,
         flat_type_buckets=flat_type_buckets,
-        opportunities=opportunity_objects
+        opportunities=opportunity_objects,
     )
 
     # Create historical analysis objects
     historical_points = {}
-    for flat_type, points in analysis['historical_analysis'].flat_type_timeseries.items():
+    for flat_type, points in analysis[
+        "historical_analysis"
+    ].flat_type_timeseries.items():
         historical_points[flat_type] = [
             RentalHistoricalPoint(
                 date=point.date,
@@ -133,8 +143,9 @@ async def get_jk_rentals_analysis(
                 max_rental=point.max_rental,
                 mean_yield=point.mean_yield,
                 median_yield=point.median_yield,
-                count=point.count
-            ) for point in points
+                count=point.count,
+            )
+            for point in points
         ]
 
     historical_analysis = RentalHistoricalAnalysis(
@@ -146,15 +157,17 @@ async def get_jk_rentals_analysis(
         jk_name=jk_name,
         min_yield_percentage=min_yield_percentage,
         current_market=current_market,
-        historical_analysis=historical_analysis
+        historical_analysis=historical_analysis,
     )
 
 
 @router.get("/{jk_name}/opportunities")
 async def get_jk_rentals_opportunities(
-        jk_name: str,
-        min_yield_percentage: float = Query(0.05, description="Minimum yield percentage threshold for opportunities"),
-        limit: int = Query(10, description="Maximum number of opportunities to return")
+    jk_name: str,
+    min_yield_percentage: float = Query(
+        0.05, description="Minimum yield percentage threshold for opportunities"
+    ),
+    limit: int = Query(10, description="Maximum number of opportunities to return"),
 ):
     """
     Get a list of rental opportunities for a specific residential complex.
@@ -163,26 +176,28 @@ async def get_jk_rentals_opportunities(
 
     # Flatten all opportunities and sort by yield percentage
     all_opportunities = []
-    for flat_type, opportunities in analysis['current_market'].opportunities.items():
+    for flat_type, opportunities in analysis["current_market"].opportunities.items():
         for opp in opportunities:
-            all_opportunities.append({
-                "flat_id": opp.flat_info.flat_id,
-                "price": opp.flat_info.price,
-                "area": opp.flat_info.area,
-                "flat_type": opp.flat_info.flat_type,
-                "residential_complex": opp.flat_info.residential_complex,
-                "floor": opp.flat_info.floor,
-                "total_floors": opp.flat_info.total_floors,
-                "construction_year": opp.flat_info.construction_year,
-                "parking": opp.flat_info.parking,
-                "description": opp.flat_info.description,
-                "is_rental": opp.flat_info.is_rental,
-                "yield_percentage": opp.yield_percentage,
-                "query_date": opp.query_date
-            })
+            all_opportunities.append(
+                {
+                    "flat_id": opp.flat_info.flat_id,
+                    "price": opp.flat_info.price,
+                    "area": opp.flat_info.area,
+                    "flat_type": opp.flat_info.flat_type,
+                    "residential_complex": opp.flat_info.residential_complex,
+                    "floor": opp.flat_info.floor,
+                    "total_floors": opp.flat_info.total_floors,
+                    "construction_year": opp.flat_info.construction_year,
+                    "parking": opp.flat_info.parking,
+                    "description": opp.flat_info.description,
+                    "is_rental": opp.flat_info.is_rental,
+                    "yield_percentage": opp.yield_percentage,
+                    "query_date": opp.query_date,
+                }
+            )
 
     # Sort by yield percentage (highest first) and limit
-    all_opportunities.sort(key=lambda x: x['yield_percentage'], reverse=True)
+    all_opportunities.sort(key=lambda x: x["yield_percentage"], reverse=True)
     limited_opportunities = all_opportunities[:limit]
 
     return {
@@ -191,17 +206,17 @@ async def get_jk_rentals_opportunities(
         "min_yield_percentage": min_yield_percentage,
         "opportunities": limited_opportunities,
         "count": len(limited_opportunities),
-        "total_found": len(all_opportunities)
+        "total_found": len(all_opportunities),
     }
 
 
 @router.get("/{jk_name}/rentals")
 async def get_jk_rentals(
-        jk_name: str,
-        flat_type: Optional[str] = Query(None, description="Filter by flat type"),
-        min_price: Optional[int] = Query(None, description="Minimum price filter"),
-        max_price: Optional[int] = Query(None, description="Maximum price filter"),
-        limit: int = Query(50, description="Maximum number of results")
+    jk_name: str,
+    flat_type: Optional[str] = Query(None, description="Filter by flat type"),
+    min_price: Optional[int] = Query(None, description="Minimum price filter"),
+    max_price: Optional[int] = Query(None, description="Maximum price filter"),
+    limit: int = Query(50, description="Maximum number of results"),
 ):
     """
     Get rental listings for a specific residential complex.
@@ -236,7 +251,7 @@ async def get_jk_rentals(
         "success": True,
         "jk_name": jk_name,
         "rentals": rentals,
-        "count": len(rentals)
+        "count": len(rentals),
     }
 
 
@@ -249,7 +264,8 @@ async def get_jk_rental_price_trends(jk_name: str):
     db.connect()
 
     # Get price trends by date
-    cursor = db.conn.execute("""
+    cursor = db.conn.execute(
+        """
         SELECT 
             DATE(query_date) as date,
             flat_type,
@@ -261,17 +277,15 @@ async def get_jk_rental_price_trends(jk_name: str):
         WHERE residential_complex = ?
         GROUP BY DATE(query_date), flat_type
         ORDER BY date DESC, flat_type
-    """, (jk_name,))
+    """,
+        (jk_name,),
+    )
 
     trends = [dict(row) for row in cursor.fetchall()]
 
     db.disconnect()
 
-    return {
-        "success": True,
-        "jk_name": jk_name,
-        "price_trends": trends
-    }
+    return {"success": True, "jk_name": jk_name, "price_trends": trends}
 
 
 @router.get("/stats/overview")
@@ -331,6 +345,6 @@ async def get_rentals_overview():
         "overview": {
             "overall_stats": overall_stats,
             "top_jks": top_jks,
-            "flat_type_distribution": flat_type_distribution
-        }
+            "flat_type_distribution": flat_type_distribution,
+        },
     }

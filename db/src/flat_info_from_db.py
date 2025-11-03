@@ -15,7 +15,9 @@ from .write_read_database import OrthancDB, save_sales_flat_to_db
 import logging
 
 
-def get_flat_info(flat_id: str, flash_to_frontend: bool = True, db_path: str = "flats.db") -> Optional[FlatInfo]:
+def get_flat_info(
+    flat_id: str, flash_to_frontend: bool = True, db_path: str = "flats.db"
+) -> Optional[FlatInfo]:
     """
     Get flat information from database or scrape from web.
 
@@ -26,7 +28,7 @@ def get_flat_info(flat_id: str, flash_to_frontend: bool = True, db_path: str = "
     """
     logging.info(f"flat_id = -{flat_id}- of type {type(flat_id)}")
     db = OrthancDB(db_path)
-    rental_count = db.get_flat_count('rental')
+    rental_count = db.get_flat_count("rental")
     logging.info(f"rental_count = {rental_count}")
     try:
         db.connect()
@@ -59,7 +61,7 @@ def get_flat_info(flat_id: str, flash_to_frontend: bool = True, db_path: str = "
                 construction_year=existing_flat[7],
                 parking=existing_flat[8],
                 description=existing_flat[9],
-                is_rental=False
+                is_rental=False,
             )
         else:
             # Scrape fresh data from web
@@ -72,19 +74,26 @@ def get_flat_info(flat_id: str, flash_to_frontend: bool = True, db_path: str = "
                 # Check if flat is for rent
                 if flat_info.is_rental:
                     if flash_to_frontend:
-                        flash(f'Error: Flat ID {flat_id} is for rent (Аренда). Please provide the ID of a flat for sale.',
-                              'error')
+                        flash(
+                            f"Error: Flat ID {flat_id} is for rent (Аренда). Please provide the ID of a flat for sale.",
+                            "error",
+                        )
                     return None
 
                 # Save to database
-                query_date = datetime.now().strftime('%Y-%m-%d')
-                save_sales_flat_to_db(flat_info, flat_url, query_date, flat_info.flat_type)
+                query_date = datetime.now().strftime("%Y-%m-%d")
+                save_sales_flat_to_db(
+                    flat_info, flat_url, query_date, flat_info.flat_type
+                )
                 return flat_info
 
             except Exception as e:
                 logging.info(f"Error scraping flat {flat_id}: {e}")
                 if flash_to_frontend:
-                    flash(f'Error: Could not scrape flat {flat_id}. Please check if the flat ID is correct.', 'error')
+                    flash(
+                        f"Error: Could not scrape flat {flat_id}. Please check if the flat ID is correct.",
+                        "error",
+                    )
                 return None
 
     finally:

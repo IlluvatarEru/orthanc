@@ -6,7 +6,7 @@ from typing import Optional
 class FlatInfo:
     """
     Data class to store flat information extracted from Krisha.kz.
-    
+
     :param flat_id: str, unique identifier of the flat from URL
     :param price: int, price in tenge
     :param area: float, area in square meters
@@ -19,6 +19,7 @@ class FlatInfo:
     :param is_rental: bool, True if the flat is for rent, False if for sale
     :param flat_type: Optional[str], type of flat ('Studio', '1BR', '2BR', '3BR+')
     """
+
     flat_id: str
     price: int
     area: float
@@ -30,4 +31,3 @@ class FlatInfo:
     parking: Optional[str]
     description: str
     is_rental: bool = False
-

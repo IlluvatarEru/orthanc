@@ -2,8 +2,9 @@
 """
 Test script for the webapp frontend.
 """
+
 import requests
-import time
+
 
 def test_webapp_connectivity():
     """Test if webapp is running and responding."""
@@ -22,6 +23,7 @@ def test_webapp_connectivity():
         print(f"❌ Error testing webapp: {e}")
         return False
 
+
 def test_api_connectivity():
     """Test if API server is running."""
     try:
@@ -39,10 +41,13 @@ def test_api_connectivity():
         print(f"❌ Error testing API server: {e}")
         return False
 
+
 def test_analyze_jk_endpoint():
     """Test the analyze_jk endpoint."""
     try:
-        response = requests.get("http://localhost:5000/analyze_jk/Meridian%20Apartments", timeout=10)
+        response = requests.get(
+            "http://localhost:5000/analyze_jk/Meridian%20Apartments", timeout=10
+        )
         if response.status_code == 200:
             print("✅ Analyze JK endpoint is working")
             return True
@@ -53,21 +58,22 @@ def test_analyze_jk_endpoint():
         print(f"❌ Error testing analyze_jk endpoint: {e}")
         return False
 
+
 def main():
     """Run all tests."""
     print("Testing Orthanc webapp frontend...")
     print()
-    
+
     # Test webapp connectivity
     print("1. Testing webapp connectivity...")
     webapp_ok = test_webapp_connectivity()
     print()
-    
+
     # Test API connectivity
     print("2. Testing API server connectivity...")
     api_ok = test_api_connectivity()
     print()
-    
+
     # Test analyze_jk endpoint
     if webapp_ok:
         print("3. Testing analyze_jk endpoint...")
@@ -75,22 +81,23 @@ def main():
         print()
     else:
         endpoint_ok = False
-    
+
     # Summary
     print("=== SUMMARY ===")
     print(f"Webapp: {'✅ OK' if webapp_ok else '❌ FAILED'}")
     print(f"API Server: {'✅ OK' if api_ok else '❌ FAILED'}")
     print(f"Analyze JK: {'✅ OK' if endpoint_ok else '❌ FAILED'}")
-    
+
     if not webapp_ok:
         print()
         print("To start the webapp:")
         print("  python -m frontend.launch.launch_webapp")
-    
+
     if not api_ok:
         print()
         print("To start the API server:")
         print("  python -m api.launch.launch_api")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

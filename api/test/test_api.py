@@ -1,6 +1,7 @@
 """
 Tests for the Orthanc Real Estate Analytics API.
 """
+
 import logging
 import subprocess
 import sys
@@ -19,11 +20,19 @@ class TestAPI:
     def api_server(self):
         """Start API server for testing."""
         # Start the API server in a subprocess
-        process = subprocess.Popen([
-            sys.executable, "-m", "api.launch.launch_api",
-            "--host", "127.0.0.1",
-            "--port", "8001"
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "api.launch.launch_api",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8001",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
 
         # Wait for server to start
         time.sleep(3)

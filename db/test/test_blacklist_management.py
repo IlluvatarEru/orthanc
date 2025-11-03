@@ -1,11 +1,8 @@
 from db.src.write_read_database import OrthancDB
-import logging
 import pytest
-import datetime
 
 
-class TestBlackListManagement():
-
+class TestBlackListManagement:
     @pytest.fixture
     def db(self):
         """Create database connection using actual database."""
