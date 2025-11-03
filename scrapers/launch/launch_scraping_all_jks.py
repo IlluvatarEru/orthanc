@@ -596,13 +596,3 @@ if __name__ == "__main__":
             scrape_rentals=scrape_rentals,
             scrape_sales=scrape_sales
         )
-
-        if results['rentals_existed'] and results['sales_existed']:
-            logger.info(f"✅ {args.jk_name} already has both rental and sales data in database")
-        elif results['rentals_existed']:
-            logger.info(f"✅ {args.jk_name} already has rental data. Sales: {results['sales_saved']} flats saved")
-        elif results['sales_existed']:
-            logger.info(f"✅ {args.jk_name} already has sales data. Rentals: {results['rentals_saved']} flats saved")
-        else:
-            logger.info(
-                f"✅ Scraping completed for {args.jk_name}: {results['rentals_saved']} rentals, {results['sales_saved']} sales")
