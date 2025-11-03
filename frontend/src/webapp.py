@@ -3,19 +3,17 @@
 Clean, simple Flask webapp that fails fast and never silently catches errors.
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
-from datetime import datetime
 import logging
+from datetime import datetime
 from urllib.parse import unquote
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 
 from api.src.analysis_objects import SalesAnalysisResponse, FlatTypeStats, Opportunity
 from common.src.flat_info import FlatInfo
 # Import our modules
 from db.src.write_read_database import OrthancDB
 from frontend.src.webapp_api_client import WebappAPIClient
-from scrapers.src.krisha_rental_scraping import scrape_and_save_jk_rentals
-from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
-from scrapers.src.residential_complex_scraper import search_complex_by_name
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,68 +44,8 @@ def inject_currency_preference():
             return dict(show_eur=show_eur, eur_rate=eur_rate)
 
 
-
-
 # Initialize API client
 api_client = WebappAPIClient()
-
-
-def calculate_flat_type_overall_stats(analysis_by_flat_type):
-    """
-    Calculate overall statistics from flat type analysis for template display.
-    
-    :param analysis_by_flat_type: dict, flat type analysis data
-    :return: dict, overall statistics
-    """
-    if not analysis_by_flat_type:
-        return {
-            'median_yield': None,
-            'mean_yield': None,
-            'yield_range': None,
-            'valid_flat_types_count': 0
-        }
-
-    # Get valid flat types (those with both rental and sales data)
-    valid_flat_types = []
-    for flat_type_data in analysis_by_flat_type.values():
-        if (flat_type_data.get('rental_count', 0) > 0 and
-                flat_type_data.get('sales_count', 0) > 0 and
-                flat_type_data.get('rental_stats', {}).get('mean_yield', 0) > 0):
-            valid_flat_types.append(flat_type_data)
-
-    if not valid_flat_types:
-        return {
-            'median_yield': None,
-            'mean_yield': None,
-            'yield_range': None,
-            'valid_flat_types_count': 0
-        }
-
-    # Calculate statistics
-    yields = [flat_type['rental_stats']['mean_yield'] for flat_type in valid_flat_types]
-    yield_mins = [flat_type['rental_stats']['min_yield'] for flat_type in valid_flat_types]
-    yield_maxs = [flat_type['rental_stats']['max_yield'] for flat_type in valid_flat_types]
-
-    # Mean yield
-    mean_yield = sum(yields) / len(yields)
-
-    # Median yield
-    sorted_yields = sorted(yields)
-    if len(sorted_yields) % 2 == 0:
-        median_yield = (sorted_yields[len(sorted_yields) // 2 - 1] + sorted_yields[len(sorted_yields) // 2]) / 2
-    else:
-        median_yield = sorted_yields[len(sorted_yields) // 2]
-
-    # Yield range
-    min_yield = min(yield_mins)
-    max_yield = max(yield_maxs)
-
-    return {
-        'median_yield': median_yield,
-        'mean_yield': mean_yield,
-        'yield_range': (min_yield, max_yield),
-        'valid_flat_types_count': len(valid_flat_types)
-    }
 
 
 @app.route('/')
@@ -495,49 +433,6 @@ def calculate_investment_analysis(flat_data, similar_rentals, similar_sales, are
         'annual_rental_income': annual_rental_income,
         'yield_percentage': yield_percentage
     }
-
-
-@app.route('/similar_flats/<flat_type>/<residential_complex_name>')
-def view_similar_flats(flat_type, residential_complex_name, db_path='flats.db'):
-    """Display similar flats for a specific complex and type."""
-    # Get complex information
-    complex_info = search_complex_by_name(residential_complex_name)
-    if not complex_info:
-        raise Exception(f"Complex '{residential_complex_name}' not found")
-
-    # Get flats by type
-    db = OrthancDB(db_path)
-    flats = db.get_flats_for_residential_complex(residential_complex_name, flat_type)
-    db.disconnect()
-
-    # If no flats found, try to scrape data
-    if not flats:
-        if flat_type == 'rental':
-            saved_count = scrape_and_save_jk_rentals(residential_complex_name, max_pages=10, db_path=db_path)
-        elif flat_type == 'sales':
-            saved_count = scrape_and_save_jk_sales(residential_complex_name, max_pages=10, db_path=db_path)
-        else:
-            rental_count = scrape_and_save_jk_rentals(residential_complex_name, max_pages=10, db_path=db_path)
-            sales_count = scrape_and_save_jk_sales(residential_complex_name, max_pages=10, db_path=db_path)
-            saved_count = rental_count + sales_count
-
-        if saved_count == 0:
-            raise Exception(f"No new flats found for {residential_complex_name}")
-
-        # Get flats again after scraping
-        db = OrthancDB(db_path)
-        flats = db.get_flats_for_residential_complex(residential_complex_name, flat_type)
-        db.disconnect()
-
-    # Calculate median price
-    flat_prices = [flat.price for flat in flats] if flats else []
-    flat_median = sorted(flat_prices)[len(flat_prices) // 2] if flat_prices else 0
-
-    return render_template('view_similar_flats.html',
-                           complex_info=complex_info,
-                           flats=flats,
-                           flat_type=flat_type,
-                           flat_median=flat_median)
 
 
 @app.route('/favorites')
