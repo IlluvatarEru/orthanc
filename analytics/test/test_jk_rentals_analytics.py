@@ -414,3 +414,4 @@ class TestJKRentalAnalytics:
             logger.warning(f"Extreme yield test failed: {e}")
 
         logger.info("✅ Edge cases validation passed!")
+

@@ -25,11 +25,13 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = 'your-secret-key-here'
 
+
 # Context processor to make currency preference available in all templates
 @app.context_processor
 def inject_currency_preference():
     show_eur = request.cookies.get('showEur', 'false') == 'true'
     return dict(show_eur=show_eur)
+
 
 # Initialize API client
 api_client = WebappAPIClient()
@@ -233,11 +235,11 @@ def analyze_jk(residential_complex_name, db_path='flats.db', allow_scraping_data
     # Extract median values for template compatibility - fail fast on missing data
     rental_median = rental_global.median_yield  # Rental API provides yield stats
     sales_median = sales_global.median  # Sales API provides price stats
-    
+
     # Extract flat type buckets and opportunities from sales analysis
     flat_type_buckets = sales_analysis.current_market.flat_type_buckets
     opportunities_by_flat_type = sales_analysis.current_market.opportunities
-    
+
     # Debug: Check what we're getting
     print(f"DEBUG: flat_type_buckets: {flat_type_buckets}")
     print(f"DEBUG: opportunities_by_flat_type: {opportunities_by_flat_type}")
@@ -280,7 +282,47 @@ def view_flat_details(flat_id, area_tolerance=10.0):
 
     # Calculate investment analysis
     investment_analysis = calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance)
-    
+
+    # Calculate median price properly
+    if similar_sales:
+        sorted_prices = sorted([flat['price'] for flat in similar_sales])
+        n = len(sorted_prices)
+        if n % 2 == 0:
+            median_price = (sorted_prices[n // 2 - 1] + sorted_prices[n // 2]) / 2
+        else:
+            median_price = sorted_prices[n // 2]
+        mean_price = sum(flat['price'] for flat in similar_sales) / len(similar_sales)
+        min_price = min(flat['price'] for flat in similar_sales)
+        max_price = max(flat['price'] for flat in similar_sales)
+    else:
+        median_price = 0
+        mean_price = 0
+        min_price = 0
+        max_price = 0
+
+    # Calculate buy and sell return percentage
+    current_price = flat_data['price']
+    buy_sell_return_percentage = 0
+    buy_sell_net_return_percentage = 0
+    equivalent_annual_net_return = 0
+
+    if median_price > 0 and current_price > 0:
+        # Expected return (gross)
+        buy_sell_return_percentage = ((median_price - current_price) / current_price) * 100
+
+        # Expected net return (after 10% tax on profit and 500k notary fee)
+        tax_rate = 0.10  # 10% tax on profit only
+        notary_fee = 500000  # 500k notary fee in KZT
+        profit = median_price - current_price  # Profit = sale price - buy price
+        sale_tax = profit * tax_rate  # Tax is 10% of profit, not sale price
+        net_sale_proceeds = median_price - sale_tax - notary_fee
+        net_profit = net_sale_proceeds - current_price
+        buy_sell_net_return_percentage = (net_profit / current_price) * 100
+
+        # Equivalent annual net return (LINEAR - assuming 2M holding period)
+        holding_period_years = 2 / 12
+        equivalent_annual_net_return = buy_sell_net_return_percentage / holding_period_years
+
     # Create opportunity-like object for template compatibility
     opportunity = type('Opportunity', (), {
         'flat_id': flat_id,
@@ -295,22 +337,25 @@ def view_flat_details(flat_id, area_tolerance=10.0):
         'description': flat_data['description'],
         'discount_percentage_vs_median': None,  # Will be calculated
         'market_stats': {
-            'median_price': (similar_sales[0]['price'] + similar_sales[-1]['price']) / 2 if similar_sales else 0,
-            'mean_price': sum(flat['price'] for flat in similar_sales) / len(similar_sales) if similar_sales else 0,
-            'min_price': min(flat['price'] for flat in similar_sales) if similar_sales else 0,
-            'max_price': max(flat['price'] for flat in similar_sales) if similar_sales else 0,
+            'median_price': median_price,
+            'mean_price': mean_price,
+            'min_price': min_price,
+            'max_price': max_price,
             'count': len(similar_sales)
         },
         'bucket_flats': similar_sales  # Use similar sales as bucket flats for comparison
     })()
 
     return render_template('unified_flat_view.html',
-                          flat_data=flat_data,
-                          opportunity=opportunity,
-                          similar_rentals=similar_rentals,
-                          similar_sales=similar_sales,
-                          investment_analysis=investment_analysis,
-                          area_tolerance=area_tolerance)
+                           flat_data=flat_data,
+                           opportunity=opportunity,
+                           similar_rentals=similar_rentals,
+                           similar_sales=similar_sales,
+                           investment_analysis=investment_analysis,
+                           buy_sell_return_percentage=buy_sell_return_percentage,
+                           buy_sell_net_return_percentage=buy_sell_net_return_percentage,
+                           equivalent_annual_net_return=equivalent_annual_net_return,
+                           area_tolerance=area_tolerance)
 
 
 @app.route('/opportunity/<residential_complex_name>/<flat_id>')
@@ -369,11 +414,11 @@ def extract_flat_id_from_input(user_input):
     :return: str, extracted flat ID
     """
     user_input = user_input.strip()
-    
+
     # If it's already just a number/ID, return it
     if user_input.isdigit():
         return user_input
-    
+
     # If it's a Krisha URL, extract the ID
     if 'krisha.kz/a/show/' in user_input:
         # Extract ID from URL like https://krisha.kz/a/show/1000383479
@@ -381,13 +426,13 @@ def extract_flat_id_from_input(user_input):
         match = re.search(r'/a/show/(\d+)', user_input)
         if match:
             return match.group(1)
-    
+
     # If it's some other format, try to extract any number
     import re
     numbers = re.findall(r'\d+', user_input)
     if numbers:
         return numbers[-1]  # Return the last number found
-    
+
     # If no number found, return the original input
     return user_input
 
@@ -412,23 +457,56 @@ def estimate_flat():
 
 
 def calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance):
-    """Calculate investment analysis for a flat."""
+    """
+    Calculate investment analysis for a flat.
+    
+    :param flat_data: dict, flat information
+    :param similar_rentals: list, similar rental flats
+    :param similar_sales: list, similar sales flats
+    :param area_tolerance: float, area tolerance used
+    :return: dict, investment analysis data
+    """
     # Simple investment calculation
-    rental_avg = sum(flat['price'] for flat in similar_rentals) / len(similar_rentals)
-    sales_avg = sum(flat['price'] for flat in similar_sales) / len(similar_sales)
+    rental_median = 0
+    annual_rental_income = 0
+    sales_avg = 0
+    yield_percentage = 0
 
-    annual_rental_income = rental_avg * 12
-    yield_percentage = (annual_rental_income / sales_avg) * 100
+    # Calculate rental median (monthly rent)
+    if similar_rentals and len(similar_rentals) > 0:
+        rental_prices = [flat.get('price', 0) if isinstance(flat, dict) else getattr(flat, 'price', 0) for flat in
+                         similar_rentals]
+        rental_prices = [p for p in rental_prices if p > 0]  # Filter out 0 prices
+        if rental_prices:
+            sorted_rental_prices = sorted(rental_prices)
+            n = len(sorted_rental_prices)
+            if n % 2 == 0:
+                rental_median = (sorted_rental_prices[n // 2 - 1] + sorted_rental_prices[n // 2]) / 2
+            else:
+                rental_median = sorted_rental_prices[n // 2]
 
-    return render_template('estimate_result.html',
-                           flat_info=flat_data,
-                           flat_data=flat_data,
-                           similar_rentals=similar_rentals,
-                           similar_sales=similar_sales,
-                           rental_avg=rental_avg,
-                           sales_avg=sales_avg,
-                           yield_percentage=yield_percentage,
-                           area_tolerance=area_tolerance)
+            # Expected Annual Rent = 12 × median monthly rent
+            annual_rental_income = rental_median * 12
+
+    # Calculate sales average
+    if similar_sales and len(similar_sales) > 0:
+        sales_prices = [flat.get('price', 0) if isinstance(flat, dict) else getattr(flat, 'price', 0) for flat in
+                        similar_sales]
+        sales_prices = [p for p in sales_prices if p > 0]  # Filter out 0 prices
+        if sales_prices:
+            sales_avg = sum(sales_prices) / len(sales_prices)
+
+    # Calculate yield: Expected Annual Rent / Sale price (current flat's price)
+    current_price = flat_data.get('price', 0) if isinstance(flat_data, dict) else getattr(flat_data, 'price', 0)
+    if current_price > 0 and annual_rental_income > 0:
+        yield_percentage = (annual_rental_income / current_price) * 100
+
+    return {
+        'rental_median': rental_median,
+        'sales_avg': sales_avg,
+        'annual_rental_income': annual_rental_income,
+        'yield_percentage': yield_percentage
+    }
 
 
 @app.route('/similar_flats/<flat_type>/<residential_complex_name>')
@@ -582,19 +660,19 @@ def api_exchange_rates():
     eur_rate = db.get_latest_rate('EUR')
     usd_rate = db.get_latest_rate('USD')
     db.disconnect()
-    
+
     # If no rates in database, fetch from web
     if not eur_rate or not usd_rate:
         from price.src.currency import CurrencyManager
         currency_manager = CurrencyManager()
         rates = currency_manager.fetch_mig_exchange_rates()
-        
+
         if rates:
             eur_rate = rates['EUR']
             usd_rate = rates['USD']
         else:
             raise Exception("Failed to fetch exchange rates from web")
-    
+
     return jsonify({
         'EUR': eur_rate,
         'USD': usd_rate

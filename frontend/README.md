@@ -71,3 +71,4 @@ This happens when:
 1. Start the API server first
 2. Use "Refresh Analysis" button to scrape data
 3. Check API server logs for errors
+
