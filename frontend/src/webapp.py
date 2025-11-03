@@ -99,6 +99,8 @@ def analyze_jk(
     # Get analysis parameters
     area_max = float(request.args.get("area_max", 1000.0))
     query_date = request.args.get("date", datetime.now().strftime("%Y-%m-%d"))
+    area_tolerance = float(request.args.get("area_tolerance", 10.0))
+    discount_percentage = float(request.args.get("discount_percentage", 20.0))
 
     # Get complex information using API
     complex_info = api_client.get_complex_info(residential_complex_name)
@@ -139,8 +141,10 @@ def analyze_jk(
         db.disconnect()
 
     # Get analysis using API
+    # Convert discount_percentage from percentage (e.g., 20) to decimal (e.g., 0.20)
+    discount_decimal = discount_percentage / 100.0
     sales_analysis: SalesAnalysisResponse = api_client.get_jk_sales_analysis(
-        residential_complex_name, 0.20
+        residential_complex_name, discount_decimal
     )
     flat_type_buckets_stats: dict[str, FlatTypeStats] = (
         sales_analysis.current_market.flat_type_buckets
@@ -151,7 +155,7 @@ def analyze_jk(
     if not sales_analysis.success:
         raise Exception(f"Sales analysis API failed: {sales_analysis.error}")
 
-    rental_analysis = api_client.get_jk_rentals_analysis(residential_complex_name, 0.05)
+    rental_analysis = api_client.get_jk_rentals_analysis(residential_complex_name, 0.0)
     if not rental_analysis.success:
         raise Exception(f"Rental analysis API failed: {rental_analysis.error}")
 
@@ -235,12 +239,17 @@ def analyze_jk(
         sales_median=sales_median,
         flat_type_buckets=flat_type_buckets,
         opportunities_by_flat_type=opportunities_by_flat_type,
+        area_tolerance=area_tolerance,
+        discount_percentage=discount_percentage,
     )
 
 
 @app.route("/flat/<flat_id>")
-def view_flat_details(flat_id, area_tolerance=10.0):
+def view_flat_details(flat_id):
     """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
+    # Get analysis parameters
+    area_tolerance = float(request.args.get("area_tolerance", 10.0))
+
     # Get flat information using API
     flat_data = api_client.get_flat_info(flat_id)
     if not flat_data:

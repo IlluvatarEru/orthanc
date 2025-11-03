@@ -175,7 +175,7 @@ class WebappAPIClient:
         return SalesAnalysisResponse(**data)
 
     def get_jk_rentals_analysis(
-        self, jk_name: str, min_yield_percentage: float = 0.05
+        self, jk_name: str, min_yield_percentage: float = 0.0
     ) -> RentalAnalysisResponse:
         """Get JK rentals analysis."""
         response = requests.get(
