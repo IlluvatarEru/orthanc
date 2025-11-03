@@ -17,24 +17,23 @@ from db.src.write_read_database import OrthancDB
 from price.src.currency import CurrencyManager
 
 
-def launch_realtime_market_data(db_path: str = "flats.db", log_level: int = logging.INFO) -> None:
+def launch_realtime_market_data(
+    db_path: str = "flats.db", log_level: int = logging.INFO
+) -> None:
     """
     Launch real-time market data fetching service.
-    
+
     Fetches MIG exchange rates once daily at midday UTC and stores them in the database.
     Runs continuously, sleeping until the next midday UTC.
-    
+
     :param db_path: str, path to SQLite database file
     :param log_level: int, logging level (default: INFO)
     """
     # Configure logging
     logging.basicConfig(
         level=log_level,
-        format='%(asctime)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.StreamHandler(),
-            logging.FileHandler('market_data.log')
-        ]
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        handlers=[logging.StreamHandler(), logging.FileHandler("market_data.log")],
     )
 
     logger = logging.getLogger(__name__)
@@ -57,9 +56,11 @@ def launch_realtime_market_data(db_path: str = "flats.db", log_level: int = logg
             sleep_duration = (next_midday - now).total_seconds()
 
             logger.info(f"Current time: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-            logger.info(f"Next fetch scheduled for: {next_midday.strftime('%Y-%m-%d %H:%M:%S UTC')}")
+            logger.info(
+                f"Next fetch scheduled for: {next_midday.strftime('%Y-%m-%d %H:%M:%S UTC')}"
+            )
             logger.info(f"Sleeping for {sleep_duration / 3600:.1f} hours")
-            sleep_duration=0
+            sleep_duration = 0
 
             # Sleep until next midday
             time.sleep(sleep_duration)
@@ -83,10 +84,12 @@ def launch_realtime_market_data(db_path: str = "flats.db", log_level: int = logg
             time.sleep(3600)
 
 
-def fetch_and_store_market_data(currency_manager: CurrencyManager, db: OrthancDB, logger: logging.Logger) -> bool:
+def fetch_and_store_market_data(
+    currency_manager: CurrencyManager, db: OrthancDB, logger: logging.Logger
+) -> bool:
     """
     Fetch exchange rates from MIG and store them in the database.
-    
+
     :param currency_manager: CurrencyManager, currency manager instance
     :param db: OrthancDB, database instance
     :param logger: logging.Logger, logger instance
@@ -133,7 +136,7 @@ def fetch_and_store_market_data(currency_manager: CurrencyManager, db: OrthancDB
 def get_market_data_status(db_path: str = "flats.db") -> Dict:
     """
     Get status of market data service and latest rates.
-    
+
     :param db_path: str, path to SQLite database file
     :return: Dict, status information
     """
@@ -142,7 +145,7 @@ def get_market_data_status(db_path: str = "flats.db") -> Dict:
 
         # Get latest rates
         latest_rates = {}
-        currencies = ['USD', 'EUR', 'GBP']
+        currencies = ["USD", "EUR", "GBP"]
 
         for currency in currencies:
             rate = db.get_latest_rate(currency)
@@ -153,8 +156,8 @@ def get_market_data_status(db_path: str = "flats.db") -> Dict:
         all_currencies = db.get_all_currencies()
 
         # Get rates by date range (last 7 days)
-        end_date = datetime.now().strftime('%Y-%m-%d')
-        start_date = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+        end_date = datetime.now().strftime("%Y-%m-%d")
+        start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
 
         recent_rates = {}
         for currency in currencies:
@@ -162,17 +165,14 @@ def get_market_data_status(db_path: str = "flats.db") -> Dict:
             recent_rates[currency] = len(rates)
 
         return {
-            'latest_rates': latest_rates,
-            'all_currencies': all_currencies,
-            'recent_rates_count': recent_rates,
-            'status': 'active' if latest_rates else 'inactive'
+            "latest_rates": latest_rates,
+            "all_currencies": all_currencies,
+            "recent_rates_count": recent_rates,
+            "status": "active" if latest_rates else "inactive",
         }
 
     except Exception as e:
-        return {
-            'error': str(e),
-            'status': 'error'
-        }
+        return {"error": str(e), "status": "error"}
 
 
 if __name__ == "__main__":
@@ -181,10 +181,14 @@ if __name__ == "__main__":
     """
     import argparse
 
-    parser = argparse.ArgumentParser(description='Launch real-time market data service')
-    parser.add_argument('--db-path', default='flats.db', help='Database file path')
-    parser.add_argument('--log-level', type=int, default=logging.INFO, help='Logging level')
-    parser.add_argument('--status', action='store_true', help='Show market data status and exit')
+    parser = argparse.ArgumentParser(description="Launch real-time market data service")
+    parser.add_argument("--db-path", default="flats.db", help="Database file path")
+    parser.add_argument(
+        "--log-level", type=int, default=logging.INFO, help="Logging level"
+    )
+    parser.add_argument(
+        "--status", action="store_true", help="Show market data status and exit"
+    )
 
     args = parser.parse_args()
 
@@ -196,10 +200,8 @@ if __name__ == "__main__":
         print(f"  Latest rates: {status.get('latest_rates', {})}")
         print(f"  All currencies: {status.get('all_currencies', [])}")
         print(f"  Recent rates count: {status.get('recent_rates_count', {})}")
-        if 'error' in status:
+        if "error" in status:
             print(f"  Error: {status['error']}")
     else:
         # Launch the service
         launch_realtime_market_data(args.db_path, args.log_level)
-
-

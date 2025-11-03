@@ -21,10 +21,10 @@
     <!-- Rental Statistics -->
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
-                <h4><i class="fas fa-home"></i> Rental Statistics ({{ analysis.rental_stats.count }} flats)</h4>
+            <div class="card-header" style="cursor: pointer;" onclick="toggleSection('rental-stats')">
+                <h4><i class="fas fa-chevron-down me-2" id="rental-stats-icon"></i><i class="fas fa-home"></i> Rental Statistics ({{ analysis.rental_stats.count }} flats)</h4>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse show" id="rental-stats-content">
                 <div class="row">
                     <div class="col-6">
                         <h6>Price Range</h6>
@@ -70,10 +70,10 @@
     <!-- Sales Statistics -->
     <div class="col-md-6">
         <div class="card">
-            <div class="card-header">
-                <h4><i class="fas fa-money-bill-wave"></i> Sales Statistics ({{ analysis.sales_stats.count }} flats)</h4>
+            <div class="card-header" style="cursor: pointer;" onclick="toggleSection('sales-stats')">
+                <h4><i class="fas fa-chevron-down me-2" id="sales-stats-icon"></i><i class="fas fa-money-bill-wave"></i> Sales Statistics ({{ analysis.sales_stats.count }} flats)</h4>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse show" id="sales-stats-content">
                 <div class="row">
                     <div class="col-6">
                         <h6>Price Range</h6>
@@ -121,10 +121,10 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card stats-card">
-            <div class="card-header">
-                <h4><i class="fas fa-chart-line"></i> Rental Yield Analysis</h4>
+            <div class="card-header" style="cursor: pointer;" onclick="toggleSection('yield-analysis')">
+                <h4><i class="fas fa-chevron-down me-2" id="yield-analysis-icon"></i><i class="fas fa-chart-line"></i> Rental Yield Analysis</h4>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse show" id="yield-analysis-content">
                 <div class="row">
                     <div class="col-md-3">
                         <h6>Median Annual Rent</h6>
@@ -168,10 +168,10 @@
 <div class="row mt-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header">
-                <h4><i class="fas fa-lightbulb"></i> Market Insights</h4>
+            <div class="card-header" style="cursor: pointer;" onclick="toggleSection('market-insights')">
+                <h4><i class="fas fa-chevron-down me-2" id="market-insights-icon"></i><i class="fas fa-lightbulb"></i> Market Insights</h4>
             </div>
-            <div class="card-body">
+            <div class="card-body collapse show" id="market-insights-content">
                 <div class="row">
                     <div class="col-md-4">
                         <h6>Rental Price per m²</h6>
@@ -221,22 +221,6 @@
     </div>
 </div>
 
-<!-- Yield Distribution by Bucket -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h4><i class="fas fa-chart-bar"></i> Yield Distribution by Bucket</h4>
-            </div>
-            <div class="card-body">
-                <div style="height: 400px; position: relative;">
-                    <canvas id="yieldDistributionChart"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 {% else %}
 <div class="row mt-4">
     <div class="col-12">
@@ -266,120 +250,20 @@
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if box plot plugin is available
-    if (!Chart.controllers || !Chart.controllers.boxplot) {
-        console.error('Box plot plugin not loaded!');
-        console.log('Available controllers:', Object.keys(Chart.controllers || {}));
-        document.getElementById('yieldDistributionChart').parentElement.innerHTML = 
-            '<p class="text-danger text-center">Box plot plugin not loaded. Please refresh the page.</p>';
-        return;
-    }
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    const icon = document.getElementById(sectionId + '-icon');
     
-    console.log('Box plot plugin is available!');
-    
-    // Get actual yield data from bucket analysis
-    const bucketData = {{ bucket_analysis.bucket_analysis | tojson | safe if bucket_analysis and bucket_analysis.bucket_analysis else '[]' }};
-    
-    console.log('Bucket data:', bucketData);
-    
-    // Transform bucket data for box plot
-    const chartData = bucketData
-        .filter(bucket => bucket.rental_count > 0 && bucket.sales_count > 0 && bucket.yields && bucket.yields.length > 0)
-        .map(bucket => ({
-            label: `${bucket.rooms}BR ${bucket.area_bucket}`,
-            data: bucket.yields
-        }));
-    
-    console.log('Chart data:', chartData);
-    
-    // Box plot data configuration using real yield data
-    const data = {
-        labels: chartData.map(item => item.label),
-        datasets: [
-            {
-                label: 'Yield Distribution',
-                data: chartData.map(item => item.data),
-            },
-        ],
-    };
-
-    const config = {
-        type: 'boxplot',
-        data: data,
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Yield Distribution by Bucket',
-                    color: 'white'
-                },
-                legend: {
-                    display: true,
-                    labels: {
-                        color: 'white'
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    title: {
-                        display: true,
-                        text: 'Yield (%)',
-                        color: 'white'
-                    },
-                    ticks: {
-                        color: 'white'
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                },
-                x: {
-                    title: {
-                        display: true,
-                        text: 'Bucket',
-                        color: 'white'
-                    },
-                    ticks: {
-                        color: 'white',
-                        maxRotation: 45,
-                        minRotation: 0
-                    },
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    }
-                }
-            }
-        }
-    };
-
-    // Create the box plot chart
-    const ctx = document.getElementById('yieldDistributionChart');
-    if (ctx) {
-        try {
-            console.log('Creating box plot with config:', config);
-            console.log('Chart.js version:', Chart.version);
-            console.log('Available chart types:', Object.keys(Chart.controllers || {}));
-            
-            const chart = new Chart(ctx, config);
-            console.log('Box plot chart created successfully!');
-            console.log('Chart instance:', chart);
-        } catch (error) {
-            console.error('Error creating box plot chart:', error);
-            console.error('Error stack:', error.stack);
-            ctx.parentElement.innerHTML = '<p class="text-danger text-center">Error creating box plot: ' + error.message + '</p>';
-        }
+    // Toggle the show class
+    if (content.classList.contains('show')) {
+        content.classList.remove('show');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
     } else {
-        console.error('Canvas element not found');
+        content.classList.add('show');
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
     }
-});
+}
 </script>
 {% endblock %} 

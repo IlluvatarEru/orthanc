@@ -1,7 +1,3 @@
 """
 Analytics source modules.
 """
-
-
-
-
