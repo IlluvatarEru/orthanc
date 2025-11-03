@@ -33,6 +33,8 @@ def inject_currency_preference():
     db = OrthancDB()
     eur_rate = db.get_latest_rate('EUR')
     db.disconnect()
+    if eur_rate is None:
+        raise Exception(f"eur_rate is None")
     return dict(show_eur=show_eur, eur_rate=eur_rate)
 
 
