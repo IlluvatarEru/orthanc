@@ -3,19 +3,17 @@
 Clean, simple Flask webapp that fails fast and never silently catches errors.
 """
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
-from datetime import datetime
 import logging
+from datetime import datetime
 from urllib.parse import unquote
+
+from flask import Flask, render_template, request, jsonify, redirect, url_for
 
 from api.src.analysis_objects import SalesAnalysisResponse, FlatTypeStats, Opportunity
 from common.src.flat_info import FlatInfo
 # Import our modules
 from db.src.write_read_database import OrthancDB
 from frontend.src.webapp_api_client import WebappAPIClient
-from scrapers.src.krisha_rental_scraping import scrape_and_save_jk_rentals
-from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
-from scrapers.src.residential_complex_scraper import search_complex_by_name
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,82 +23,23 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, template_folder='../templates', static_folder='../static')
 app.secret_key = 'your-secret-key-here'
 
+
 # Context processor to make currency preference available in all templates
 @app.context_processor
 def inject_currency_preference():
     show_eur = request.cookies.get('showEur', 'false') == 'true'
-    
-    # Get EUR rate from database
+
+    # Get EUR exchange rate
     db = OrthancDB()
     eur_rate = db.get_latest_rate('EUR')
     db.disconnect()
-    
-    # If no rate in database, use fallback
-    if not eur_rate:
-        eur_rate = 500.0  # Fallback rate
-    
+    if eur_rate is None:
+        raise Exception(f"eur_rate is None")
     return dict(show_eur=show_eur, eur_rate=eur_rate)
+
 
 # Initialize API client
 api_client = WebappAPIClient()
-
-
-def calculate_flat_type_overall_stats(analysis_by_flat_type):
-    """
-    Calculate overall statistics from flat type analysis for template display.
-    
-    :param analysis_by_flat_type: dict, flat type analysis data
-    :return: dict, overall statistics
-    """
-    if not analysis_by_flat_type:
-        return {
-            'median_yield': None,
-            'mean_yield': None,
-            'yield_range': None,
-            'valid_flat_types_count': 0
-        }
-
-    # Get valid flat types (those with both rental and sales data)
-    valid_flat_types = []
-    for flat_type_data in analysis_by_flat_type.values():
-        if (flat_type_data.get('rental_count', 0) > 0 and
-                flat_type_data.get('sales_count', 0) > 0 and
-                flat_type_data.get('rental_stats', {}).get('mean_yield', 0) > 0):
-            valid_flat_types.append(flat_type_data)
-
-    if not valid_flat_types:
-        return {
-            'median_yield': None,
-            'mean_yield': None,
-            'yield_range': None,
-            'valid_flat_types_count': 0
-        }
-
-    # Calculate statistics
-    yields = [flat_type['rental_stats']['mean_yield'] for flat_type in valid_flat_types]
-    yield_mins = [flat_type['rental_stats']['min_yield'] for flat_type in valid_flat_types]
-    yield_maxs = [flat_type['rental_stats']['max_yield'] for flat_type in valid_flat_types]
-
-    # Mean yield
-    mean_yield = sum(yields) / len(yields)
-
-    # Median yield
-    sorted_yields = sorted(yields)
-    if len(sorted_yields) % 2 == 0:
-        median_yield = (sorted_yields[len(sorted_yields) // 2 - 1] + sorted_yields[len(sorted_yields) // 2]) / 2
-    else:
-        median_yield = sorted_yields[len(sorted_yields) // 2]
-
-    # Yield range
-    min_yield = min(yield_mins)
-    max_yield = max(yield_maxs)
-
-    return {
-        'median_yield': median_yield,
-        'mean_yield': mean_yield,
-        'yield_range': (min_yield, max_yield),
-        'valid_flat_types_count': len(valid_flat_types)
-    }
 
 
 @app.route('/')
@@ -243,11 +182,11 @@ def analyze_jk(residential_complex_name, db_path='flats.db', allow_scraping_data
     # Extract median values for template compatibility - fail fast on missing data
     rental_median = rental_global.median_yield  # Rental API provides yield stats
     sales_median = sales_global.median  # Sales API provides price stats
-    
+
     # Extract flat type buckets and opportunities from sales analysis
     flat_type_buckets = sales_analysis.current_market.flat_type_buckets
     opportunities_by_flat_type = sales_analysis.current_market.opportunities
-    
+
     # Debug: Check what we're getting
     print(f"DEBUG: flat_type_buckets: {flat_type_buckets}")
     print(f"DEBUG: opportunities_by_flat_type: {opportunities_by_flat_type}")
@@ -268,32 +207,102 @@ def analyze_jk(residential_complex_name, db_path='flats.db', allow_scraping_data
                            opportunities_by_flat_type=opportunities_by_flat_type)
 
 
-@app.route('/opportunity/<residential_complex_name>/<flat_id>')
-def view_opportunity(residential_complex_name, flat_id):
-    """View detailed opportunity information with bucket comparison."""
-    residential_complex_name = unquote(residential_complex_name)
-    
-    # Get sales analysis to find the opportunity
-    sales_analysis = api_client.get_jk_sales_analysis(residential_complex_name, 0.15)
-    if not sales_analysis.success:
-        raise Exception(f"Sales analysis API failed: {sales_analysis.error}")
-    
-    # Find the opportunity with this flat_id
-    opportunity = None
-    for flat_type, opportunities in sales_analysis.current_market.opportunities.items():
-        for opp in opportunities:
-            if opp.flat_id == flat_id:
-                opportunity = opp
-                break
-        if opportunity:
-            break
-    
-    if not opportunity:
-        raise Exception(f"Opportunity not found for flat_id: {flat_id}")
-    
-    return render_template('opportunity_detail.html',
-                           residential_complex_name=residential_complex_name,
-                           opportunity=opportunity)
+@app.route('/flat/<flat_id>')
+def view_flat_details(flat_id, area_tolerance=10.0):
+    """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
+    # Get flat information using API
+    flat_data = api_client.get_flat_info(flat_id)
+    if not flat_data:
+        raise Exception(f"Flat {flat_id} not found")
+
+    # Get similar flats using API
+    similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
+    if not similar_result["success"]:
+        raise Exception(f"Failed to get similar flats: {similar_result['error']}")
+
+    similar_rentals = similar_result["similar_rentals"]
+    similar_sales = similar_result["similar_sales"]
+
+    if not similar_rentals or not similar_sales:
+        raise Exception(
+            f"Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.")
+
+    # Calculate investment analysis
+    investment_analysis = calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance)
+
+    # Calculate median price properly
+    if similar_sales:
+        sorted_prices = sorted([flat['price'] for flat in similar_sales])
+        n = len(sorted_prices)
+        if n % 2 == 0:
+            median_price = (sorted_prices[n // 2 - 1] + sorted_prices[n // 2]) / 2
+        else:
+            median_price = sorted_prices[n // 2]
+        mean_price = sum(flat['price'] for flat in similar_sales) / len(similar_sales)
+        min_price = min(flat['price'] for flat in similar_sales)
+        max_price = max(flat['price'] for flat in similar_sales)
+    else:
+        median_price = 0
+        mean_price = 0
+        min_price = 0
+        max_price = 0
+
+    # Calculate buy and sell return percentage
+    current_price = flat_data['price']
+    buy_sell_return_percentage = 0
+    buy_sell_net_return_percentage = 0
+    equivalent_annual_net_return = 0
+
+    if median_price > 0 and current_price > 0:
+        # Expected return (gross)
+        buy_sell_return_percentage = ((median_price - current_price) / current_price) * 100
+
+        # Expected net return (after 10% tax on profit and 500k notary fee)
+        tax_rate = 0.10  # 10% tax on profit only
+        notary_fee = 500000  # 500k notary fee in KZT
+        profit = median_price - current_price  # Profit = sale price - buy price
+        sale_tax = profit * tax_rate  # Tax is 10% of profit, not sale price
+        net_sale_proceeds = median_price - sale_tax - notary_fee
+        net_profit = net_sale_proceeds - current_price
+        buy_sell_net_return_percentage = (net_profit / current_price) * 100
+
+        # Equivalent annual net return (LINEAR - assuming 2M holding period)
+        holding_period_years = 2 / 12
+        equivalent_annual_net_return = buy_sell_net_return_percentage / holding_period_years
+
+    # Create opportunity-like object for template compatibility
+    opportunity = type('Opportunity', (), {
+        'flat_id': flat_id,
+        'price': flat_data['price'],
+        'area': flat_data['area'],
+        'flat_type': flat_data['flat_type'],
+        'residential_complex': flat_data['residential_complex'],
+        'floor': flat_data['floor'],
+        'total_floors': flat_data['total_floors'],
+        'construction_year': flat_data['construction_year'],
+        'parking': flat_data['parking'],
+        'description': flat_data['description'],
+        'discount_percentage_vs_median': None,  # Will be calculated
+        'market_stats': {
+            'median_price': median_price,
+            'mean_price': mean_price,
+            'min_price': min_price,
+            'max_price': max_price,
+            'count': len(similar_sales)
+        },
+        'bucket_flats': similar_sales  # Use similar sales as bucket flats for comparison
+    })()
+
+    return render_template('unified_flat_view.html',
+                           flat_data=flat_data,
+                           opportunity=opportunity,
+                           similar_rentals=similar_rentals,
+                           similar_sales=similar_sales,
+                           investment_analysis=investment_analysis,
+                           buy_sell_return_percentage=buy_sell_return_percentage,
+                           buy_sell_net_return_percentage=buy_sell_net_return_percentage,
+                           equivalent_annual_net_return=equivalent_annual_net_return,
+                           area_tolerance=area_tolerance)
 
 
 @app.route('/refresh_analysis/<residential_complex_name>', methods=['POST'])
@@ -325,11 +334,11 @@ def extract_flat_id_from_input(user_input):
     :return: str, extracted flat ID
     """
     user_input = user_input.strip()
-    
+
     # If it's already just a number/ID, return it
     if user_input.isdigit():
         return user_input
-    
+
     # If it's a Krisha URL, extract the ID
     if 'krisha.kz/a/show/' in user_input:
         # Extract ID from URL like https://krisha.kz/a/show/1000383479
@@ -337,13 +346,13 @@ def extract_flat_id_from_input(user_input):
         match = re.search(r'/a/show/(\d+)', user_input)
         if match:
             return match.group(1)
-    
+
     # If it's some other format, try to extract any number
     import re
     numbers = re.findall(r'\d+', user_input)
     if numbers:
         return numbers[-1]  # Return the last number found
-    
+
     # If no number found, return the original input
     return user_input
 
@@ -359,94 +368,65 @@ def estimate_flat():
             raise Exception("Flat ID or Krisha URL is required")
 
         # Extract flat ID from user input (handles both URLs and plain IDs)
-        logger.info(f"user_input={user_input}")
         flat_id = extract_flat_id_from_input(user_input)
-        logger.info(f"got flat_id={flat_id}")
 
-        # Get flat information using API
-        flat_data = api_client.get_flat_info(flat_id)
-        if not flat_data:
-            raise Exception(f"Flat {flat_id} not found")
-
-        # Get similar flats using API
-        similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
-        if not similar_result["success"]:
-            raise Exception(f"Failed to get similar flats: {similar_result['error']}")
-
-        similar_rentals = similar_result["similar_rentals"]
-        similar_sales = similar_result["similar_sales"]
-
-        if not similar_rentals or not similar_sales:
-            raise Exception(
-                f"Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats.")
-
-        # Calculate investment analysis
-        return calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance)
+        # Redirect to the unified flat view page
+        return redirect(url_for('view_flat_details', flat_id=flat_id, area_tolerance=area_tolerance))
 
     return render_template('estimate_flat.html', default_area_tolerance=10.0, flat_id='')
 
 
 def calculate_investment_analysis(flat_data, similar_rentals, similar_sales, area_tolerance):
-    """Calculate investment analysis for a flat."""
+    """
+    Calculate investment analysis for a flat.
+
+    :param flat_data: dict, flat information
+    :param similar_rentals: list, similar rental flats
+    :param similar_sales: list, similar sales flats
+    :param area_tolerance: float, area tolerance used
+    :return: dict, investment analysis data
+    """
     # Simple investment calculation
-    rental_avg = sum(flat['price'] for flat in similar_rentals) / len(similar_rentals)
-    sales_avg = sum(flat['price'] for flat in similar_sales) / len(similar_sales)
+    rental_median = 0
+    annual_rental_income = 0
+    sales_avg = 0
+    yield_percentage = 0
 
-    annual_rental_income = rental_avg * 12
-    yield_percentage = (annual_rental_income / sales_avg) * 100
+    # Calculate rental median (monthly rent)
+    if similar_rentals and len(similar_rentals) > 0:
+        rental_prices = [flat.get('price', 0) if isinstance(flat, dict) else getattr(flat, 'price', 0) for flat in
+                         similar_rentals]
+        rental_prices = [p for p in rental_prices if p > 0]  # Filter out 0 prices
+        if rental_prices:
+            sorted_rental_prices = sorted(rental_prices)
+            n = len(sorted_rental_prices)
+            if n % 2 == 0:
+                rental_median = (sorted_rental_prices[n // 2 - 1] + sorted_rental_prices[n // 2]) / 2
+            else:
+                rental_median = sorted_rental_prices[n // 2]
 
-    return render_template('estimate_result.html',
-                           flat_info=flat_data,
-                           flat_data=flat_data,
-                           similar_rentals=similar_rentals,
-                           similar_sales=similar_sales,
-                           rental_avg=rental_avg,
-                           sales_avg=sales_avg,
-                           yield_percentage=yield_percentage,
-                           area_tolerance=area_tolerance)
+            # Expected Annual Rent = 12 × median monthly rent
+            annual_rental_income = rental_median * 12
 
+    # Calculate sales average
+    if similar_sales and len(similar_sales) > 0:
+        sales_prices = [flat.get('price', 0) if isinstance(flat, dict) else getattr(flat, 'price', 0) for flat in
+                        similar_sales]
+        sales_prices = [p for p in sales_prices if p > 0]  # Filter out 0 prices
+        if sales_prices:
+            sales_avg = sum(sales_prices) / len(sales_prices)
 
-@app.route('/similar_flats/<flat_type>/<residential_complex_name>')
-def view_similar_flats(flat_type, residential_complex_name, db_path='flats.db'):
-    """Display similar flats for a specific complex and type."""
-    # Get complex information
-    complex_info = search_complex_by_name(residential_complex_name)
-    if not complex_info:
-        raise Exception(f"Complex '{residential_complex_name}' not found")
+    # Calculate yield: Expected Annual Rent / Sale price (current flat's price)
+    current_price = flat_data.get('price', 0) if isinstance(flat_data, dict) else getattr(flat_data, 'price', 0)
+    if current_price > 0 and annual_rental_income > 0:
+        yield_percentage = (annual_rental_income / current_price) * 100
 
-    # Get flats by type
-    db = OrthancDB(db_path)
-    flats = db.get_flats_for_residential_complex(residential_complex_name, flat_type)
-    db.disconnect()
-
-    # If no flats found, try to scrape data
-    if not flats:
-        if flat_type == 'rental':
-            saved_count = scrape_and_save_jk_rentals(residential_complex_name, max_pages=10, db_path=db_path)
-        elif flat_type == 'sales':
-            saved_count = scrape_and_save_jk_sales(residential_complex_name, max_pages=10, db_path=db_path)
-        else:
-            rental_count = scrape_and_save_jk_rentals(residential_complex_name, max_pages=10, db_path=db_path)
-            sales_count = scrape_and_save_jk_sales(residential_complex_name, max_pages=10, db_path=db_path)
-            saved_count = rental_count + sales_count
-
-        if saved_count == 0:
-            raise Exception(f"No new flats found for {residential_complex_name}")
-
-        # Get flats again after scraping
-        db = OrthancDB(db_path)
-        flats = db.get_flats_for_residential_complex(residential_complex_name, flat_type)
-        db.disconnect()
-
-    # Calculate median price
-    flat_prices = [flat.price for flat in flats] if flats else []
-    flat_median = sorted(flat_prices)[len(flat_prices) // 2] if flat_prices else 0
-
-    return render_template('view_similar_flats.html',
-                           complex_info=complex_info,
-                           flats=flats,
-                           flat_type=flat_type,
-                           flat_median=flat_median)
+    return {
+        'rental_median': rental_median,
+        'sales_avg': sales_avg,
+        'annual_rental_income': annual_rental_income,
+        'yield_percentage': yield_percentage
+    }
 
 
 @app.route('/favorites')
@@ -557,19 +537,19 @@ def api_exchange_rates():
     eur_rate = db.get_latest_rate('EUR')
     usd_rate = db.get_latest_rate('USD')
     db.disconnect()
-    
+
     # If no rates in database, fetch from web
     if not eur_rate or not usd_rate:
         from price.src.currency import CurrencyManager
         currency_manager = CurrencyManager()
         rates = currency_manager.fetch_mig_exchange_rates()
-        
+
         if rates:
             eur_rate = rates['EUR']
             usd_rate = rates['USD']
         else:
             raise Exception("Failed to fetch exchange rates from web")
-    
+
     return jsonify({
         'EUR': eur_rate,
         'USD': usd_rate

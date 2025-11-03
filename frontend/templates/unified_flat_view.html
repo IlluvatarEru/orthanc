@@ -1,0 +1,339 @@
+{% extends "base.html" %}
+
+{% block title %}Flat Details - {{ flat_data.residential_complex }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-white mb-4">Flat Details - {{ flat_data.residential_complex }}</h2>
+
+    <!-- Flat Information Card -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-home me-2"></i>Flat Information</h4>
+                    <p class="mb-0 text-white-50">Flat ID: {{ flat_data.flat_id }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="text-white">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat_data.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat_data.price) }}
+                                {% endif %}
+                            </h5>
+                            <p class="mb-1"><strong>Area:</strong> {{ flat_data.area }} m²</p>
+                            <p class="mb-1"><strong>Type:</strong> {{ flat_data.flat_type }}</p>
+                            <p class="mb-1"><strong>Floor:</strong> {{ flat_data.floor }}/{{ flat_data.total_floors }}</p>
+                            {% if flat_data.construction_year %}
+                            <p class="mb-1"><strong>Year:</strong> {{ flat_data.construction_year }}</p>
+                            {% endif %}
+                            {% if flat_data.parking %}
+                            <p class="mb-1"><strong>Parking:</strong> {{ flat_data.parking }}</p>
+                            {% endif %}
+                            <div class="mt-3">
+                                <a href="https://krisha.kz/a/show/{{ flat_data.flat_id }}"
+                                   target="_blank"
+                                   class="btn btn-outline-success">
+                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                </a>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Market Statistics for Similar Flats</h6>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">Median Price</h6>
+                                    <p class="text-white h5">
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.median_price|int) / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">Mean Price</h6>
+                                    <p class="text-white h5">
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.mean_price|int) / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(opportunity.market_stats.mean_price|int) }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">Min Price</h6>
+                                    <p class="text-white h5">
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.min_price|int) / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(opportunity.market_stats.min_price|int) }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-md-3">
+                                    <h6 class="text-muted">Max Price</h6>
+                                    <p class="text-white h5">
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format((opportunity.market_stats.max_price|int) / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(opportunity.market_stats.max_price|int) }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <p class="text-muted">
+                                    <strong>Sample Size:</strong> {{ opportunity.market_stats.count }} similar properties
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Buy and Sell Analysis -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-exchange-alt me-2"></i>Buy and Sell Analysis</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-12">
+                            <p class="text-white mb-2">
+                                <strong>Current Price:</strong>
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat_data.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat_data.price) }}
+                                {% endif %}
+                                | 
+                                <strong>Median Price (similar flats):</strong>
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format((opportunity.market_stats.median_price|int) / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h6>Expected Return</h6>
+                            <p class="h4 text-white">
+                                {% if buy_sell_return_percentage > 0 %}+{% endif %}{{ "{:.2f}".format(buy_sell_return_percentage) }}%
+                            </p>
+                            <p class="text-muted small">Gross return (before taxes & fees)</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Expected Net Return</h6>
+                            <p class="h4 text-white">
+                                {% if buy_sell_net_return_percentage > 0 %}+{% endif %}{{ "{:.2f}".format(buy_sell_net_return_percentage) }}%
+                            </p>
+                            <p class="text-muted small">After 10% tax & 500k notary fee</p>
+                        </div>
+                        <div class="col-md-4">
+                            <h6>Equivalent Annual Net Return</h6>
+                            <p class="h4 text-white">
+                                {% if equivalent_annual_net_return > 0 %}+{% endif %}{{ "{:.2f}".format(equivalent_annual_net_return) }}%
+                            </p>
+                            <p class="text-muted small">Assuming 2M holding time and linear annualisation</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rental Analysis -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-chart-line me-2"></i>Rental Analysis</h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <h6>Expected Annual Rent</h6>
+                            <p class="h4 text-white">
+                                {% if investment_analysis and investment_analysis.annual_rental_income %}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(investment_analysis.annual_rental_income / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,.0f}".format(investment_analysis.annual_rental_income) }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6>Rental Yield</h6>
+                            <p class="h4 text-white">
+                                {% if investment_analysis and investment_analysis.yield_percentage %}
+                                    {{ "{:.2f}".format(investment_analysis.yield_percentage) }}%
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6>Median Rental Price</h6>
+                            <p class="h4 text-white">
+                                {% if investment_analysis and investment_analysis.rental_median %}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(investment_analysis.rental_median / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,.0f}".format(investment_analysis.rental_median) }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                        <div class="col-md-3">
+                            <h6>Average Sales Price</h6>
+                            <p class="h4 text-white">
+                                {% if investment_analysis and investment_analysis.sales_avg %}
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(investment_analysis.sales_avg / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,.0f}".format(investment_analysis.sales_avg) }}
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">N/A</span>
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Similar Flats for Sale -->
+    <div class="mb-4">
+        <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('similar-sales')">
+            <i class="fas fa-chevron-down me-2" id="similar-sales-icon"></i>Similar Flats for Sale
+        </h4>
+        <div id="similar-sales-content" class="collapse show">
+            {% if opportunity.bucket_flats and opportunity.bucket_flats|length > 0 %}
+            <div class="row">
+                {% for flat in opportunity.bucket_flats %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                        <div class="card-body">
+                            <h5 class="card-title text-white">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat.price) }}
+                                {% endif %}
+                            </h5>
+                            <p class="card-text small">
+                                <strong>Area:</strong> {{ flat.area }} m²<br>
+                                <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
+                                <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
+                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
+                            </p>
+                            <div class="mt-2">
+                                {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
+                                <span class="text-white">
+                                    {% if price_diff > 0 %}+{% endif %}{{ "{:.1f}".format(price_diff) }}% vs This Flat
+                                </span>
+                            </div>
+                            <div class="mt-2">
+                                <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No similar flats for sale found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Similar Flats for Rent -->
+    <div class="mb-4">
+        <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('similar-rentals')">
+            <i class="fas fa-chevron-down me-2" id="similar-rentals-icon"></i>Similar Flats for Rent
+        </h4>
+        <div id="similar-rentals-content" class="collapse show">
+            {% if similar_rentals and similar_rentals|length > 0 %}
+            <div class="row">
+                {% for flat in similar_rentals %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                        <div class="card-body">
+                            <h5 class="card-title text-white">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat.price) }}
+                                {% endif %}
+                            </h5>
+                            <p class="card-text small">
+                                <strong>Area:</strong> {{ flat.area }} m²<br>
+                                <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
+                                <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
+                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
+                            </p>
+                            <div class="mt-2">
+                                <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-info">
+                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No similar flats for rent found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+
+<script>
+function toggleSection(sectionId) {
+    const content = document.getElementById(sectionId + '-content');
+    const icon = document.getElementById(sectionId + '-icon');
+    
+    // Toggle the show class
+    if (content.classList.contains('show')) {
+        content.classList.remove('show');
+        icon.classList.remove('fa-chevron-down');
+        icon.classList.add('fa-chevron-right');
+    } else {
+        content.classList.add('show');
+        icon.classList.remove('fa-chevron-right');
+        icon.classList.add('fa-chevron-down');
+    }
+}
+</script>
+{% endblock %}
+

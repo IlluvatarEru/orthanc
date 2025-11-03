@@ -100,3 +100,4 @@ The API is organized into separate modules:
 ## Configuration
 
 The API uses the same database (`flats.db`) as the main Orthanc application. Make sure the database is properly initialized before running the API.
+

@@ -465,3 +465,4 @@ def analyze_jk_for_rentals(jk_name: str, min_yield_percentage: float = 0.05, db_
     analytics = JKRentalAnalytics(db_path)
     return analytics.analyse_jk_for_rentals(jk_name, min_yield_percentage)
 
+
