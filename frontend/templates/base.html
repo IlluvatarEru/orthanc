@@ -35,6 +35,7 @@
             --accent-yellow: #ffa502;
             --accent-purple: #a55eea;
             --accent-cyan: #26de81;
+            --krisha-color: #FFCC66;
         }
 
         body {
@@ -302,6 +303,32 @@
         .btn-outline-primary:hover {
             background-color: var(--accent-blue);
             border-color: var(--accent-blue);
+        }
+
+        .btn-krisha {
+            background: linear-gradient(135deg, var(--krisha-color) 0%, #e6b84d 100%);
+            border: none;
+            color: #1a1a1a;
+            font-weight: 600;
+        }
+
+        .btn-krisha:hover {
+            background: linear-gradient(135deg, #e6b84d 0%, var(--krisha-color) 100%);
+            color: #1a1a1a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 204, 102, 0.4);
+        }
+
+        .btn-outline-krisha {
+            border-color: var(--krisha-color);
+            color: var(--krisha-color);
+            background: transparent;
+        }
+
+        .btn-outline-krisha:hover {
+            background-color: var(--krisha-color);
+            border-color: var(--krisha-color);
+            color: #1a1a1a;
         }
 
         /* Forms */
