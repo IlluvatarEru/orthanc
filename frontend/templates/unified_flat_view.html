@@ -7,6 +7,21 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
         <div class="d-flex gap-2 align-items-center">
+            <button class="btn btn-sm btn-outline-warning toggle-favorite" 
+                    data-flat-id="{{ flat_data.flat_id }}" 
+                    data-flat-type="{% if flat_data.is_rental %}rental{% else %}sale{% endif %}"
+                    data-price="{{ flat_data.price }}"
+                    data-area="{{ flat_data.area }}"
+                    data-residential-complex="{{ flat_data.residential_complex or '' }}"
+                    data-floor="{{ flat_data.floor or '' }}"
+                    data-total-floors="{{ flat_data.total_floors or '' }}"
+                    data-construction-year="{{ flat_data.construction_year or '' }}"
+                    data-parking="{{ flat_data.parking or '' }}"
+                    data-description="{{ flat_data.description or '' }}"
+                    data-url="{% if flat_data.url %}{{ flat_data.url }}{% else %}https://krisha.kz/a/show/{{ flat_data.flat_id }}{% endif %}"
+                    title="Add to favorites">
+                <i class="fas fa-heart"></i>
+            </button>
             <div class="d-flex gap-2 align-items-center me-3">
                 <div class="d-flex flex-column">
                     <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 1rem;">Area Tolerance (%)</label>

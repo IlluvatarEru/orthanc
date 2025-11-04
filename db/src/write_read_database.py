@@ -646,12 +646,13 @@ class OrthancDB:
     def get_favorites(self) -> List[dict]:
         """
         Get all favorites with current flat data using JOINs.
+        Only returns the latest entry for each flat_id to avoid duplicates.
 
         :return: List[dict], list of favorite flats with current data
         """
         self.connect()
 
-        # Get rental favorites with current data
+        # Get rental favorites with current data (latest query_date only)
         rental_favorites = self.conn.execute("""
             SELECT 
                 f.flat_id, f.flat_type, f.added_at, f.notes,
@@ -659,12 +660,16 @@ class OrthancDB:
                 rf.total_floors, rf.construction_year, rf.parking,
                 rf.description, rf.url, rf.scraped_at
             FROM favorites f
-            JOIN rental_flats rf ON f.flat_id = rf.flat_id
+            JOIN (
+                SELECT rf_inner.*,
+                       ROW_NUMBER() OVER (PARTITION BY rf_inner.flat_id ORDER BY rf_inner.query_date DESC) as rn
+                FROM rental_flats rf_inner
+            ) rf ON f.flat_id = rf.flat_id AND rf.rn = 1
             WHERE f.flat_type = 'rental'
             ORDER BY f.added_at DESC
         """).fetchall()
 
-        # Get sales favorites with current data
+        # Get sales favorites with current data (latest query_date only)
         sales_favorites = self.conn.execute("""
             SELECT 
                 f.flat_id, f.flat_type, f.added_at, f.notes,
@@ -672,7 +677,11 @@ class OrthancDB:
                 sf.total_floors, sf.construction_year, sf.parking,
                 sf.description, sf.url, sf.scraped_at
             FROM favorites f
-            JOIN sales_flats sf ON f.flat_id = sf.flat_id
+            JOIN (
+                SELECT sf_inner.*,
+                       ROW_NUMBER() OVER (PARTITION BY sf_inner.flat_id ORDER BY sf_inner.query_date DESC) as rn
+                FROM sales_flats sf_inner
+            ) sf ON f.flat_id = sf.flat_id AND sf.rn = 1
             WHERE f.flat_type = 'sale'
             ORDER BY f.added_at DESC
         """).fetchall()

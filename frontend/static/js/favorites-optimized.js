@@ -148,8 +148,13 @@ class FavoritesManager {
                             // Update cache and button state
                             this.setFavorite(flatId, !isCurrentlyFavorite);
                             this.updateButtonState(button, !isCurrentlyFavorite);
+                        } else if (data.already_favorited) {
+                            // Already in favorites - ensure button state is correct
+                            this.setFavorite(flatId, true);
+                            this.updateButtonState(button, true);
+                            console.log(data.message || 'Already in favorites');
                         } else {
-                            console.error('Failed to update favorite:', data.error);
+                            console.error('Failed to update favorite:', data.message || data.error);
                         }
                     }
                 } catch (error) {

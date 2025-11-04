@@ -551,13 +551,24 @@ def add_to_favorites(db_path="flats.db"):
     data = request.get_json()
     flat_id = data.get("flat_id")
     flat_type = data.get("flat_type")
-    flat_data = data.get("flat_data")
 
     if not flat_id or not flat_type:
         raise Exception("Missing flat_id or flat_type")
 
     db = OrthancDB(db_path)
-    success = db.add_to_favorites(flat_data, flat_type)
+
+    # Check if already in favorites
+    if db.is_favorite(flat_id, flat_type):
+        db.disconnect()
+        return jsonify(
+            {
+                "success": False,
+                "message": "This flat is already in your favorites",
+                "already_favorited": True,
+            }
+        )
+
+    success = db.add_to_favorites(flat_id, flat_type)
     db.disconnect()
 
     if not success:
