@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+
+{% block title %}Flat Details - Error{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2 class="text-white mb-4">Flat Details - {{ flat_data.residential_complex }}</h2>
+
+    <!-- Flat Information Card -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card stats-card">
+                <div class="card-header">
+                    <h4><i class="fas fa-home me-2"></i>Flat Information</h4>
+                    <p class="mb-0 text-white-50">Flat ID: {{ flat_data.flat_id }}</p>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5 class="text-white">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat_data.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat_data.price) }}
+                                {% endif %}
+                            </h5>
+                            <p class="mb-1"><strong>Area:</strong> {{ flat_data.area }} m²</p>
+                            <p class="mb-1"><strong>Type:</strong> {{ flat_data.flat_type }}</p>
+                            <p class="mb-1"><strong>Floor:</strong> {{ flat_data.floor }}/{{ flat_data.total_floors }}</p>
+                            {% if flat_data.construction_year %}
+                            <p class="mb-1"><strong>Year:</strong> {{ flat_data.construction_year }}</p>
+                            {% endif %}
+                            {% if flat_data.parking %}
+                            <p class="mb-1"><strong>Parking:</strong> {{ flat_data.parking }}</p>
+                            {% endif %}
+                            <div class="mt-3">
+                                <a href="https://krisha.kz/a/show/{{ flat_data.flat_id }}"
+                                   target="_blank"
+                                   class="btn btn-outline-krisha">
+                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade show" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="false" style="display: block;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: var(--dark-card); border: 1px solid var(--border-color);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border-color);">
+                <h5 class="modal-title text-white" id="errorModalLabel">
+                    <i class="fas fa-exclamation-triangle text-warning me-2"></i>Insufficient Data
+                </h5>
+                <button type="button" class="btn-close btn-close-white" onclick="closeModal()" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-white mb-3">{{ error_message }}</p>
+                <p class="text-white-50 mb-3">
+                    <strong>Found:</strong> {{ rental_count }} rental flats, {{ sales_count }} sales flats<br>
+                    <strong>Required:</strong> At least {{ min_required }} flats in sales
+                </p>
+                <p class="text-warning mb-3">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    <strong>Tip:</strong> Try increasing the Area Tolerance to find more similar flats.
+                </p>
+                
+                <form action="{{ url_for('view_flat_details', flat_id=flat_id) }}" method="get">
+                    <div class="mb-3">
+                        <label for="area_tolerance_input" class="form-label text-white">Area Tolerance (%):</label>
+                        <input type="number" 
+                               id="area_tolerance_input" 
+                               name="area_tolerance" 
+                               class="form-control" 
+                               min="1" 
+                               max="100" 
+                               value="{{ area_tolerance + 10 }}" 
+                               required>
+                        <small class="text-muted">Current: {{ area_tolerance }}%. Try increasing to {{ area_tolerance + 10 }}% or higher.</small>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search me-1"></i>Retry with New Tolerance
+                        </button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-backdrop fade show" onclick="closeModal()"></div>
+
+<script>
+function closeModal() {
+    const modal = document.getElementById('errorModal');
+    const backdrop = document.querySelector('.modal-backdrop');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    if (backdrop) {
+        backdrop.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}
+
+

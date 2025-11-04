@@ -258,14 +258,41 @@ def view_flat_details(flat_id):
     # Get similar flats using API
     similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
     if not similar_result["success"]:
-        raise Exception(f"Failed to get similar flats: {similar_result['error']}")
+        # Show error modal instead of raising exception
+        error_message = similar_result.get("error", "Failed to get similar flats")
+        rental_count = similar_result.get("rental_count", 0)
+        sales_count = similar_result.get("sales_count", 0)
+        min_required = similar_result.get("min_required", 3)
+
+        return render_template(
+            "flat_error.html",
+            flat_data=flat_data,
+            error_message=error_message,
+            rental_count=rental_count,
+            sales_count=sales_count,
+            min_required=min_required,
+            area_tolerance=area_tolerance,
+            flat_id=flat_id,
+        )
 
     similar_rentals = similar_result["similar_rentals"]
     similar_sales = similar_result["similar_sales"]
 
     if not similar_rentals or not similar_sales:
-        raise Exception(
-            f"Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats."
+        # Show error modal instead of raising exception
+        rental_count = len(similar_rentals) if similar_rentals else 0
+        sales_count = len(similar_sales) if similar_sales else 0
+        error_message = f"Insufficient data for analysis. Found {rental_count} rental and {sales_count} sales flats."
+
+        return render_template(
+            "flat_error.html",
+            flat_data=flat_data,
+            error_message=error_message,
+            rental_count=rental_count,
+            sales_count=sales_count,
+            min_required=3,
+            area_tolerance=area_tolerance,
+            flat_id=flat_id,
         )
 
     # Calculate investment analysis
