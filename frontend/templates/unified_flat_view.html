@@ -4,7 +4,20 @@
 
 {% block content %}
 <div class="container mt-4">
-    <h2 class="text-white mb-4">Flat Details - {{ flat_data.residential_complex }}</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
+        <div class="d-flex gap-2 align-items-center">
+            <div class="d-flex gap-2 align-items-center me-3">
+                <div class="d-flex flex-column">
+                    <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 1rem;">Area Tolerance (%)</label>
+                    <input type="number" id="area_tolerance" name="area_tolerance" 
+                           class="form-control form-control-sm" 
+                           min="1" max="100" value="{{ area_tolerance }}" 
+                           style="width: 80px;">
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Flat Information Card -->
     <div class="row mb-4">
@@ -334,6 +347,32 @@ function toggleSection(sectionId) {
         icon.classList.add('fa-chevron-down');
     }
 }
+
+// Handle area_tolerance input changes
+document.addEventListener('DOMContentLoaded', function() {
+    const areaToleranceInput = document.getElementById('area_tolerance');
+    
+    if (areaToleranceInput) {
+        function updateURL() {
+            const areaTolerance = areaToleranceInput.value;
+            
+            // Build new URL with updated parameter
+            const url = new URL(window.location.href);
+            url.searchParams.set('area_tolerance', areaTolerance);
+            
+            // Reload page with new parameter
+            window.location.href = url.toString();
+        }
+        
+        // Add change event listener - update on blur (when user finishes editing)
+        areaToleranceInput.addEventListener('change', function() {
+            const value = parseFloat(this.value);
+            if (value < 1) this.value = 1;
+            if (value > 100) this.value = 100;
+            updateURL();
+        });
+    }
+});
 </script>
 {% endblock %}
 

@@ -99,6 +99,8 @@ def analyze_jk(
     # Get analysis parameters
     area_max = float(request.args.get("area_max", 1000.0))
     query_date = request.args.get("date", datetime.now().strftime("%Y-%m-%d"))
+    area_tolerance = float(request.args.get("area_tolerance", 10.0))
+    discount_percentage = float(request.args.get("discount_percentage", 20.0))
 
     # Get complex information using API
     complex_info = api_client.get_complex_info(residential_complex_name)
@@ -139,8 +141,10 @@ def analyze_jk(
         db.disconnect()
 
     # Get analysis using API
+    # Convert discount_percentage from percentage (e.g., 20) to decimal (e.g., 0.20)
+    discount_decimal = discount_percentage / 100.0
     sales_analysis: SalesAnalysisResponse = api_client.get_jk_sales_analysis(
-        residential_complex_name, 0.20
+        residential_complex_name, discount_decimal
     )
     flat_type_buckets_stats: dict[str, FlatTypeStats] = (
         sales_analysis.current_market.flat_type_buckets
@@ -151,7 +155,7 @@ def analyze_jk(
     if not sales_analysis.success:
         raise Exception(f"Sales analysis API failed: {sales_analysis.error}")
 
-    rental_analysis = api_client.get_jk_rentals_analysis(residential_complex_name, 0.05)
+    rental_analysis = api_client.get_jk_rentals_analysis(residential_complex_name, 0.0)
     if not rental_analysis.success:
         raise Exception(f"Rental analysis API failed: {rental_analysis.error}")
 
@@ -235,12 +239,17 @@ def analyze_jk(
         sales_median=sales_median,
         flat_type_buckets=flat_type_buckets,
         opportunities_by_flat_type=opportunities_by_flat_type,
+        area_tolerance=area_tolerance,
+        discount_percentage=discount_percentage,
     )
 
 
 @app.route("/flat/<flat_id>")
-def view_flat_details(flat_id, area_tolerance=10.0):
+def view_flat_details(flat_id):
     """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
+    # Get analysis parameters
+    area_tolerance = float(request.args.get("area_tolerance", 10.0))
+
     # Get flat information using API
     flat_data = api_client.get_flat_info(flat_id)
     if not flat_data:
@@ -249,14 +258,41 @@ def view_flat_details(flat_id, area_tolerance=10.0):
     # Get similar flats using API
     similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
     if not similar_result["success"]:
-        raise Exception(f"Failed to get similar flats: {similar_result['error']}")
+        # Show error modal instead of raising exception
+        error_message = similar_result.get("error", "Failed to get similar flats")
+        rental_count = similar_result.get("rental_count", 0)
+        sales_count = similar_result.get("sales_count", 0)
+        min_required = similar_result.get("min_required", 3)
+
+        return render_template(
+            "flat_error.html",
+            flat_data=flat_data,
+            error_message=error_message,
+            rental_count=rental_count,
+            sales_count=sales_count,
+            min_required=min_required,
+            area_tolerance=area_tolerance,
+            flat_id=flat_id,
+        )
 
     similar_rentals = similar_result["similar_rentals"]
     similar_sales = similar_result["similar_sales"]
 
     if not similar_rentals or not similar_sales:
-        raise Exception(
-            f"Insufficient data for analysis. Found {len(similar_rentals)} rental and {len(similar_sales)} sales flats."
+        # Show error modal instead of raising exception
+        rental_count = len(similar_rentals) if similar_rentals else 0
+        sales_count = len(similar_sales) if similar_sales else 0
+        error_message = f"Insufficient data for analysis. Found {rental_count} rental and {sales_count} sales flats."
+
+        return render_template(
+            "flat_error.html",
+            flat_data=flat_data,
+            error_message=error_message,
+            rental_count=rental_count,
+            sales_count=sales_count,
+            min_required=3,
+            area_tolerance=area_tolerance,
+            flat_id=flat_id,
         )
 
     # Calculate investment analysis
