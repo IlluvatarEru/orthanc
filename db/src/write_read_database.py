@@ -55,7 +55,11 @@ class OrthancDB:
 
     # Rental flats operations
     def insert_rental_flat(
-        self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None
+        self,
+        flat_info: FlatInfo,
+        url: str,
+        query_date: str,
+        flat_type: str = None,
     ) -> bool:
         """
         Insert rental flat information into database.
@@ -77,8 +81,8 @@ class OrthancDB:
                 """
                 INSERT INTO rental_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                    construction_year, parking, description, url, query_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    construction_year, parking, description, url, query_date, archived
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -93,6 +97,7 @@ class OrthancDB:
                     flat_info.description,
                     url,
                     query_date,
+                    1 if flat_info.archived else 0,
                 ),
             )
 
@@ -110,7 +115,11 @@ class OrthancDB:
             return False
 
     def insert_sales_flat(
-        self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None
+        self,
+        flat_info: FlatInfo,
+        url: str,
+        query_date: str,
+        flat_type: str = None,
     ) -> bool:
         """
         Insert sales flat information into database.
@@ -131,8 +140,8 @@ class OrthancDB:
                 """
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                    construction_year, parking, description, url, query_date
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    construction_year, parking, description, url, query_date, archived
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -147,6 +156,7 @@ class OrthancDB:
                     flat_info.description,
                     url,
                     query_date,
+                    1 if flat_info.archived else 0,
                 ),
             )
 
@@ -164,7 +174,11 @@ class OrthancDB:
             return False
 
     def update_rental_flat(
-        self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None
+        self,
+        flat_info: FlatInfo,
+        url: str,
+        query_date: str,
+        flat_type: str = None,
     ) -> bool:
         """
         Update existing rental flat information.
@@ -185,7 +199,7 @@ class OrthancDB:
             UPDATE rental_flats SET
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
-                description = ?, url = ?, updated_at = CURRENT_TIMESTAMP
+                description = ?, url = ?, archived = ?, updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
         """,
             (
@@ -199,6 +213,7 @@ class OrthancDB:
                 flat_info.parking,
                 flat_info.description,
                 url,
+                1 if flat_info.archived else 0,
                 flat_info.flat_id,
                 query_date,
             ),
@@ -209,7 +224,11 @@ class OrthancDB:
         return True
 
     def update_sales_flat(
-        self, flat_info: FlatInfo, url: str, query_date: str, flat_type: str = None
+        self,
+        flat_info: FlatInfo,
+        url: str,
+        query_date: str,
+        flat_type: str = None,
     ) -> bool:
         """
         Update existing sales flat information.
@@ -230,7 +249,7 @@ class OrthancDB:
             UPDATE sales_flats SET
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
-                description = ?, url = ?, updated_at = CURRENT_TIMESTAMP
+                description = ?, url = ?, archived = ?, updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
         """,
             (
@@ -244,6 +263,7 @@ class OrthancDB:
                 flat_info.parking,
                 flat_info.description,
                 url,
+                1 if flat_info.archived else 0,
                 flat_info.flat_id,
                 query_date,
             ),
@@ -287,6 +307,7 @@ class OrthancDB:
                 parking=row["parking"],
                 description=row["description"] or "",
                 is_rental=True,
+                archived=bool(row["archived"]),
             )
             result.append(flat)
 
@@ -326,6 +347,7 @@ class OrthancDB:
                 parking=row["parking"],
                 description=row["description"] or "",
                 is_rental=False,
+                archived=bool(row["archived"]),
             )
             result.append(flat)
 
@@ -508,9 +530,9 @@ class OrthancDB:
                 """
                 SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
                        total_floors, construction_year, parking, description, url, 
-                       query_date, scraped_at
+                       query_date, scraped_at, archived
                 FROM rental_flats 
-                WHERE residential_complex LIKE ?
+                WHERE residential_complex LIKE ? AND (archived = 0 OR archived IS NULL)
                 ORDER BY flat_id, query_date DESC
             """,
                 (f"%{residential_complex}%",),
@@ -532,6 +554,9 @@ class OrthancDB:
                         parking=row[8],
                         description=row[9] or "",
                         is_rental=True,
+                        archived=bool(row[13])
+                        if len(row) > 13 and row[13] is not None
+                        else False,
                     )
 
             flats.extend(list(rental_data.values()))
@@ -541,9 +566,9 @@ class OrthancDB:
                 """
                 SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
                        total_floors, construction_year, parking, description, url, 
-                       query_date, scraped_at
+                       query_date, scraped_at, archived
                 FROM sales_flats 
-                WHERE residential_complex LIKE ?
+                WHERE residential_complex LIKE ? AND (archived = 0 OR archived IS NULL)
                 ORDER BY flat_id, query_date DESC
             """,
                 (f"%{residential_complex}%",),
@@ -565,6 +590,9 @@ class OrthancDB:
                         parking=row[8],
                         description=row[9] or "",
                         is_rental=False,
+                        archived=bool(row[13])
+                        if len(row) > 13 and row[13] is not None
+                        else False,
                     )
 
             flats.extend(list(sales_data.values()))
@@ -793,7 +821,7 @@ class OrthancDB:
             cursor = self.conn.execute(
                 """
                 SELECT flat_id, price, area, residential_complex, floor, total_floors,
-                       construction_year, parking, description, url, query_date
+                       construction_year, parking, description, url, query_date, archived
                 FROM sales_flats 
                 WHERE flat_id = ?
             """,
@@ -804,7 +832,7 @@ class OrthancDB:
             cursor = self.conn.execute(
                 """
                 SELECT flat_id, price, area, residential_complex, floor, total_floors,
-                       construction_year, parking, description, url, query_date
+                       construction_year, parking, description, url, query_date, archived
                 FROM rental_flats 
                 WHERE flat_id = ?
             """,
@@ -815,6 +843,9 @@ class OrthancDB:
         if not flat_data:
             logging.info(f"Flat {flat_id} not found in source table")
             return False
+
+        # Extract archived status from database (default to False if NULL)
+        archived_status = bool(flat_data[11]) if flat_data[11] is not None else False
 
         # Insert into correct table
         if correct_type == "rental":
@@ -830,6 +861,7 @@ class OrthancDB:
                     parking=flat_data[7],
                     description=flat_data[8],
                     is_rental=True,
+                    archived=archived_status,
                 ),
                 flat_data[9],  # url
                 flat_data[10],  # query_date
@@ -852,6 +884,7 @@ class OrthancDB:
                     parking=flat_data[7],
                     description=flat_data[8],
                     is_rental=False,
+                    archived=archived_status,
                 ),
                 flat_data[9],  # url
                 flat_data[10],  # query_date
@@ -1593,6 +1626,7 @@ class OrthancDB:
             FROM sales_flats sf
             WHERE sf.residential_complex = ? 
             AND DATE(sf.query_date) >= DATE('now', '-1 day')
+            AND (sf.archived = 0 OR sf.archived IS NULL)
         """
 
         cursor = self.conn.execute(recent_sales_query, (jk_name,))
@@ -1614,7 +1648,7 @@ class OrthancDB:
             SELECT rf.*, 
                    ROW_NUMBER() OVER (PARTITION BY rf.flat_id ORDER BY rf.query_date DESC) as rn
             FROM rental_flats rf
-            WHERE rf.residential_complex = ?
+            WHERE rf.residential_complex = ? AND (rf.archived = 0 OR rf.archived IS NULL)
         """
 
         cursor = self.conn.execute(query, (jk_name,))
@@ -1636,7 +1670,7 @@ class OrthancDB:
             SELECT sf.*,
                    ROW_NUMBER() OVER (PARTITION BY sf.flat_id ORDER BY sf.query_date DESC) as rn
             FROM sales_flats sf
-            WHERE sf.residential_complex = ?
+            WHERE sf.residential_complex = ? AND (sf.archived = 0 OR sf.archived IS NULL)
         """
 
         cursor = self.conn.execute(query, (jk_name,))
@@ -1793,7 +1827,7 @@ class OrthancDB:
         cursor = self.conn.execute(
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor, 
-                   total_floors, construction_year, parking, description, url, query_date
+                   total_floors, construction_year, parking, description, url, query_date, archived
             FROM rental_flats 
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -1816,6 +1850,7 @@ class OrthancDB:
                 parking=row[8],
                 description=row[9],
                 is_rental=True,
+                archived=bool(row[12] if len(row) > 12 else 0),
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -1827,7 +1862,7 @@ class OrthancDB:
         cursor = self.conn.execute(
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor, 
-                   total_floors, construction_year, parking, description, url, query_date
+                   total_floors, construction_year, parking, description, url, query_date, archived
             FROM sales_flats 
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -1850,6 +1885,7 @@ class OrthancDB:
                 parking=row[8],
                 description=row[9],
                 is_rental=False,
+                archived=bool(row[12] if len(row) > 12 else 0),
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -1969,6 +2005,301 @@ class OrthancDB:
             return (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
         else:
             return sorted_values[n // 2]
+
+    # Opportunity Analysis operations
+    def insert_opportunity_analysis_batch(
+        self, opportunities: List[Dict], run_timestamp: str
+    ) -> int:
+        """
+        Insert a batch of opportunity analysis results with the same run timestamp.
+
+        :param opportunities: List[Dict], list of opportunity dictionaries
+        :param run_timestamp: str, timestamp for this analysis run (format: YYYY-MM-DD HH:MM:SS)
+        :return: int, number of opportunities successfully inserted
+        """
+        self.connect()
+
+        inserted_count = 0
+        try:
+            for opp in opportunities:
+                self.conn.execute(
+                    """
+                    INSERT INTO opportunity_analysis (
+                        run_timestamp, rank, flat_id, residential_complex, price, area,
+                        flat_type, floor, total_floors, construction_year, parking,
+                        discount_percentage_vs_median, median_price, mean_price,
+                        min_price, max_price, sample_size, query_date, url, description
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                    (
+                        run_timestamp,
+                        opp.get("rank"),
+                        opp.get("flat_id"),
+                        opp.get("residential_complex"),
+                        opp.get("price"),
+                        opp.get("area"),
+                        opp.get("flat_type"),
+                        opp.get("floor") if opp.get("floor") else None,
+                        opp.get("total_floors") if opp.get("total_floors") else None,
+                        opp.get("construction_year")
+                        if opp.get("construction_year")
+                        else None,
+                        opp.get("parking") if opp.get("parking") else None,
+                        opp.get("discount_percentage_vs_median"),
+                        opp.get("median_price"),
+                        opp.get("mean_price"),
+                        opp.get("min_price"),
+                        opp.get("max_price"),
+                        opp.get("sample_size"),
+                        opp.get("query_date"),
+                        opp.get("url"),
+                        opp.get("description") if opp.get("description") else None,
+                    ),
+                )
+                inserted_count += 1
+
+            self.conn.commit()
+            logging.info(
+                f"Inserted {inserted_count} opportunities with run_timestamp: {run_timestamp}"
+            )
+        except Exception as e:
+            logging.error(f"Error inserting opportunity analysis batch: {e}")
+            self.conn.rollback()
+            raise
+        finally:
+            self.disconnect()
+
+        return inserted_count
+
+    def get_latest_opportunity_analysis_run_timestamp(self) -> Optional[str]:
+        """
+        Get the latest run timestamp from opportunity analysis.
+
+        :return: Optional[str], latest run timestamp or None if no runs exist
+        """
+        self.connect()
+
+        cursor = self.conn.execute(
+            """
+            SELECT DISTINCT run_timestamp 
+            FROM opportunity_analysis 
+            ORDER BY run_timestamp DESC 
+            LIMIT 1
+        """
+        )
+
+        row = cursor.fetchone()
+        result = row[0] if row else None
+        self.disconnect()
+        return result
+
+    def get_opportunity_analysis_by_timestamp(self, run_timestamp: str) -> List[Dict]:
+        """
+        Get all opportunity analysis results for a specific run timestamp.
+
+        :param run_timestamp: str, run timestamp to query
+        :return: List[Dict], list of opportunity analysis results
+        """
+        self.connect()
+
+        cursor = self.conn.execute(
+            """
+            SELECT * FROM opportunity_analysis 
+            WHERE run_timestamp = ?
+            ORDER BY rank ASC
+        """,
+            (run_timestamp,),
+        )
+
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+
+    def get_all_opportunity_analysis_run_timestamps(self) -> List[str]:
+        """
+        Get all distinct run timestamps from opportunity analysis, ordered by most recent first.
+
+        :return: List[str], list of run timestamps
+        """
+        self.connect()
+
+        cursor = self.conn.execute(
+            """
+            SELECT DISTINCT run_timestamp 
+            FROM opportunity_analysis 
+            ORDER BY run_timestamp DESC
+        """
+        )
+
+        result = [row[0] for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+
+    def is_flat_archived(self, flat_id: str, is_rental: bool = False) -> bool:
+        """
+        Check if a flat is archived.
+
+        :param flat_id: str, flat ID to check
+        :param is_rental: bool, True if checking rental_flats, False for sales_flats
+        :return: bool, True if flat is archived
+        """
+        self.connect()
+
+        table = "rental_flats" if is_rental else "sales_flats"
+        cursor = self.conn.execute(
+            f"""
+            SELECT archived 
+            FROM {table} 
+            WHERE flat_id = ?
+            ORDER BY query_date DESC
+            LIMIT 1
+        """,
+            (flat_id,),
+        )
+
+        row = cursor.fetchone()
+        if row:
+            archived_value = row[0]
+            result = archived_value == 1 if archived_value is not None else False
+        else:
+            result = False
+
+        self.disconnect()
+        return result
+
+    def get_non_archived_flat_ids_for_jk(
+        self, jk_name: str, is_rental: bool = False
+    ) -> List[str]:
+        """
+        Get all non-archived flat IDs for a specific residential complex.
+
+        :param jk_name: str, name of the residential complex
+        :param is_rental: bool, True for rental_flats, False for sales_flats
+        :return: List[str], list of flat IDs
+        """
+        self.connect()
+
+        table = "rental_flats" if is_rental else "sales_flats"
+        query = f"""
+            SELECT DISTINCT flat_id
+            FROM {table}
+            WHERE residential_complex = ? AND (archived = 0 OR archived IS NULL)
+        """
+
+        cursor = self.conn.execute(query, (jk_name,))
+        flat_ids = [row[0] for row in cursor.fetchall()]
+
+        self.disconnect()
+        return flat_ids
+
+    def mark_flat_as_archived(self, flat_id: str, is_rental: bool = False) -> bool:
+        """
+        Mark a flat as archived in the database.
+
+        :param flat_id: str, flat ID to mark as archived
+        :param is_rental: bool, True for rental_flats, False for sales_flats
+        :return: bool, True if successful
+        """
+        self.connect()
+
+        table = "rental_flats" if is_rental else "sales_flats"
+        query = f"""
+            UPDATE {table}
+            SET archived = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE flat_id = ?
+        """
+
+        cursor = self.conn.execute(query, (flat_id,))
+        self.conn.commit()
+        rows_affected = cursor.rowcount
+
+        self.disconnect()
+        return rows_affected > 0
+
+    def get_historical_sales_for_jk(self, jk_name: str, start_date: str) -> List[dict]:
+        """
+        Get historical sales data for a residential complex from a start date.
+
+        :param jk_name: str, name of the residential complex
+        :param start_date: str, start date in format 'YYYY-MM-DD'
+        :return: List[dict], historical sales data with query_date, flat_type, price, area, floor, total_floors, flat_id, url
+        """
+        self.connect()
+
+        query = """
+            SELECT query_date, flat_type, price, area, floor, total_floors, flat_id, url
+            FROM sales_flats
+            WHERE residential_complex = ? AND query_date >= ?
+            ORDER BY query_date, flat_type
+        """
+
+        cursor = self.conn.execute(query, (jk_name, start_date))
+        historical_data = [dict(row) for row in cursor.fetchall()]
+
+        self.disconnect()
+        return historical_data
+
+    def get_all_jk_names_from_sales(self) -> List[str]:
+        """
+        Get list of all distinct residential complex names from sales_flats table.
+
+        :return: List[str], list of JK names sorted alphabetically
+        """
+        self.connect()
+
+        query = """
+            SELECT DISTINCT residential_complex
+            FROM sales_flats
+            WHERE residential_complex IS NOT NULL
+            ORDER BY residential_complex
+        """
+
+        cursor = self.conn.execute(query)
+        result = [row[0] for row in cursor.fetchall()]
+
+        self.disconnect()
+        return result
+
+    def get_jk_sales_summary(self, jk_name: str) -> dict:
+        """
+        Get a quick summary of sales data for a residential complex.
+
+        :param jk_name: str, name of the residential complex
+        :return: dict, summary statistics with jk_name, total_sales, date_range, flat_type_distribution
+        """
+        self.connect()
+
+        # Get total sales count
+        count_query = "SELECT COUNT(*) FROM sales_flats WHERE residential_complex = ?"
+        total_sales = self.conn.execute(count_query, (jk_name,)).fetchone()[0]
+
+        # Get date range
+        date_query = """
+            SELECT MIN(query_date) as earliest, MAX(query_date) as latest
+            FROM sales_flats
+            WHERE residential_complex = ?
+        """
+        date_result = self.conn.execute(date_query, (jk_name,)).fetchone()
+
+        # Get flat type distribution
+        type_query = """
+            SELECT flat_type, COUNT(*) as count
+            FROM sales_flats
+            WHERE residential_complex = ?
+            GROUP BY flat_type
+            ORDER BY count DESC
+        """
+        type_distribution = dict(self.conn.execute(type_query, (jk_name,)).fetchall())
+
+        result = {
+            "jk_name": jk_name,
+            "total_sales": total_sales,
+            "date_range": {"earliest": date_result[0], "latest": date_result[1]},
+            "flat_type_distribution": type_distribution,
+        }
+
+        self.disconnect()
+        return result
 
 
 # Convenience functions

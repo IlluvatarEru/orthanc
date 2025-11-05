@@ -18,6 +18,7 @@ class FlatInfo:
     :param description: str, full description text
     :param is_rental: bool, True if the flat is for rent, False if for sale
     :param flat_type: Optional[str], type of flat ('Studio', '1BR', '2BR', '3BR+')
+    :param archived: bool, True if the flat is archived, False otherwise
     """
 
     flat_id: str
@@ -31,3 +32,4 @@ class FlatInfo:
     parking: Optional[str]
     description: str
     is_rental: bool = False
+    archived: bool = False

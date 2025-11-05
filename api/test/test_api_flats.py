@@ -213,12 +213,13 @@ class TestFlatsAPI:
             flat_types = {}
 
             for flat in data["flats"]:
-                rc = flat.get("residential_complex", "NULL")
-                ft = flat.get("flat_type", "NULL")
+                rc = flat.get("residential_complex")
+                if rc is None:
+                    raise Exception(f"flat:{flat}")
+                ft = flat.get("flat_type")
 
                 residential_complexes[rc] = residential_complexes.get(rc, 0) + 1
                 flat_types[ft] = flat_types.get(ft, 0) + 1
-
             logger.info("Residential complexes distribution:")
             for rc, count in sorted(residential_complexes.items()):
                 logger.info(f"  {rc}: {count}")

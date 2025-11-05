@@ -468,50 +468,43 @@ def scrape_single_jk(
     jk_name: str,
     db_path: str = "flats.db",
     max_pages: int = 10,
-    scrape_rentals: bool = True,
-    scrape_sales: bool = True,
-) -> Dict[str, int]:
+    scrape_rentals: bool = False,
+    scrape_sales: bool = False,
+) -> None:
     """
-    Scrape a specific JK if it doesn't already have data in the database.
+    Scrape a single JK (rentals and/or sales).
 
     :param jk_name: str, name of the residential complex to scrape
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param scrape_rentals: bool, whether to scrape rentals
     :param scrape_sales: bool, whether to scrape sales
-    :return: Dict[str, int], results with saved counts for rentals and sales
     """
-    logger.info(f"Checking if {jk_name} already has data in database...")
+    if not scrape_rentals and not scrape_sales:
+        logger.error("At least one of --rentals or --sales must be specified")
+        return
 
-    db = OrthancDB(db_path)
-    db.connect()
+    logger.info(f"Starting scraping for single JK: {jk_name}")
 
-    try:
-        results = {
-            "rentals_saved": 0,
-            "sales_saved": 0,
-        }
+    if scrape_rentals:
+        logger.info(f"Scraping rentals for: {jk_name}")
+        saved_count = scrape_and_save_jk_rentals(
+            jk_name=jk_name, max_pages=max_pages, db_path=db_path
+        )
+        logger.info(
+            f"✅ Rental scraping completed for {jk_name}: {saved_count} flats saved"
+        )
 
-        if scrape_rentals:
-            logger.info(f"📥 No rental data found for {jk_name}. Scraping rentals...")
-            results["rentals_saved"] = scrape_and_save_jk_rentals(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path
-            )
-            logger.info(
-                f"✅ Saved {results['rentals_saved']} rental flats for {jk_name}"
-            )
+    if scrape_sales:
+        logger.info(f"Scraping sales for: {jk_name}")
+        saved_count = scrape_and_save_jk_sales(
+            jk_name=jk_name, max_pages=max_pages, db_path=db_path
+        )
+        logger.info(
+            f"✅ Sales scraping completed for {jk_name}: {saved_count} flats saved"
+        )
 
-        if scrape_sales:
-            logger.info(f"📥 No sales data found for {jk_name}. Scraping sales...")
-            results["sales_saved"] = scrape_and_save_jk_sales(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path
-            )
-            logger.info(f"✅ Saved {results['sales_saved']} sales flats for {jk_name}")
-
-        return results
-
-    finally:
-        db.disconnect()
+    logger.info(f"Scraping completed for {jk_name}!")
 
 
 def manage_blacklist(
@@ -591,14 +584,10 @@ if __name__ == "__main__":
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
     parser.add_argument("--max-pages", type=int, default=1, help="Maximum pages per JK")
     parser.add_argument(
-        "--rentals",
-        action="store_true",
-        help="Include rentals (immediate mode or scrape-jk mode)",
+        "--rentals", action="store_true", help="Include rentals (immediate mode)"
     )
     parser.add_argument(
-        "--sales",
-        action="store_true",
-        help="Include sales (immediate mode or scrape-jk mode)",
+        "--sales", action="store_true", help="Include sales (immediate mode)"
     )
     parser.add_argument(
         "--run-time", default="12:00", help="Time to run daily scraping (HH:MM)"
@@ -612,9 +601,7 @@ if __name__ == "__main__":
         help="Blacklist action",
     )
     parser.add_argument("--krisha-id", help="Krisha ID for blacklist operations")
-    parser.add_argument(
-        "--jk-name", help="JK name for blacklist operations or scrape-jk mode"
-    )
+    parser.add_argument("--jk-name", help="JK name for blacklist operations")
     parser.add_argument("--notes", help="Notes for blacklisting")
 
     args = parser.parse_args()
@@ -651,16 +638,12 @@ if __name__ == "__main__":
             sys.exit(1)
     elif args.mode == "scrape-jk":
         if not args.jk_name:
-            logger.error("❌ --jk-name is required for scrape-jk mode")
+            logger.error("--jk-name is required when using --mode scrape-jk")
             sys.exit(1)
-
-        scrape_rentals = args.rentals or not (args.rentals or args.sales)
-        scrape_sales = args.sales or not (args.rentals or args.sales)
-
-        results = scrape_single_jk(
+        scrape_single_jk(
             jk_name=args.jk_name,
             db_path=args.db_path,
             max_pages=args.max_pages,
-            scrape_rentals=scrape_rentals,
-            scrape_sales=scrape_sales,
+            scrape_rentals=args.rentals,
+            scrape_sales=args.sales,
         )

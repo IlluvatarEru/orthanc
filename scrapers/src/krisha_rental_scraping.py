@@ -5,13 +5,15 @@ This module provides functionality to scrape rental flat details from Krisha.kz
 using a single flat ID and return a FlatInfo object.
 """
 
-import requests
-import re
 import json
 import logging
-from typing import Optional, List
+import re
 from datetime import datetime
+from typing import Optional, List
+
+import requests
 from bs4 import BeautifulSoup
+
 from common.src.flat_info import FlatInfo
 from scrapers.src.utils import (
     extract_price,
@@ -87,7 +89,7 @@ def scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(
         flat_info = scrape_rental_flat(krisha_id)
         if flat_info is not None:
             logging.info(
-                f"✅ Successfully scraped rental flat {krisha_id} using analytics API"
+                f"✅ Successfully scraped rental flat {krisha_id} using analytics API (archived: {flat_info.archived})"
             )
             return flat_info
         else:
@@ -101,7 +103,7 @@ def scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(
         flat_info = scrape_rental_flat_from_rental_page(krisha_id)
         if flat_info is not None:
             logging.info(
-                f"✅ Successfully scraped rental flat {krisha_id} using direct page scraping"
+                f"✅ Successfully scraped rental flat {krisha_id} using direct page scraping (archived: {flat_info.archived})"
             )
             return flat_info
         else:
@@ -141,6 +143,10 @@ def scrape_rental_flat(krisha_id: str) -> Optional[FlatInfo]:
             data = json.loads(response.text)
 
         advert = data.get("advert", {})
+
+        # Check if flat is archived (storage is in advert object)
+        storage = advert.get("storage", "")
+        is_archived = storage == "archive"
 
         # Price (monthly rent)
         price = data.get("currentPrice")
@@ -196,6 +202,7 @@ def scrape_rental_flat(krisha_id: str) -> Optional[FlatInfo]:
             parking=extra.get("parking"),
             description=description,
             is_rental=True,
+            archived=is_archived,
         )
 
         return flat_info
@@ -255,6 +262,15 @@ def extract_rental_info(
         flat_type = determine_flat_type_from_text(title, description, area)
         flat_type = normalize_flat_type_enum(flat_type)
 
+        # Check if flat is archived by looking for the archived label
+        is_archived = False
+        archived_label = soup.select_one(
+            "span.paid-labels__item.paid-labels__item--red"
+        )
+        if archived_label and archived_label.get_text(strip=True) == "В архиве":
+            is_archived = True
+            logging.info(f"Flat {flat_id} is marked as archived in HTML")
+
         # Create FlatInfo object
         flat_info = FlatInfo(
             flat_id=flat_id,
@@ -268,6 +284,7 @@ def extract_rental_info(
             parking=parking,
             description=description,
             is_rental=True,
+            archived=is_archived,
         )
 
         return flat_info
@@ -277,13 +294,16 @@ def extract_rental_info(
         return None
 
 
-def scrape_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
+def scrape_jk_rentals(
+    jk_name: str, max_pages: int = 10, db_path: str = "flats.db"
+) -> List[FlatInfo]:
     """
     Scrape all rental flats for a specific residential complex (JK).
 
     :param jk_name: str, name of the residential complex
     :param max_pages: int, maximum number of pages to scrape (default: 10)
-    :return: List[FlatInfo], list of scraped rental flats
+    :param db_path: str, path to database file to check archived status
+    :return: List[FlatInfo], list of scraped rental flats (with archived status in FlatInfo)
     """
     logging.info(f"Starting JK rental scraping for: {jk_name}")
     logging.info(f"Max pages: {max_pages}")
@@ -301,6 +321,11 @@ def scrape_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
 
     complex_id = complex_info["complex_id"]
     logging.info(f"Found complex ID: {complex_id}")
+
+    # Initialize database connection once for checking archived status
+    from db.src.write_read_database import OrthancDB
+
+    db = OrthancDB(db_path)
 
     # Scrape each page
     for page in range(1, max_pages + 1):
@@ -327,6 +352,11 @@ def scrape_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
                 if not flat_id:
                     continue
 
+                # Check if flat is already archived before scraping
+                if db.is_flat_archived(flat_id, is_rental=True):
+                    logging.info(f"Skipping archived rental flat: {flat_id}")
+                    continue
+
                 # Scrape the flat with failover
                 flat_info = (
                     scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(
@@ -335,7 +365,9 @@ def scrape_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
                 )
                 if flat_info:
                     all_flats.append(flat_info)
-                    logging.info(f"Successfully scraped rental flat: {flat_id}")
+                    logging.info(
+                        f"Successfully scraped rental flat: {flat_id} (archived: {flat_info.archived})"
+                    )
                 else:
                     logging.error(f"Failed to scrape rental flat: {flat_id}")
 
@@ -349,11 +381,48 @@ def scrape_jk_rentals(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     return all_flats
 
 
+def check_if_rental_flat_is_archived(flat_id: str) -> bool:
+    """
+    Check if a rental flat is archived by querying the analytics API or scraping the page.
+
+    :param flat_id: str, Krisha.kz flat ID
+    :return: bool, True if archived, False otherwise (or if check fails)
+    """
+    # Try analytics API first
+    api_url = f"https://m.krisha.kz/analytics/aPriceAnalysis/?id={flat_id}"
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Referer": f"https://m.krisha.kz/a/show/{flat_id}",
+        "Origin": "https://m.krisha.kz",
+    }
+
+    response = requests.get(api_url, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    data = response.json()
+
+    # Storage is nested in advert object
+    advert = data.get("advert", {})
+    storage = advert.get("storage", "")
+    if storage == "archive":
+        return True
+
+    # Fallback: try scraping the page to check for archived tag
+    flat_info = scrape_rental_flat_from_rental_page(flat_id)
+    if flat_info and flat_info.archived:
+        return True
+
+    return False
+
+
 def scrape_and_save_jk_rentals(
     jk_name: str, max_pages: int = 10, db_path: str = "flats.db"
 ) -> int:
     """
     Scrape and save all rental flats for a specific residential complex (JK).
+    Also checks existing non-archived flats to see if they're now archived.
 
     :param jk_name: str, name of the residential complex
     :param max_pages: int, maximum number of pages to scrape (default: 10)
@@ -362,22 +431,24 @@ def scrape_and_save_jk_rentals(
     """
     logging.info(f"Starting JK rental scraping and saving for: {jk_name}")
 
-    # Scrape flats
-    flats = scrape_jk_rentals(jk_name, max_pages)
-
-    if not flats:
-        logging.warning(f"No flats found for {jk_name}")
-        return 0
-
-    # Save to database
+    # Get existing non-archived flat IDs before scraping
     from db.src.write_read_database import OrthancDB
 
     db = OrthancDB(db_path)
+    existing_flat_ids = db.get_non_archived_flat_ids_for_jk(jk_name, is_rental=True)
+
+    # Scrape flats
+    flats: List[FlatInfo] = scrape_jk_rentals(jk_name, max_pages, db_path)
+
     saved_count = 0
 
+    # Get scraped flat IDs
+    scraped_flat_ids = {flat_info.flat_id for flat_info in flats}
+
+    # Save scraped flats
     for flat_info in flats:
         try:
-            # Save rental flat to database
+            # Save rental flat to database with archived status
             success = db.insert_rental_flat(
                 flat_info=flat_info,
                 url=f"https://krisha.kz/a/show/{flat_info.flat_id}",
@@ -387,13 +458,31 @@ def scrape_and_save_jk_rentals(
 
             if success:
                 saved_count += 1
-                logging.info(f"Saved rental flat: {flat_info.flat_id}")
+                archived_status = " (archived)" if flat_info.archived else ""
+                logging.info(f"Saved rental flat: {flat_info.flat_id}{archived_status}")
             else:
                 logging.error(f"Failed to save rental flat: {flat_info.flat_id}")
 
         except Exception as e:
-            logging.error(f"Error saving flat {flat_info.flat_id}: {e}")
+            logging.exception(f"Error saving flat {flat_info.flat_id}: {e}")
             continue
+
+    # Check existing non-archived flats that weren't in the scraped results
+    flats_to_check = [
+        flat_id for flat_id in existing_flat_ids if flat_id not in scraped_flat_ids
+    ]
+
+    if flats_to_check:
+        logging.info(
+            f"Checking {len(flats_to_check)} existing non-archived flats for archived status..."
+        )
+        archived_count = 0
+        for flat_id in flats_to_check:
+            if check_if_rental_flat_is_archived(flat_id):
+                if db.mark_flat_as_archived(flat_id, is_rental=True):
+                    archived_count += 1
+                    logging.info(f"Marked rental flat {flat_id} as archived")
+        logging.info(f"Marked {archived_count} rental flats as archived")
 
     logging.info(
         f"Completed JK rental scraping and saving for {jk_name}. Saved: {saved_count}/{len(flats)}"

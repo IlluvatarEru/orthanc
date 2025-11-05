@@ -141,18 +141,8 @@ class JKAnalytics:
         """
         logger.info(f"Analyzing current market for {jk_name}")
 
-        self.db.connect()
-
-        # Get latest sales data (most recent query_date for each flat)
-        latest_sales_query = """
-            SELECT sf.*, 
-                   ROW_NUMBER() OVER (PARTITION BY sf.flat_id ORDER BY sf.query_date DESC) as rn
-            FROM sales_flats sf
-            WHERE sf.residential_complex = ?
-        """
-
-        cursor = self.db.conn.execute(latest_sales_query, (jk_name,))
-        latest_sales = [dict(row) for row in cursor.fetchall() if row["rn"] == 1]
+        # Get latest sales data (most recent query_date for each flat, excluding archived)
+        latest_sales = self.db.get_latest_sales_for_jk(jk_name)
 
         if not latest_sales:
             logger.warning(f"No sales data found for JK: {jk_name}")
@@ -203,20 +193,9 @@ class JKAnalytics:
         """
         logger.info(f"Analyzing historical trends for {jk_name}")
 
-        self.db.connect()
-
         # Get historical data
         start_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
-
-        historical_query = """
-            SELECT query_date, flat_type, price, area, floor, total_floors, flat_id, url
-            FROM sales_flats
-            WHERE residential_complex = ? AND query_date >= ?
-            ORDER BY query_date, flat_type
-        """
-
-        cursor = self.db.conn.execute(historical_query, (jk_name, start_date))
-        historical_data = [dict(row) for row in cursor.fetchall()]
+        historical_data = self.db.get_historical_sales_for_jk(jk_name, start_date)
 
         # Group by flat type and create time series
         flat_type_timeseries = {}
@@ -463,17 +442,7 @@ class JKAnalytics:
 
         :return: List[str], list of JK names
         """
-        self.db.connect()
-
-        query = """
-            SELECT DISTINCT residential_complex
-            FROM sales_flats
-            WHERE residential_complex IS NOT NULL
-            ORDER BY residential_complex
-        """
-
-        cursor = self.db.conn.execute(query)
-        return [row[0] for row in cursor.fetchall()]
+        return self.db.get_all_jk_names_from_sales()
 
     def get_jk_sales_summary(self, jk_name: str) -> Dict:
         """
@@ -482,38 +451,7 @@ class JKAnalytics:
         :param jk_name: str, name of the residential complex
         :return: Dict, summary statistics
         """
-        self.db.connect()
-
-        # Get total sales count
-        count_query = "SELECT COUNT(*) FROM sales_flats WHERE residential_complex = ?"
-        total_sales = self.db.conn.execute(count_query, (jk_name,)).fetchone()[0]
-
-        # Get date range
-        date_query = """
-            SELECT MIN(query_date) as earliest, MAX(query_date) as latest
-            FROM sales_flats
-            WHERE residential_complex = ?
-        """
-        date_result = self.db.conn.execute(date_query, (jk_name,)).fetchone()
-
-        # Get flat type distribution
-        type_query = """
-            SELECT flat_type, COUNT(*) as count
-            FROM sales_flats
-            WHERE residential_complex = ?
-            GROUP BY flat_type
-            ORDER BY count DESC
-        """
-        type_distribution = dict(
-            self.db.conn.execute(type_query, (jk_name,)).fetchall()
-        )
-
-        return {
-            "jk_name": jk_name,
-            "total_sales": total_sales,
-            "date_range": {"earliest": date_result[0], "latest": date_result[1]},
-            "flat_type_distribution": type_distribution,
-        }
+        return self.db.get_jk_sales_summary(jk_name)
 
 
 def analyze_jk_for_sales(
