@@ -29,39 +29,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_all_jks_from_db(db_path: str = "flats.db", city: str = "almaty") -> List[Dict]:
-    """
-    Get all residential complexes (JKs) from the residential_complexes table, excluding blacklisted ones.
-
-    :param db_path: str, path to database file
-    :param city: str, city name to filter by (default: "almaty")
-    :return: List[Dict], list of JK information
-    """
-    logger.info(
-        f"Fetching all JKs from residential_complexes table (excluding blacklisted, city: {city})"
-    )
-
-    db = OrthancDB(db_path)
-    try:
-        jks = db.get_all_jks_excluding_blacklisted(city)
-        logger.info(
-            f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted, city: {city})"
-        )
-
-        # Log blacklisted JKs for transparency
-        blacklisted_jks = db.get_blacklisted_jks()
-        if blacklisted_jks:
-            logger.info(
-                f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
-            )
-
-        return jks
-
-    except Exception as e:
-        logger.error(f"Error fetching JKs from database: {e}")
-        return []
-
-
 def find_all_opportunities(
     db_path: str = "flats.db", discount_threshold: float = 0.15, city: str = "almaty"
 ) -> List[Dict]:
@@ -77,7 +44,8 @@ def find_all_opportunities(
         f"Starting opportunity analysis across all JKs (discount threshold: {discount_threshold * 100}%, city: {city})"
     )
 
-    jks = get_all_jks_from_db(db_path, city)
+    db = OrthancDB(db_path)
+    jks = db.get_all_jks_excluding_blacklisted(city)
     if not jks:
         logger.warning("No JKs found in database")
         return []
@@ -90,61 +58,53 @@ def find_all_opportunities(
         jk_name = jk_info["residential_complex"]
         logger.info(f"[{i}/{len(jks)}] Analyzing opportunities for: {jk_name}")
 
-        try:
-            # Analyze JK for sales opportunities
-            analysis = analyze_jk_for_sales(
-                jk_name, sale_discount_percentage=discount_threshold, db_path=db_path
-            )
+        # Analyze JK for sales opportunities
+        analysis = analyze_jk_for_sales(
+            jk_name, sale_discount_percentage=discount_threshold, db_path=db_path
+        )
 
-            # Extract opportunities from all flat types
-            opportunities_by_type = analysis["current_market"].opportunities
+        # Extract opportunities from all flat types
+        opportunities_by_type = analysis["current_market"].opportunities
 
-            jk_opportunity_count = 0
-            for flat_type, opportunities in opportunities_by_type.items():
-                for opp in opportunities:
-                    # Create a flat dictionary for CSV export
-                    opportunity_dict = {
-                        "rank": None,  # Will be filled after sorting
-                        "flat_id": opp.flat_info.flat_id,
-                        "residential_complex": opp.flat_info.residential_complex
-                        or jk_name,
-                        "price": opp.flat_info.price,
-                        "area": opp.flat_info.area,
-                        "flat_type": opp.flat_info.flat_type,
-                        "floor": opp.flat_info.floor or "",
-                        "total_floors": opp.flat_info.total_floors or "",
-                        "construction_year": opp.flat_info.construction_year or "",
-                        "parking": opp.flat_info.parking or "",
-                        "discount_percentage_vs_median": round(
-                            opp.discount_percentage_vs_median, 2
-                        ),
-                        "median_price": round(opp.stats_for_flat_type.median_price, 0),
-                        "mean_price": round(opp.stats_for_flat_type.mean_price, 0),
-                        "min_price": round(opp.stats_for_flat_type.min_price, 0),
-                        "max_price": round(opp.stats_for_flat_type.max_price, 0),
-                        "sample_size": opp.stats_for_flat_type.count,
-                        "query_date": opp.query_date,
-                        "url": f"https://krisha.kz/a/show/{opp.flat_info.flat_id}",
-                        "description": (
-                            opp.flat_info.description[:200]
-                            if opp.flat_info.description
-                            else ""
-                        ),
-                    }
-                    all_opportunities.append(opportunity_dict)
-                    jk_opportunity_count += 1
+        jk_opportunity_count = 0
+        for flat_type, opportunities in opportunities_by_type.items():
+            for opp in opportunities:
+                # Create a flat dictionary for CSV export
+                opportunity_dict = {
+                    "rank": None,  # Will be filled after sorting
+                    "flat_id": opp.flat_info.flat_id,
+                    "residential_complex": opp.flat_info.residential_complex or jk_name,
+                    "price": opp.flat_info.price,
+                    "area": opp.flat_info.area,
+                    "flat_type": opp.flat_info.flat_type,
+                    "floor": opp.flat_info.floor or "",
+                    "total_floors": opp.flat_info.total_floors or "",
+                    "construction_year": opp.flat_info.construction_year or "",
+                    "parking": opp.flat_info.parking or "",
+                    "discount_percentage_vs_median": round(
+                        opp.discount_percentage_vs_median, 2
+                    ),
+                    "median_price": round(opp.stats_for_flat_type.median_price, 0),
+                    "mean_price": round(opp.stats_for_flat_type.mean_price, 0),
+                    "min_price": round(opp.stats_for_flat_type.min_price, 0),
+                    "max_price": round(opp.stats_for_flat_type.max_price, 0),
+                    "sample_size": opp.stats_for_flat_type.count,
+                    "query_date": opp.query_date,
+                    "url": f"https://krisha.kz/a/show/{opp.flat_info.flat_id}",
+                    "description": (
+                        opp.flat_info.description[:200]
+                        if opp.flat_info.description
+                        else ""
+                    ),
+                }
+                all_opportunities.append(opportunity_dict)
+                jk_opportunity_count += 1
 
-            if jk_opportunity_count > 0:
-                successful_jks += 1
-                logger.info(
-                    f"  Found {jk_opportunity_count} opportunities in {jk_name}"
-                )
-            else:
-                logger.info(f"  No opportunities found in {jk_name}")
-
-        except Exception as e:
-            failed_jks += 1
-            logger.error(f"  Error analyzing {jk_name}: {e}")
+        if jk_opportunity_count > 0:
+            successful_jks += 1
+            logger.info(f"  Found {jk_opportunity_count} opportunities in {jk_name}")
+        else:
+            logger.info(f"  No opportunities found in {jk_name}")
 
     logger.info(
         f"Opportunity analysis completed: {len(all_opportunities)} total opportunities found "

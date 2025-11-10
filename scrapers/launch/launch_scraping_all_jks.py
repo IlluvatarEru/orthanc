@@ -43,36 +43,29 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
 
     db = OrthancDB(db_path)
     db.connect()
-    try:
-        # Get JKs from residential_complexes table, excluding blacklisted ones
-        cursor = db.conn.execute("""
-            SELECT name as residential_complex, complex_id, city, district
-            FROM residential_complexes 
-            WHERE name NOT IN (
-                SELECT name FROM blacklisted_jks
-            )
-            ORDER BY name
-        """)
+    # Get JKs from residential_complexes table, excluding blacklisted ones
+    cursor = db.conn.execute("""
+        SELECT name as residential_complex, complex_id, city, district
+        FROM residential_complexes 
+        WHERE name NOT IN (
+            SELECT name FROM blacklisted_jks
+        )
+        ORDER BY name
+    """)
 
-        jks = [dict(row) for row in cursor.fetchall()]
+    jks = [dict(row) for row in cursor.fetchall()]
+    logger.info(
+        f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
+    )
+
+    # Log blacklisted JKs for transparency
+    blacklisted_jks = db.get_blacklisted_jks()
+    if blacklisted_jks:
         logger.info(
-            f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
+            f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
         )
 
-        # Log blacklisted JKs for transparency
-        blacklisted_jks = db.get_blacklisted_jks()
-        if blacklisted_jks:
-            logger.info(
-                f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
-            )
-
-        return jks
-
-    except Exception as e:
-        logger.error(f"Error fetching JKs from database: {e}")
-        return []
-    finally:
-        db.disconnect()
+    return jks
 
 
 def scrape_all_jk_rentals(
