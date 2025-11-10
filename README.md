@@ -6,6 +6,10 @@
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode daily-sales
 ```
+   Run in background with nohup:
+```commandline
+nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-sales > daily_sales.out 2>&1 &
+```
 2. scrap sales the current sales as a one off?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales
@@ -13,6 +17,10 @@ python -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales
 3. scrap rentals on a regular daily basis?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode daily-rentals
+```
+   Run in background with nohup:
+```commandline
+nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-rentals > daily_rentals.out 2>&1 &
 ```
 4. scrap rentals just as a one off?
 ```commandline
@@ -26,13 +34,17 @@ python -m scrapers.launch.launch_scraping_all_jks --mode immediate
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode fetch-jks
 ```
-7. scrap a specific JK (only if it doesn't already have data)?
+7. update JKs with unknown cities?
+```commandline
+python -m scrapers.launch.launch_scraping_all_jks --mode update-jks-cities
+```
+8. scrap a specific JK (only if it doesn't already have data)?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Meridian" --rentals --sales
 python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Jazz" --rentals
 python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Istanbul" --sales --max-pages 5
 ```
-8. manage blacklisted JKs?
+9. manage blacklisted JKs?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode blacklist --blacklist-action list
 python -m scrapers.launch.launch_scraping_all_jks --mode blacklist --blacklist-action add --jk-name "Complex Name"

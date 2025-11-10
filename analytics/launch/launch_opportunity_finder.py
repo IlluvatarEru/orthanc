@@ -42,28 +42,8 @@ def get_all_jks_from_db(db_path: str = "flats.db", city: str = "almaty") -> List
     )
 
     db = OrthancDB(db_path)
-    db.connect()
     try:
-        # Get JKs from residential_complexes table, excluding blacklisted ones, filtered by city
-        # Support both Cyrillic and Latin city names
-        city_variants = [city.lower(), city.capitalize(), city.title()]
-        # Also check for Cyrillic Алматы if city is almaty
-        if city.lower() == "almaty":
-            city_variants.extend(["Алматы", "алматы"])
-
-        placeholders = ",".join(["?"] * len(city_variants))
-        query = f"""
-            SELECT name as residential_complex, complex_id, city, district
-            FROM residential_complexes 
-            WHERE name NOT IN (
-                SELECT name FROM blacklisted_jks
-            )
-            AND (city IN ({placeholders}) OR city IS NULL)
-            ORDER BY name
-        """
-        cursor = db.conn.execute(query, city_variants)
-
-        jks = [dict(row) for row in cursor.fetchall()]
+        jks = db.get_all_jks_excluding_blacklisted(city)
         logger.info(
             f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted, city: {city})"
         )
@@ -80,8 +60,6 @@ def get_all_jks_from_db(db_path: str = "flats.db", city: str = "almaty") -> List
     except Exception as e:
         logger.error(f"Error fetching JKs from database: {e}")
         return []
-    finally:
-        db.disconnect()
 
 
 def find_all_opportunities(

@@ -2301,6 +2301,178 @@ class OrthancDB:
         self.disconnect()
         return result
 
+    def get_all_jks_excluding_blacklisted(self, city: str = "almaty") -> List[Dict]:
+        """
+        Get all residential complexes (JKs) from the residential_complexes table, excluding blacklisted ones, filtered by city.
+
+        :param city: str, city name to filter by (default: "almaty")
+        :return: List[Dict], list of JK information with keys: residential_complex, complex_id, city, district
+        """
+        self.connect()
+
+        try:
+            # Support both Cyrillic and Latin city names
+            city_variants = [city.lower(), city.capitalize(), city.title()]
+            # Also check for Cyrillic Алматы if city is almaty
+            if city.lower() == "almaty":
+                city_variants.extend(["Алматы", "алматы"])
+
+            placeholders = ",".join(["?"] * len(city_variants))
+            query = f"""
+                SELECT name as residential_complex, complex_id, city, district
+                FROM residential_complexes 
+                WHERE name NOT IN (
+                    SELECT name FROM blacklisted_jks
+                )
+                AND (city IN ({placeholders}))
+                ORDER BY name
+            """
+            cursor = self.conn.execute(query, city_variants)
+
+            jks = [dict(row) for row in cursor.fetchall()]
+            return jks
+
+        except Exception as e:
+            logging.error(f"Error fetching JKs from database: {e}")
+            return []
+        finally:
+            self.disconnect()
+
+    def get_residential_complex_by_complex_id(self, complex_id: str) -> Optional[Dict]:
+        """
+        Get residential complex by complex_id.
+
+        :param complex_id: str, complex ID
+        :return: Optional[Dict], complex information with keys: complex_id, city (or None if not found)
+        """
+        self.connect()
+
+        try:
+            cursor = self.conn.execute(
+                "SELECT complex_id, city FROM residential_complexes WHERE complex_id = ?",
+                (complex_id,),
+            )
+            row = cursor.fetchone()
+            result = dict(row) if row else None
+            return result
+        except Exception as e:
+            logging.error(f"Error getting residential complex by complex_id: {e}")
+            return None
+        finally:
+            self.disconnect()
+
+    def update_residential_complex_city_and_district(
+        self, complex_id: str, city: str, district: str = None
+    ) -> bool:
+        """
+        Update city and district for an existing residential complex.
+
+        :param complex_id: str, complex ID
+        :param city: str, city name
+        :param district: str, district name (optional)
+        :return: bool, True if successful
+        """
+        self.connect()
+
+        try:
+            self.conn.execute(
+                """
+                UPDATE residential_complexes 
+                SET city = ?, district = ?
+                WHERE complex_id = ?
+            """,
+                (city, district, complex_id),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error updating residential complex city: {e}")
+            self.conn.rollback()
+            return False
+        finally:
+            self.disconnect()
+
+    def insert_residential_complex_new(
+        self, complex_id: str, name: str, city: str = None, district: str = None
+    ) -> bool:
+        """
+        Insert a new residential complex into the database.
+
+        :param complex_id: str, complex ID from Krisha.kz
+        :param name: str, complex name
+        :param city: str, city name (optional)
+        :param district: str, district name (optional)
+        :return: bool, True if successful
+        """
+        self.connect()
+
+        try:
+            self.conn.execute(
+                """
+                INSERT INTO residential_complexes 
+                (complex_id, name, city, district) 
+                VALUES (?, ?, ?, ?)
+            """,
+                (complex_id, name, city, district),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error inserting residential complex: {e}")
+            self.conn.rollback()
+            return False
+        finally:
+            self.disconnect()
+
+    def get_jks_with_unknown_cities(self) -> List[Dict]:
+        """
+        Get all JKs with NULL or "Unknown" cities.
+
+        :return: List[Dict], list of JK information with keys: complex_id, name
+        """
+        self.connect()
+
+        try:
+            cursor = self.conn.execute(
+                """
+                SELECT complex_id, name 
+                FROM residential_complexes 
+                WHERE city IS NULL OR city = 'Unknown'
+                ORDER BY name
+            """
+            )
+            jks = [dict(row) for row in cursor.fetchall()]
+            return jks
+        except Exception as e:
+            logging.error(f"Error getting JKs with unknown cities: {e}")
+            return []
+        finally:
+            self.disconnect()
+
+    def update_jk_city(self, complex_id: str, city: str) -> bool:
+        """
+        Update the city for a specific residential complex.
+
+        :param complex_id: str, complex ID
+        :param city: str, city name
+        :return: bool, True if successful
+        """
+        self.connect()
+
+        try:
+            self.conn.execute(
+                "UPDATE residential_complexes SET city = ? WHERE complex_id = ?",
+                (city, complex_id),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error updating JK city: {e}")
+            self.conn.rollback()
+            return False
+        finally:
+            self.disconnect()
+
 
 # Convenience functions
 def save_rental_flat_to_db(

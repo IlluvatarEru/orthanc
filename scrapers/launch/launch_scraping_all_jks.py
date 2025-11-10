@@ -16,7 +16,10 @@ from typing import List, Dict
 from db.src.write_read_database import OrthancDB
 from scrapers.src.krisha_rental_scraping import scrape_and_save_jk_rentals
 from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
-from scrapers.src.residential_complex_scraper import update_complex_database
+from scrapers.src.residential_complex_scraper import (
+    update_complex_database,
+    update_jks_with_unknown_cities,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -388,33 +391,17 @@ def run_immediate_scraping(
 def fetch_all_jks(db_path: str = "flats.db") -> int:
     """
     Fetch all residential complexes (JKs) from Krisha.kz and save them to the database.
-    First clears the existing data to ensure fresh, complete data.
+    Only adds new JKs or updates existing ones if their city is NULL or "Unknown".
 
     :param db_path: str, path to database file
-    :return: int, number of JKs fetched and saved
+    :return: int, number of JKs fetched and saved/updated
     """
     logger.info("Starting fetch of all residential complexes from Krisha.kz...")
 
     try:
-        # First, clear existing residential complexes data
-        logger.info("🗑️ Clearing existing residential complexes data...")
-        db = OrthancDB(db_path)
-        db.connect()
-        try:
-            # Delete all existing residential complexes
-            cursor = db.conn.execute("DELETE FROM residential_complexes")
-            deleted_count = cursor.rowcount
-            db.conn.commit()
-            logger.info(f"✅ Cleared {deleted_count} existing residential complexes")
-        except Exception as e:
-            logger.error(f"❌ Error clearing existing data: {e}")
-            db.conn.rollback()
-            return 0
-        finally:
-            db.disconnect()
-
-        # Now fetch fresh data from Krisha
-        logger.info("🔄 Fetching fresh residential complexes from Krisha.kz...")
+        # Fetch fresh data from Krisha and update database
+        # This will only add new JKs or update existing ones with NULL/Unknown cities
+        logger.info("🔄 Fetching residential complexes from Krisha.kz...")
         saved_count = update_complex_database(db_path)
 
         if saved_count > 0:
@@ -577,6 +564,7 @@ if __name__ == "__main__":
             "blacklist",
             "fetch-jks",
             "scrape-jk",
+            "update-jks-cities",
         ],
         default="immediate",
         help="Scraping mode",
@@ -647,3 +635,12 @@ if __name__ == "__main__":
             scrape_rentals=args.rentals,
             scrape_sales=args.sales,
         )
+    elif args.mode == "update-jks-cities":
+        logger.info("Updating JKs with unknown cities...")
+        updated_count = update_jks_with_unknown_cities(db_path=args.db_path)
+        if updated_count > 0:
+            logger.info(
+                f"✅ Successfully updated {updated_count} JKs with city information!"
+            )
+        else:
+            logger.info("ℹ️ No JKs needed updating or no cities could be determined")
