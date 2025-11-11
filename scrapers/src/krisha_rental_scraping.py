@@ -388,33 +388,38 @@ def check_if_rental_flat_is_archived(flat_id: str) -> bool:
     :param flat_id: str, Krisha.kz flat ID
     :return: bool, True if archived, False otherwise (or if check fails)
     """
-    # Try analytics API first
-    api_url = f"https://m.krisha.kz/analytics/aPriceAnalysis/?id={flat_id}"
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
-        "Referer": f"https://m.krisha.kz/a/show/{flat_id}",
-        "Origin": "https://m.krisha.kz",
-    }
+    try:  # Try analytics API first
+        api_url = f"https://m.krisha.kz/analytics/aPriceAnalysis/?id={flat_id}"
 
-    response = requests.get(api_url, headers=headers, timeout=10)
-    response.raise_for_status()
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": f"https://m.krisha.kz/a/show/{flat_id}",
+            "Origin": "https://m.krisha.kz",
+        }
 
-    data = response.json()
+        response = requests.get(api_url, headers=headers, timeout=10)
+        response.raise_for_status()
 
-    # Storage is nested in advert object
-    advert = data.get("advert", {})
-    storage = advert.get("storage", "")
-    if storage == "archive":
+        data = response.json()
+
+        # Storage is nested in advert object
+        advert = data.get("advert", {})
+        storage = advert.get("storage", "")
+        if storage == "archive":
+            return True
+
+        # Fallback: try scraping the page to check for archived tag
+        flat_info = scrape_rental_flat_from_rental_page(flat_id)
+        if flat_info and flat_info.archived:
+            return True
+
+        return False
+    except Exception as e:
+        # asssume that if we fail to find it, it's because it's so old it's archived
+        logging.warning(f"Could not check archived status for flat {flat_id}: {e}")
         return True
-
-    # Fallback: try scraping the page to check for archived tag
-    flat_info = scrape_rental_flat_from_rental_page(flat_id)
-    if flat_info and flat_info.archived:
-        return True
-
-    return False
 
 
 def scrape_and_save_jk_rentals(

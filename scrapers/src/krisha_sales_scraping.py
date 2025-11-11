@@ -403,8 +403,9 @@ def check_if_sales_flat_is_archived(flat_id: str) -> bool:
         storage = advert.get("storage", "")
         return storage == "archive"
     except Exception as e:
+        # asssume that if we fail to find it, it's because it's so old it's archived
         logging.warning(f"Could not check archived status for flat {flat_id}: {e}")
-        return False
+        return True
 
 
 def scrape_and_save_jk_sales(
