@@ -87,7 +87,7 @@ def scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(
         flat_info = scrape_sales_flat_from_analytics_page(krisha_id)
         if flat_info is not None:
             logging.info(
-                f"✅ Successfully scraped flat {krisha_id} using analytics API"
+                f"✅ Successfully scraped flat {krisha_id} using analytics API (archived: {flat_info.archived})"
             )
             return flat_info
         else:
@@ -101,7 +101,7 @@ def scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(
         flat_info = scrape_sales_flat_from_sale_page(krisha_id)
         if flat_info is not None:
             logging.info(
-                f"✅ Successfully scraped flat {krisha_id} using direct page scraping"
+                f"✅ Successfully scraped flat {krisha_id} using direct page scraping (archived: {flat_info.archived})"
             )
             return flat_info
         else:
@@ -114,7 +114,9 @@ def scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(
     return None
 
 
-def scrape_sales_flat_from_analytics_page(krisha_id: str) -> Optional[FlatInfo]:
+def scrape_sales_flat_from_analytics_page(
+    krisha_id: str,
+) -> Optional[FlatInfo]:
     """
     Fetch sales flat information via Krisha mobile analytics JSON and build FlatInfo.
     :param krisha_id: str, Krisha.kz flat ID (e.g., "12345678")
@@ -140,6 +142,10 @@ def scrape_sales_flat_from_analytics_page(krisha_id: str) -> Optional[FlatInfo]:
             data = json.loads(response.text)
 
         advert = data.get("advert", {})
+
+        # Check if flat is archived (storage is in advert object)
+        storage = advert.get("storage", "")
+        is_archived = storage == "archive"
 
         # Price (total sales price) - extract from advert.price HTML
         price_html = advert.get("price", "")
@@ -192,6 +198,7 @@ def scrape_sales_flat_from_analytics_page(krisha_id: str) -> Optional[FlatInfo]:
             parking=extra.get("parking"),
             description=description,
             is_rental=False,  # Sales flat
+            archived=is_archived,
         )
 
         return flat_info
@@ -250,6 +257,15 @@ def extract_sales_info(
         flat_type = determine_flat_type_from_text(title, description, area)
         flat_type = normalize_flat_type_enum(flat_type)
 
+        # Check if flat is archived by looking for the archived label
+        is_archived = False
+        archived_label = soup.select_one(
+            "span.paid-labels__item.paid-labels__item--red"
+        )
+        if archived_label and archived_label.get_text(strip=True) == "В архиве":
+            is_archived = True
+            logging.info(f"Flat {flat_id} is marked as archived in HTML")
+
         # Create FlatInfo object
         flat_info = FlatInfo(
             flat_id=flat_id,
@@ -263,6 +279,7 @@ def extract_sales_info(
             parking=parking,
             description=description,
             is_rental=False,  # This is a sales flat
+            archived=is_archived,
         )
 
         return flat_info
@@ -272,13 +289,16 @@ def extract_sales_info(
         return None
 
 
-def scrape_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
+def scrape_jk_sales(
+    jk_name: str, max_pages: int = 10, db_path: str = "flats.db"
+) -> List[FlatInfo]:
     """
     Scrape all sales flats for a specific residential complex (JK).
 
     :param jk_name: str, name of the residential complex
     :param max_pages: int, maximum number of pages to scrape (default: 10)
-    :return: List[FlatInfo], list of scraped sales flats
+    :param db_path: str, path to database file to check archived status
+    :return: List[FlatInfo], list of scraped sales flats (with archived status in FlatInfo)
     """
     logging.info(f"Starting JK sales scraping for: {jk_name}")
     logging.info(f"Max pages: {max_pages}")
@@ -296,6 +316,11 @@ def scrape_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
 
     complex_id = complex_info["complex_id"]
     logging.info(f"Found complex ID: {complex_id}")
+
+    # Initialize database connection once for checking archived status
+    from db.src.write_read_database import OrthancDB
+
+    db = OrthancDB(db_path)
 
     # Scrape each page
     for page in range(1, max_pages + 1):
@@ -322,6 +347,11 @@ def scrape_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
                 if not flat_id:
                     continue
 
+                # Check if flat is already archived before scraping
+                if db.is_flat_archived(flat_id, is_rental=False):
+                    logging.info(f"Skipping archived sales flat: {flat_id}")
+                    continue
+
                 # Scrape the flat with failover
                 flat_info = (
                     scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(
@@ -330,7 +360,9 @@ def scrape_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
                 )
                 if flat_info:
                     all_flats.append(flat_info)
-                    logging.info(f"Successfully scraped sales flat: {flat_id}")
+                    logging.info(
+                        f"Successfully scraped sales flat: {flat_id} (archived: {flat_info.archived})"
+                    )
                 else:
                     logging.error(f"Failed to scrape sales flat: {flat_id}")
 
@@ -344,11 +376,44 @@ def scrape_jk_sales(jk_name: str, max_pages: int = 10) -> List[FlatInfo]:
     return all_flats
 
 
+def check_if_sales_flat_is_archived(flat_id: str) -> bool:
+    """
+    Check if a sales flat is archived by querying the analytics API.
+
+    :param flat_id: str, Krisha.kz flat ID
+    :return: bool, True if archived, False otherwise (or if check fails)
+    """
+    try:
+        api_url = f"https://m.krisha.kz/analytics/aPriceAnalysis/?id={flat_id}"
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Referer": f"https://m.krisha.kz/a/show/{flat_id}",
+            "Origin": "https://m.krisha.kz",
+        }
+
+        response = requests.get(api_url, headers=headers, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+
+        # Storage is nested in advert object
+        advert = data.get("advert", {})
+        storage = advert.get("storage", "")
+        return storage == "archive"
+    except Exception as e:
+        # asssume that if we fail to find it, it's because it's so old it's archived
+        logging.warning(f"Could not check archived status for flat {flat_id}: {e}")
+        return True
+
+
 def scrape_and_save_jk_sales(
     jk_name: str, max_pages: int = 10, db_path: str = "flats.db"
 ) -> int:
     """
     Scrape and save all sales flats for a specific residential complex (JK).
+    Also checks existing non-archived flats to see if they're now archived.
 
     :param jk_name: str, name of the residential complex
     :param max_pages: int, maximum number of pages to scrape (default: 10)
@@ -357,22 +422,24 @@ def scrape_and_save_jk_sales(
     """
     logging.info(f"Starting JK sales scraping and saving for: {jk_name}")
 
-    # Scrape flats
-    flats: list[FlatInfo] = scrape_jk_sales(jk_name, max_pages)
-
-    if not flats:
-        logging.warning(f"No flats found for {jk_name}")
-        return 0
-
-    # Save to database
+    # Get existing non-archived flat IDs before scraping
     from db.src.write_read_database import OrthancDB
 
-    logging.info(f"Initializing database connection to: {db_path}")
     db = OrthancDB(db_path)
+    existing_flat_ids = db.get_non_archived_flat_ids_for_jk(jk_name, is_rental=False)
+
+    # Scrape flats
+    flats: list[FlatInfo] = scrape_jk_sales(jk_name, max_pages, db_path)
+
+    logging.info(f"Initializing database connection to: {db_path}")
     saved_count = 0
 
+    # Get scraped flat IDs
+    scraped_flat_ids = {flat_info.flat_id for flat_info in flats}
+
+    # Save scraped flats
     for flat_info in flats:
-        # Save sales flat to database
+        # Save sales flat to database with archived status
         success = db.insert_sales_flat(
             flat_info=flat_info,
             url=f"https://krisha.kz/a/show/{flat_info.flat_id}",
@@ -382,9 +449,27 @@ def scrape_and_save_jk_sales(
 
         if success:
             saved_count += 1
-            logging.info(f"Saved sales flat: {flat_info.flat_id}")
+            archived_status = " (archived)" if flat_info.archived else ""
+            logging.info(f"Saved sales flat: {flat_info.flat_id}{archived_status}")
         else:
             logging.error(f"Failed to save sales flat: {flat_info.flat_id}")
+
+    # Check existing non-archived flats that weren't in the scraped results
+    flats_to_check = [
+        flat_id for flat_id in existing_flat_ids if flat_id not in scraped_flat_ids
+    ]
+
+    if flats_to_check:
+        logging.info(
+            f"Checking {len(flats_to_check)} existing non-archived flats for archived status..."
+        )
+        archived_count = 0
+        for flat_id in flats_to_check:
+            if check_if_sales_flat_is_archived(flat_id):
+                if db.mark_flat_as_archived(flat_id, is_rental=False):
+                    archived_count += 1
+                    logging.info(f"Marked sales flat {flat_id} as archived")
+        logging.info(f"Marked {archived_count} sales flats as archived")
 
     logging.info(
         f"Completed JK sales scraping and saving for {jk_name}. Saved: {saved_count}/{len(flats)}"

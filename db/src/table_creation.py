@@ -86,6 +86,7 @@ class DatabaseSchema:
                 description TEXT NOT NULL,
                 url TEXT NOT NULL,
                 query_date DATE NOT NULL,
+                archived INTEGER DEFAULT 0,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -108,6 +109,7 @@ class DatabaseSchema:
                 description TEXT NOT NULL,
                 url TEXT NOT NULL,
                 query_date DATE NOT NULL,
+                archived INTEGER DEFAULT 0,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -144,6 +146,34 @@ class DatabaseSchema:
                 currency TEXT NOT NULL,
                 rate REAL NOT NULL,
                 fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create opportunity analysis results table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS opportunity_analysis (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_timestamp TEXT NOT NULL,
+                rank INTEGER NOT NULL,
+                flat_id TEXT NOT NULL,
+                residential_complex TEXT,
+                price INTEGER NOT NULL,
+                area REAL NOT NULL,
+                flat_type TEXT,
+                floor INTEGER,
+                total_floors INTEGER,
+                construction_year INTEGER,
+                parking TEXT,
+                discount_percentage_vs_median REAL NOT NULL,
+                median_price REAL NOT NULL,
+                mean_price REAL NOT NULL,
+                min_price REAL NOT NULL,
+                max_price REAL NOT NULL,
+                sample_size INTEGER NOT NULL,
+                query_date DATE,
+                url TEXT NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
@@ -293,6 +323,20 @@ class DatabaseSchema:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_blacklisted_name ON blacklisted_jks(name)"
+        )
+
+        # Opportunity analysis indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_opportunity_run_timestamp ON opportunity_analysis(run_timestamp)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_opportunity_flat_id ON opportunity_analysis(flat_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_opportunity_residential_complex ON opportunity_analysis(residential_complex)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_opportunity_discount ON opportunity_analysis(discount_percentage_vs_median)"
         )
 
         self.conn.commit()

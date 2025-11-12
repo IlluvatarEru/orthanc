@@ -35,7 +35,11 @@ def inject_currency_preference():
     eur_rate = db.get_latest_rate("EUR")
     db.disconnect()
     if eur_rate is None:
-        raise Exception("eur_rate is None")
+        raise Exception(
+            "EUR exchange rate not found in database. "
+            "Please run the market data fetcher to populate exchange rates, "
+            "or visit /api/exchange_rates to fetch rates manually."
+        )
     return dict(show_eur=show_eur, eur_rate=eur_rate)
 
 

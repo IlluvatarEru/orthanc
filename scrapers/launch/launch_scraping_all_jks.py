@@ -16,7 +16,10 @@ from typing import List, Dict
 from db.src.write_read_database import OrthancDB
 from scrapers.src.krisha_rental_scraping import scrape_and_save_jk_rentals
 from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
-from scrapers.src.residential_complex_scraper import update_complex_database
+from scrapers.src.residential_complex_scraper import (
+    update_complex_database,
+    update_jks_with_unknown_cities,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -39,37 +42,20 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     )
 
     db = OrthancDB(db_path)
-    db.connect()
-    try:
-        # Get JKs from residential_complexes table, excluding blacklisted ones
-        cursor = db.conn.execute("""
-            SELECT name as residential_complex, complex_id, city, district
-            FROM residential_complexes 
-            WHERE name NOT IN (
-                SELECT name FROM blacklisted_jks
-            )
-            ORDER BY name
-        """)
+    jks = db.get_all_jks_excluding_blacklisted_no_city_filter()
 
-        jks = [dict(row) for row in cursor.fetchall()]
+    logger.info(
+        f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
+    )
+
+    # Log blacklisted JKs for transparency
+    blacklisted_jks = db.get_blacklisted_jks()
+    if blacklisted_jks:
         logger.info(
-            f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
+            f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
         )
 
-        # Log blacklisted JKs for transparency
-        blacklisted_jks = db.get_blacklisted_jks()
-        if blacklisted_jks:
-            logger.info(
-                f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
-            )
-
-        return jks
-
-    except Exception as e:
-        logger.error(f"Error fetching JKs from database: {e}")
-        return []
-    finally:
-        db.disconnect()
+    return jks
 
 
 def scrape_all_jk_rentals(
@@ -388,33 +374,17 @@ def run_immediate_scraping(
 def fetch_all_jks(db_path: str = "flats.db") -> int:
     """
     Fetch all residential complexes (JKs) from Krisha.kz and save them to the database.
-    First clears the existing data to ensure fresh, complete data.
+    Only adds new JKs or updates existing ones if their city is NULL or "Unknown".
 
     :param db_path: str, path to database file
-    :return: int, number of JKs fetched and saved
+    :return: int, number of JKs fetched and saved/updated
     """
     logger.info("Starting fetch of all residential complexes from Krisha.kz...")
 
     try:
-        # First, clear existing residential complexes data
-        logger.info("🗑️ Clearing existing residential complexes data...")
-        db = OrthancDB(db_path)
-        db.connect()
-        try:
-            # Delete all existing residential complexes
-            cursor = db.conn.execute("DELETE FROM residential_complexes")
-            deleted_count = cursor.rowcount
-            db.conn.commit()
-            logger.info(f"✅ Cleared {deleted_count} existing residential complexes")
-        except Exception as e:
-            logger.error(f"❌ Error clearing existing data: {e}")
-            db.conn.rollback()
-            return 0
-        finally:
-            db.disconnect()
-
-        # Now fetch fresh data from Krisha
-        logger.info("🔄 Fetching fresh residential complexes from Krisha.kz...")
+        # Fetch fresh data from Krisha and update database
+        # This will only add new JKs or update existing ones with NULL/Unknown cities
+        logger.info("🔄 Fetching residential complexes from Krisha.kz...")
         saved_count = update_complex_database(db_path)
 
         if saved_count > 0:
@@ -424,35 +394,29 @@ def fetch_all_jks(db_path: str = "flats.db") -> int:
 
             # Get some statistics about what was saved
             db = OrthancDB(db_path)
-            db.connect()
             try:
                 # Get total count
-                cursor = db.conn.execute("SELECT COUNT(*) FROM residential_complexes")
-                total_count = cursor.fetchone()[0]
+                total_count = db.get_residential_complexes_count()
 
                 # Get some sample data
-                cursor = db.conn.execute("""
-                    SELECT name, complex_id, city, district 
-                    FROM residential_complexes 
-                    ORDER BY name 
-                    LIMIT 10
-                """)
-                sample_complexes = cursor.fetchall()
+                sample_complexes = db.get_sample_residential_complexes(limit=10)
 
                 logger.info(
                     f"📊 Database now contains {total_count} total residential complexes"
                 )
                 logger.info("📋 Sample complexes:")
-                for i, (name, complex_id, city, district) in enumerate(
-                    sample_complexes, 1
-                ):
+                for i, complex_data in enumerate(sample_complexes, 1):
+                    name = complex_data["name"]
+                    complex_id = complex_data["complex_id"]
+                    city = complex_data.get("city")
+                    district = complex_data.get("district")
                     location_info = (
                         f" ({city}, {district})" if city and district else ""
                     )
                     logger.info(f"   {i}. {name} (ID: {complex_id}){location_info}")
 
-            finally:
-                db.disconnect()
+            except Exception as e:
+                logger.error(f"Error getting statistics: {e}")
 
             return saved_count
         else:
@@ -468,50 +432,43 @@ def scrape_single_jk(
     jk_name: str,
     db_path: str = "flats.db",
     max_pages: int = 10,
-    scrape_rentals: bool = True,
-    scrape_sales: bool = True,
-) -> Dict[str, int]:
+    scrape_rentals: bool = False,
+    scrape_sales: bool = False,
+) -> None:
     """
-    Scrape a specific JK if it doesn't already have data in the database.
+    Scrape a single JK (rentals and/or sales).
 
     :param jk_name: str, name of the residential complex to scrape
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param scrape_rentals: bool, whether to scrape rentals
     :param scrape_sales: bool, whether to scrape sales
-    :return: Dict[str, int], results with saved counts for rentals and sales
     """
-    logger.info(f"Checking if {jk_name} already has data in database...")
+    if not scrape_rentals and not scrape_sales:
+        logger.error("At least one of --rentals or --sales must be specified")
+        return
 
-    db = OrthancDB(db_path)
-    db.connect()
+    logger.info(f"Starting scraping for single JK: {jk_name}")
 
-    try:
-        results = {
-            "rentals_saved": 0,
-            "sales_saved": 0,
-        }
+    if scrape_rentals:
+        logger.info(f"Scraping rentals for: {jk_name}")
+        saved_count = scrape_and_save_jk_rentals(
+            jk_name=jk_name, max_pages=max_pages, db_path=db_path
+        )
+        logger.info(
+            f"✅ Rental scraping completed for {jk_name}: {saved_count} flats saved"
+        )
 
-        if scrape_rentals:
-            logger.info(f"📥 No rental data found for {jk_name}. Scraping rentals...")
-            results["rentals_saved"] = scrape_and_save_jk_rentals(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path
-            )
-            logger.info(
-                f"✅ Saved {results['rentals_saved']} rental flats for {jk_name}"
-            )
+    if scrape_sales:
+        logger.info(f"Scraping sales for: {jk_name}")
+        saved_count = scrape_and_save_jk_sales(
+            jk_name=jk_name, max_pages=max_pages, db_path=db_path
+        )
+        logger.info(
+            f"✅ Sales scraping completed for {jk_name}: {saved_count} flats saved"
+        )
 
-        if scrape_sales:
-            logger.info(f"📥 No sales data found for {jk_name}. Scraping sales...")
-            results["sales_saved"] = scrape_and_save_jk_sales(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path
-            )
-            logger.info(f"✅ Saved {results['sales_saved']} sales flats for {jk_name}")
-
-        return results
-
-    finally:
-        db.disconnect()
+    logger.info(f"Scraping completed for {jk_name}!")
 
 
 def manage_blacklist(
@@ -584,6 +541,7 @@ if __name__ == "__main__":
             "blacklist",
             "fetch-jks",
             "scrape-jk",
+            "update-jks-cities",
         ],
         default="immediate",
         help="Scraping mode",
@@ -591,14 +549,10 @@ if __name__ == "__main__":
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
     parser.add_argument("--max-pages", type=int, default=1, help="Maximum pages per JK")
     parser.add_argument(
-        "--rentals",
-        action="store_true",
-        help="Include rentals (immediate mode or scrape-jk mode)",
+        "--rentals", action="store_true", help="Include rentals (immediate mode)"
     )
     parser.add_argument(
-        "--sales",
-        action="store_true",
-        help="Include sales (immediate mode or scrape-jk mode)",
+        "--sales", action="store_true", help="Include sales (immediate mode)"
     )
     parser.add_argument(
         "--run-time", default="12:00", help="Time to run daily scraping (HH:MM)"
@@ -612,9 +566,7 @@ if __name__ == "__main__":
         help="Blacklist action",
     )
     parser.add_argument("--krisha-id", help="Krisha ID for blacklist operations")
-    parser.add_argument(
-        "--jk-name", help="JK name for blacklist operations or scrape-jk mode"
-    )
+    parser.add_argument("--jk-name", help="JK name for blacklist operations")
     parser.add_argument("--notes", help="Notes for blacklisting")
 
     args = parser.parse_args()
@@ -651,16 +603,21 @@ if __name__ == "__main__":
             sys.exit(1)
     elif args.mode == "scrape-jk":
         if not args.jk_name:
-            logger.error("❌ --jk-name is required for scrape-jk mode")
+            logger.error("--jk-name is required when using --mode scrape-jk")
             sys.exit(1)
-
-        scrape_rentals = args.rentals or not (args.rentals or args.sales)
-        scrape_sales = args.sales or not (args.rentals or args.sales)
-
-        results = scrape_single_jk(
+        scrape_single_jk(
             jk_name=args.jk_name,
             db_path=args.db_path,
             max_pages=args.max_pages,
-            scrape_rentals=scrape_rentals,
-            scrape_sales=scrape_sales,
+            scrape_rentals=args.rentals,
+            scrape_sales=args.sales,
         )
+    elif args.mode == "update-jks-cities":
+        logger.info("Updating JKs with unknown cities...")
+        updated_count = update_jks_with_unknown_cities(db_path=args.db_path)
+        if updated_count > 0:
+            logger.info(
+                f"✅ Successfully updated {updated_count} JKs with city information!"
+            )
+        else:
+            logger.info("ℹ️ No JKs needed updating or no cities could be determined")

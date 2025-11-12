@@ -334,10 +334,11 @@ def extract_jk_from_description(description: str) -> Optional[str]:
     text = description.strip()
 
     # Patterns to match various JK notations
+    # Include various dash types: regular hyphen (-), em-dash (—), en-dash (–), and minus (−)
     patterns = [
-        r'жил\.?\s*комплекс\s+([A-Za-zА-Яа-яЁё0-9"“”\-\s]+?)(?:[,\.|\n]|$)',
+        r'жил\.?\s*комплекс\s+([A-Za-zА-Яа-яЁё0-9"“”\-\s–—−]+?)(?:[,\.|\n]|$)',
         r'ЖК\s*[""]([^""]+)[""]',
-        r"ЖК\s+([A-Za-zА-Яа-яЁё0-9\-\s]+?)(?:[,\.|\n]|$)",
+        r"ЖК\s+([A-Za-zА-Яа-яЁё0-9\-\s–—−]+?)(?:[,\.|\n]|$)",
     ]
 
     for pat in patterns:
@@ -348,6 +349,11 @@ def extract_jk_from_description(description: str) -> Optional[str]:
             name = re.sub(r"\s*(в|Алматы.*)$", "", name).strip()
             # Normalize fancy quotes
             name = name.replace('"', '"').replace('"', '"')
+            # Normalize dash types (keep the original, but ensure consistency)
+            # Don't replace dashes, just trim whitespace around them
+            name = re.sub(
+                r"\s+", " ", name
+            )  # Normalize multiple spaces to single space
             # Remove surrounding quotes if any
             name = name.strip('"')
             # Basic length sanity

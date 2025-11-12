@@ -8,8 +8,10 @@ and stores it in the database for mapping complex IDs to names.
 from typing import List, Dict, Optional
 
 import requests
+import time
 
 from db.src.write_read_database import OrthancDB
+from scrapers.src.utils import get_flat_urls_from_search_page, extract_flat_id_from_url
 import logging
 
 
@@ -91,6 +93,7 @@ def fetch_residential_complexes() -> List[Dict]:
             return []
 
         logging.info(f"Successfully fetched {len(data)} residential complexes")
+        # logging.info(data)
 
         # Debug: print first few items to understand structure
         if data and len(data) > 0:
@@ -106,14 +109,19 @@ def fetch_residential_complexes() -> List[Dict]:
         return []
 
 
-def parse_complex_data(complexes_data: List[Dict]) -> List[Dict]:
+def parse_complex_data(
+    complexes_data: List[Dict], list_of_jks_to_skip: List[str] = None
+) -> List[Dict]:
     """
     Parse and clean residential complex data.
 
     :param complexes_data: List[Dict], raw complex data from API
+    :param list_of_jks_to_skip: Optional[List[str]], list of complex_ids to skip (JKs that already have valid cities)
     :return: List[Dict], cleaned complex data
     """
     cleaned_complexes = []
+    skip_set = set(list_of_jks_to_skip) if list_of_jks_to_skip else set()
+    skipped_count = 0
 
     for complex_data in complexes_data:
         try:
@@ -124,6 +132,12 @@ def parse_complex_data(complexes_data: List[Dict]) -> List[Dict]:
 
             # Skip if no valid ID or name
             if not complex_id or not name or complex_id == "" or name == "":
+                continue
+
+            # Skip if this JK already has a valid city
+            complex_id_str = str(complex_id)
+            if complex_id_str in skip_set:
+                skipped_count += 1
                 continue
 
             # Extract city and district if available (not present in this API)
@@ -147,7 +161,7 @@ def parse_complex_data(complexes_data: List[Dict]) -> List[Dict]:
 
             cleaned_complexes.append(
                 {
-                    "complex_id": str(complex_id),  # Ensure it's a string
+                    "complex_id": complex_id_str,
                     "name": name,
                     "city": city,
                     "district": district,
@@ -158,63 +172,265 @@ def parse_complex_data(complexes_data: List[Dict]) -> List[Dict]:
             logging.info(f"Error parsing complex data: {e}")
             continue
 
-    logging.info(f"Parsed {len(cleaned_complexes)} valid complexes")
+    logging.info(
+        f"Parsed {len(cleaned_complexes)} valid complexes (skipped {skipped_count} with existing cities)"
+    )
     return cleaned_complexes
 
 
-def save_complexes_to_db(complexes: List[Dict], db_path: str = "flats.db") -> int:
+def get_city_from_jk_sales(complex_id: str, jk_name: str) -> str:
     """
-    Save residential complexes to database using a single connection.
+    Get city for a JK by scraping the first page of sales and extracting city from sales ads.
 
-    :param complexes: List[Dict], list of complex data
-    :param db_path: str, database file path
-    :return: int, number of complexes saved
+    :param complex_id: str, Krisha complex ID
+    :param jk_name: str, name of the residential complex (for logging)
+    :return: str, city name or "Unknown" if not found
+    """
+    try:
+        # Construct search URL for first page
+        search_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}&page=1"
+
+        # Get flat URLs from first page
+        flat_urls = get_flat_urls_from_search_page(search_url)
+
+        if not flat_urls:
+            logging.info(f"No sales found for {jk_name}, setting city to Unknown")
+            return "Unknown"
+
+        # Try to get city from first few flats (up to 3)
+        cities_found = []
+        for flat_url in flat_urls[:3]:
+            try:
+                flat_id = extract_flat_id_from_url(flat_url)
+                if not flat_id:
+                    continue
+
+                # Get city from analytics API
+                api_url = f"https://m.krisha.kz/analytics/aPriceAnalysis/?id={flat_id}"
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                    "Accept": "application/json, text/plain, */*",
+                    "Referer": f"https://m.krisha.kz/a/show/{flat_id}",
+                    "Origin": "https://m.krisha.kz",
+                }
+
+                response = requests.get(api_url, headers=headers, timeout=10)
+                response.raise_for_status()
+
+                data = response.json()
+                city_name = data.get("cityName")
+                if city_name:
+                    cities_found.append(city_name)
+
+                # Small delay to be respectful
+                time.sleep(0.5)
+
+            except Exception as e:
+                logging.debug(f"Could not get city from flat {flat_id}: {e}")
+                continue
+
+        if cities_found:
+            # Return the most common city (or first one if all are different)
+            city = max(set(cities_found), key=cities_found.count)
+            logging.info(f"Found city '{city}' for {jk_name} from sales ads")
+            return city
+        else:
+            logging.info(
+                f"Could not extract city from sales for {jk_name}, setting to Unknown"
+            )
+            return "Unknown"
+
+    except Exception as e:
+        logging.warning(f"Error getting city for {jk_name}: {e}")
+        return "Unknown"
+
+
+def get_city_from_jk_rentals(complex_id: str, jk_name: str) -> str:
+    """
+    Get city for a JK by scraping the first page of rentals and extracting city from rental ads.
+
+    :param complex_id: str, Krisha complex ID
+    :param jk_name: str, name of the residential complex (for logging)
+    :return: str, city name or "Unknown" if not found
+    """
+    try:
+        # Construct search URL for first page
+        search_url = f"https://krisha.kz/arenda/kvartiry/almaty/?das[map.complex]={complex_id}&page=1"
+
+        # Get flat URLs from first page
+        flat_urls = get_flat_urls_from_search_page(search_url)
+
+        if not flat_urls:
+            logging.info(f"No rentals found for {jk_name}, setting city to Unknown")
+            return "Unknown"
+
+        # Try to get city from first few flats (up to 3)
+        cities_found = []
+        for flat_url in flat_urls[:3]:
+            try:
+                flat_id = extract_flat_id_from_url(flat_url)
+                if not flat_id:
+                    continue
+
+                # Get city from analytics API
+                api_url = f"https://m.krisha.kz/analytics/aPriceAnalysis/?id={flat_id}"
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+                    "Accept": "application/json, text/plain, */*",
+                    "Referer": f"https://m.krisha.kz/a/show/{flat_id}",
+                    "Origin": "https://m.krisha.kz",
+                }
+
+                response = requests.get(api_url, headers=headers, timeout=10)
+                response.raise_for_status()
+
+                data = response.json()
+                city_name = data.get("cityName")
+                if city_name:
+                    cities_found.append(city_name)
+
+                # Small delay to be respectful
+                time.sleep(0.5)
+
+            except Exception as e:
+                logging.debug(f"Could not get city from flat {flat_id}: {e}")
+                continue
+
+        if cities_found:
+            # Return the most common city (or first one if all are different)
+            city = max(set(cities_found), key=cities_found.count)
+            logging.info(f"Found city '{city}' for {jk_name} from rental ads")
+            return city
+        else:
+            logging.info(
+                f"Could not extract city from rentals for {jk_name}, setting to Unknown"
+            )
+            return "Unknown"
+
+    except Exception as e:
+        logging.warning(f"Error getting city from rentals for {jk_name}: {e}")
+        return "Unknown"
+
+
+def process_and_save_complexes(complexes: List[Dict], db_path: str = "flats.db") -> int:
+    """
+    Process and save residential complexes to database.
+    Adds or updates complexes depending on city info.
     """
     if not complexes:
         logging.info("No complexes to save")
         return 0
 
     db = OrthancDB(db_path)
-    db.connect()
+    saved, skipped = 0, 0
 
-    saved_count = 0
+    def resolve_city(cid: str, name: str, given_city: Optional[str]) -> str:
+        """Try to determine city if missing or Unknown."""
+        if given_city and given_city != "Unknown":
+            return given_city
+        for fn in (get_city_from_jk_sales, get_city_from_jk_rentals):
+            city = fn(cid, name)
+            if city and city != "Unknown":
+                return city
+        return "Unknown"
+
+    for i, data in enumerate(complexes, 1):
+        try:
+            cid, name, district = data["complex_id"], data["name"], data.get("district")
+            existing = db.get_residential_complex_by_complex_id(cid)
+
+            if existing:
+                city = existing.get("city")
+                if city and city != "Unknown":
+                    logging.info(f"[{i}/{len(complexes)}] Skip {name} – city={city}")
+                    skipped += 1
+                    continue
+
+                new_city = resolve_city(cid, name, data.get("city"))
+                if db.update_residential_complex_city_and_district(
+                    cid, new_city, district
+                ):
+                    saved += 1
+                    logging.info(
+                        f"[{i}/{len(complexes)}] Updated {name} – city={new_city}"
+                    )
+
+            else:
+                city = resolve_city(cid, name, data.get("city"))
+                if db.insert_residential_complex_new(cid, name, city, district):
+                    saved += 1
+                    logging.info(f"[{i}/{len(complexes)}] Added {name} – city={city}")
+
+        except Exception as e:
+            logging.warning(
+                f"Error processing {data.get('complex_id', 'unknown')}: {e}"
+            )
+
+    logging.info(
+        f"Saved/updated {saved}/{len(complexes)} complexes (skipped {skipped})"
+    )
+    return saved
+
+
+def update_jks_with_unknown_cities(db_path: str = "flats.db", time_to_wait=2) -> int:
+    """
+    Update JKs with NULL or "Unknown" cities by scraping sales and rental ads to get the city.
+    Tries sales first, then falls back to rentals if sales don't provide a city.
+
+    :param db_path: str, database file path
+    :return: int, number of JKs updated with city information
+    """
+    logging.info("Updating JKs with unknown cities...")
+
+    db = OrthancDB(db_path)
 
     try:
-        for complex_data in complexes:
+        # Get all JKs with NULL or "Unknown" city
+        jks_to_update = db.get_jks_with_unknown_cities()
+
+        if not jks_to_update:
+            logging.info("No JKs with unknown cities found")
+            return 0
+
+        logging.info(f"Found {len(jks_to_update)} JKs with unknown cities")
+
+        updated_count = 0
+
+        for i, jk in enumerate(jks_to_update, 1):
+            complex_id = jk["complex_id"]
+            jk_name = jk["name"]
+
             try:
-                # Use INSERT OR REPLACE to handle duplicates
-                cursor = db.conn.execute(
-                    """
-                    INSERT OR REPLACE INTO residential_complexes 
-                    (complex_id, name, city, district) 
-                    VALUES (?, ?, ?, ?)
-                """,
-                    (
-                        complex_data["complex_id"],
-                        complex_data["name"],
-                        complex_data.get("city"),
-                        complex_data.get("district"),
-                    ),
-                )
-
-                saved_count += 1
-
-            except Exception as e:
                 logging.info(
-                    f"Error saving complex {complex_data.get('complex_id', 'unknown')}: {e}"
+                    f"[{i}/{len(jks_to_update)}] Getting city for {jk_name}..."
                 )
+                # Try sales first
+                city = get_city_from_jk_sales(complex_id, jk_name)
 
-        # Commit all changes at once
-        db.conn.commit()
-        logging.info(f"Saved {saved_count}/{len(complexes)} complexes to database")
+                # If sales didn't find a city, try rentals
+                if not city or city == "Unknown":
+                    logging.info(
+                        f"Sales didn't find city for {jk_name}, trying rentals..."
+                    )
+                    city = get_city_from_jk_rentals(complex_id, jk_name)
+
+                # Update the city in database
+                if db.update_jk_city(complex_id, city):
+                    updated_count += 1
+                    logging.info(f"Updated {jk_name} with city: {city}")
+                time.sleep(time_to_wait)
+            except Exception as e:
+                logging.warning(f"Error updating city for {jk_name}: {e}")
+                continue
+
+        logging.info(
+            f"Updated {updated_count}/{len(jks_to_update)} JKs with city information"
+        )
+        return updated_count
 
     except Exception as e:
-        logging.error(f"Error saving complexes to database: {e}")
-        db.conn.rollback()
-    finally:
-        db.disconnect()
-
-    return saved_count
+        logging.error(f"Error updating JKs with unknown cities: {e}")
+        return 0
 
 
 def search_complex_by_name(name: str, db_path: str = "flats.db") -> Optional[Dict]:
@@ -409,11 +625,34 @@ def get_all_residential_complexes(db_path: str = "flats.db") -> List[Dict]:
 def update_complex_database(db_path: str = "flats.db") -> int:
     """
     Update the residential complex database by fetching fresh data.
+    Only adds new JKs or updates existing ones if their city is NULL or "Unknown".
 
     :param db_path: str, database file path
-    :return: int, number of complexes updated
+    :return: int, number of complexes saved or updated
     """
     logging.info("Updating residential complex database...")
+
+    # Read all existing JKs from database first
+    db = OrthancDB(db_path)
+    existing_jks = db.get_all_residential_complexes()
+
+    # Separate JKs into two lists:
+    # 1. JKs with valid cities (to skip during parsing)
+    # 2. JKs without cities (to update)
+    jks_with_city = []
+    jks_without_city = []
+
+    for jk in existing_jks:
+        complex_id = str(jk.get("complex_id", ""))
+        city = jk.get("city")
+        if city and city != "Unknown":
+            jks_with_city.append(complex_id)
+        else:
+            jks_without_city.append(complex_id)
+
+    logging.info(
+        f"Found {len(existing_jks)} existing JKs: {len(jks_with_city)} with cities, {len(jks_without_city)} without cities"
+    )
 
     # Fetch complexes from API
     complexes_data = fetch_residential_complexes()
@@ -422,57 +661,16 @@ def update_complex_database(db_path: str = "flats.db") -> int:
         logging.info("No complexes data received")
         return 0
 
-    # Parse and clean data
-    cleaned_complexes = parse_complex_data(complexes_data)
+    # Parse and clean data, skipping JKs that already have valid cities
+    cleaned_complexes = parse_complex_data(
+        complexes_data, list_of_jks_to_skip=jks_with_city
+    )
 
     if not cleaned_complexes:
         logging.info("No valid complexes found")
         return 0
 
-    # Save to database
-    saved_count = save_complexes_to_db(cleaned_complexes, db_path)
+    # Process and save to database (only new JKs or those with NULL/Unknown cities)
+    saved_count = process_and_save_complexes(cleaned_complexes, db_path)
 
     return saved_count
-
-
-def main():
-    """
-    Main function to demonstrate complex scraping.
-    """
-    logging.info("🏢 Krisha.kz Residential Complex Scraper")
-    logging.info("=" * 50)
-
-    # Update complex database
-    saved_count = update_complex_database()
-
-    if saved_count > 0:
-        logging.info(f"\nSuccessfully updated {saved_count} residential complexes")
-
-        # Show some examples
-        db = EnhancedFlatDatabase()
-        complexes = db.get_all_residential_complexes()
-
-        logging.info("\nSample complexes:")
-        for i, complex_data in enumerate(complexes[:10], 1):
-            logging.info(
-                f"   {i}. {complex_data['name']} (ID: {complex_data['complex_id']})"
-            )
-            if complex_data.get("city"):
-                logging.info(f"      City: {complex_data['city']}")
-
-        # Test search functionality
-        logging.info("\nTesting search functionality:")
-        meridian = search_complex_by_name("Meridian")
-        if meridian:
-            logging.info(
-                f"   Found Meridian: {meridian['name']} (ID: {meridian['complex_id']})"
-            )
-        else:
-            logging.info("   Meridian not found")
-
-    else:
-        logging.info("Failed to update complex database")
-
-
-if __name__ == "__main__":
-    main()
