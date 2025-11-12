@@ -372,9 +372,10 @@ def process_and_save_complexes(complexes: List[Dict], db_path: str = "flats.db")
     return saved
 
 
-def update_jks_with_unknown_cities(db_path: str = "flats.db") -> int:
+def update_jks_with_unknown_cities(db_path: str = "flats.db", time_to_wait=2) -> int:
     """
-    Update JKs with NULL or "Unknown" cities by scraping sales ads to get the city.
+    Update JKs with NULL or "Unknown" cities by scraping sales and rental ads to get the city.
+    Tries sales first, then falls back to rentals if sales don't provide a city.
 
     :param db_path: str, database file path
     :return: int, number of JKs updated with city information
@@ -403,12 +404,21 @@ def update_jks_with_unknown_cities(db_path: str = "flats.db") -> int:
                 logging.info(
                     f"[{i}/{len(jks_to_update)}] Getting city for {jk_name}..."
                 )
+                # Try sales first
                 city = get_city_from_jk_sales(complex_id, jk_name)
+
+                # If sales didn't find a city, try rentals
+                if not city or city == "Unknown":
+                    logging.info(
+                        f"Sales didn't find city for {jk_name}, trying rentals..."
+                    )
+                    city = get_city_from_jk_rentals(complex_id, jk_name)
 
                 # Update the city in database
                 if db.update_jk_city(complex_id, city):
                     updated_count += 1
-
+                    logging.info(f"Updated {jk_name} with city: {city}")
+                time.sleep(time_to_wait)
             except Exception as e:
                 logging.warning(f"Error updating city for {jk_name}: {e}")
                 continue
