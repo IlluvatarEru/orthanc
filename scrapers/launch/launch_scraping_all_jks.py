@@ -42,18 +42,8 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     )
 
     db = OrthancDB(db_path)
-    db.connect()
-    # Get JKs from residential_complexes table, excluding blacklisted ones
-    cursor = db.conn.execute("""
-        SELECT name as residential_complex, complex_id, city, district
-        FROM residential_complexes 
-        WHERE name NOT IN (
-            SELECT name FROM blacklisted_jks
-        )
-        ORDER BY name
-    """)
+    jks = db.get_all_jks_excluding_blacklisted_no_city_filter()
 
-    jks = [dict(row) for row in cursor.fetchall()]
     logger.info(
         f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
     )
@@ -404,35 +394,29 @@ def fetch_all_jks(db_path: str = "flats.db") -> int:
 
             # Get some statistics about what was saved
             db = OrthancDB(db_path)
-            db.connect()
             try:
                 # Get total count
-                cursor = db.conn.execute("SELECT COUNT(*) FROM residential_complexes")
-                total_count = cursor.fetchone()[0]
+                total_count = db.get_residential_complexes_count()
 
                 # Get some sample data
-                cursor = db.conn.execute("""
-                    SELECT name, complex_id, city, district 
-                    FROM residential_complexes 
-                    ORDER BY name 
-                    LIMIT 10
-                """)
-                sample_complexes = cursor.fetchall()
+                sample_complexes = db.get_sample_residential_complexes(limit=10)
 
                 logger.info(
                     f"📊 Database now contains {total_count} total residential complexes"
                 )
                 logger.info("📋 Sample complexes:")
-                for i, (name, complex_id, city, district) in enumerate(
-                    sample_complexes, 1
-                ):
+                for i, complex_data in enumerate(sample_complexes, 1):
+                    name = complex_data["name"]
+                    complex_id = complex_data["complex_id"]
+                    city = complex_data.get("city")
+                    district = complex_data.get("district")
                     location_info = (
                         f" ({city}, {district})" if city and district else ""
                     )
                     logger.info(f"   {i}. {name} (ID: {complex_id}){location_info}")
 
-            finally:
-                db.disconnect()
+            except Exception as e:
+                logger.error(f"Error getting statistics: {e}")
 
             return saved_count
         else:

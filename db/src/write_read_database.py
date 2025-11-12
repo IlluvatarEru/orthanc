@@ -2338,6 +2338,77 @@ class OrthancDB:
         finally:
             self.disconnect()
 
+    def get_all_jks_excluding_blacklisted_no_city_filter(self) -> List[Dict]:
+        """
+        Get all residential complexes (JKs) from the residential_complexes table, excluding blacklisted ones, without city filtering.
+
+        :return: List[Dict], list of JK information with keys: residential_complex, complex_id, city, district
+        """
+        self.connect()
+
+        try:
+            cursor = self.conn.execute("""
+                SELECT name as residential_complex, complex_id, city, district
+                FROM residential_complexes 
+                WHERE name NOT IN (
+                    SELECT name FROM blacklisted_jks
+                )
+                ORDER BY name
+            """)
+            jks = [dict(row) for row in cursor.fetchall()]
+            return jks
+        except Exception as e:
+            logging.error(f"Error fetching JKs from database: {e}")
+            return []
+        finally:
+            self.disconnect()
+
+    def get_residential_complexes_count(self) -> int:
+        """
+        Get total count of residential complexes in the database.
+
+        :return: int, total count of residential complexes
+        """
+        self.connect()
+
+        try:
+            cursor = self.conn.execute("SELECT COUNT(*) FROM residential_complexes")
+            result = cursor.fetchone()
+            count = result[0] if result else 0
+            return count
+        except Exception as e:
+            logging.error(f"Error getting residential complexes count: {e}")
+            return 0
+        finally:
+            self.disconnect()
+
+    def get_sample_residential_complexes(self, limit: int = 10) -> List[Dict]:
+        """
+        Get a sample of residential complexes from the database.
+
+        :param limit: int, maximum number of complexes to return (default: 10)
+        :return: List[Dict], list of JK information with keys: name, complex_id, city, district
+        """
+        self.connect()
+
+        try:
+            cursor = self.conn.execute(
+                """
+                SELECT name, complex_id, city, district 
+                FROM residential_complexes 
+                ORDER BY name 
+                LIMIT ?
+            """,
+                (limit,),
+            )
+            complexes = [dict(row) for row in cursor.fetchall()]
+            return complexes
+        except Exception as e:
+            logging.error(f"Error getting sample residential complexes: {e}")
+            return []
+        finally:
+            self.disconnect()
+
     def get_residential_complex_by_complex_id(self, complex_id: str) -> Optional[Dict]:
         """
         Get residential complex by complex_id.
