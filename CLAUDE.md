@@ -298,6 +298,12 @@ db = OrthancDB("flats.db")
 6. **Consider blacklist system** when working with scrapers
 7. **Update READMEs** when adding significant features
 
+### Git Commit Guidelines
+- **Only commit files you edited** - Do NOT stage or commit untracked files that were already present in the working directory before your changes
+- **Check git status carefully** - Before committing, verify you're only staging files you actually modified
+- **Ignore pre-existing artifacts** - Files like `*.out`, `*.db`, `venv/`, etc. that exist but aren't tracked should remain uncommitted
+- **Use `git add <specific-file>`** - Never use `git add .` or `git add -A` blindly; explicitly add only the files you changed
+
 ### Common Tasks
 - Adding new scraper? → `scrapers/src/`
 - Adding API endpoint? → `api/src/`

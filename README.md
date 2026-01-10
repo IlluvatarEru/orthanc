@@ -1,5 +1,35 @@
 # Orthanc Capital
 
+## Realtime Processes
+
+These processes should be running continuously to keep the database populated and provide API access:
+
+| Process | Command | Purpose |
+|---------|---------|---------|
+| Daily Sales Scraper | `nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-sales > daily_sales.out 2>&1 &` | Continuously scrapes sales listings |
+| Daily Rentals Scraper | `nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-rentals > daily_rentals.out 2>&1 &` | Continuously scrapes rental listings |
+| Market Data | `nohup python -m price.launch.launch_market_data > market_data.out 2>&1 &` | Fetches MIG exchange rates daily at midday UTC |
+| API Server | `systemctl start orthanc-api` | Serves the explorer/API |
+| Frontend | `systemctl start orthanc-frontend` | Serves the frontend |
+
+To check if processes are running:
+```bash
+ps aux | grep launch_scraping_all_jks
+ps aux | grep launch_market_data
+systemctl status orthanc-api
+systemctl status orthanc-frontend
+```
+
+### Restarting after code updates
+
+After pulling new code changes, restart the services:
+```bash
+git pull
+systemctl restart orthanc-api
+systemctl restart orthanc-frontend
+```
+
+---
 
 ### How do I...
 1. scrap sales on a regular basis?
