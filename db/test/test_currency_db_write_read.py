@@ -6,13 +6,28 @@ from db.src.write_read_database import OrthancDB
 import logging
 import pytest
 import datetime
+import tempfile
+import os
 
 
 class TestDatabaseOperationsCurrency:
     @pytest.fixture
     def db_fx(self):
-        """Create database connection using actual database."""
-        return OrthancDB("flats.db")
+        """Create database connection using a temporary test database."""
+        # Create a temporary database file for testing
+        fd, temp_db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+
+        db = OrthancDB(temp_db_path)
+        # Initialize the mid_prices table
+        db.create_mid_prices_table()
+
+        yield db
+
+        # Cleanup: remove the temporary database after test
+        db.disconnect()
+        if os.path.exists(temp_db_path):
+            os.remove(temp_db_path)
 
     def test_currency_db_functionality(self, db_fx):
         """Test the currency database functionality."""

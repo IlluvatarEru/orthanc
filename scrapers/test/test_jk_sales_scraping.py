@@ -8,7 +8,8 @@ python -m pytest scrapers/test/test_jk_sales_scraping.py -v -s --log-cli-level=I
 """
 
 import logging
-
+import tempfile
+import os
 
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FLAT_TYPE_VALUES
@@ -108,67 +109,74 @@ class TestJKSalesScraping:
 
         logger.info("✅ JK sales scraping (query only) test passed for Legenda!")
 
-    def test_scrape_and_save_jk_sales_query_only_1(self):
+    def test_scrape_and_save_jk_sales_with_temp_db(self):
         """
         Test JK sales scraping with database writing.
 
         This test verifies that the scraping function can find, scrape,
-        and save sales flats for a specific JK to the database.
+        and save sales flats for a specific JK to a temporary database.
         """
         logger.info(f"Testing JK sales scraping (with database) for: {TEST_JK_NAME_1}")
 
-        # Use the actual database
-        db_path = "flats.db"
-
-        # Scrape and save with limited pages
-        max_pages = 2
-        saved_count = scrape_and_save_jk_sales(
-            jk_name=TEST_JK_NAME_1, max_pages=max_pages, db_path=db_path
-        )
-
-        # Verify results
-        assert isinstance(saved_count, int), f"Expected int, got {type(saved_count)}"
-        assert saved_count >= 10, (
-            f"Saved count should be non-negative, got {saved_count}"
-        )
-
-        logger.info(f"Saved {saved_count} sales flats to database")
-
-        # CRITICAL: Test should fail if no flats saved - this indicates scraping is not working
-        assert saved_count > 0, (
-            f"No sales flats saved for {TEST_JK_NAME_1}. This indicates the JK sales scraper is not working properly."
-        )
-
-        # Verify database contains the saved flats
-        from db.src.write_read_database import OrthancDB
-
-        db = OrthancDB(db_path)
+        # Create a temporary database file for testing
+        fd, temp_db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
 
         try:
-            db.connect()
-
-            # Check sales flats in database
-            cursor = db.conn.execute(
-                """
-                SELECT COUNT(*) FROM sales_flats 
-                WHERE residential_complex LIKE ?
-            """,
-                (f"%{TEST_JK_NAME_1}%",),
+            # Scrape and save with limited pages
+            max_pages = 2
+            saved_count = scrape_and_save_jk_sales(
+                jk_name=TEST_JK_NAME_1, max_pages=max_pages, db_path=temp_db_path
             )
 
-            db_count = cursor.fetchone()[0]
-            assert db_count >= saved_count, (
-                f"Database should have at least {saved_count} flats, got {db_count}"
+            # Verify results
+            assert isinstance(saved_count, int), f"Expected int, got {type(saved_count)}"
+            assert saved_count >= 10, (
+                f"Saved count should be at least 10, got {saved_count}"
             )
 
-            logger.info(
-                f"Database contains {db_count} sales flats for {TEST_JK_NAME_1}"
+            logger.info(f"Saved {saved_count} sales flats to database")
+
+            # CRITICAL: Test should fail if no flats saved - this indicates scraping is not working
+            assert saved_count > 0, (
+                f"No sales flats saved for {TEST_JK_NAME_1}. This indicates the JK sales scraper is not working properly."
             )
+
+            # Verify database contains the saved flats
+            from db.src.write_read_database import OrthancDB
+
+            db = OrthancDB(temp_db_path)
+
+            try:
+                db.connect()
+
+                # Check sales flats in database
+                cursor = db.conn.execute(
+                    """
+                    SELECT COUNT(*) FROM sales_flats
+                    WHERE residential_complex LIKE ?
+                """,
+                    (f"%{TEST_JK_NAME_1}%",),
+                )
+
+                db_count = cursor.fetchone()[0]
+                assert db_count >= saved_count, (
+                    f"Database should have at least {saved_count} flats, got {db_count}"
+                )
+
+                logger.info(
+                    f"Database contains {db_count} sales flats for {TEST_JK_NAME_1}"
+                )
+
+            finally:
+                db.disconnect()
+
+            logger.info("JK sales scraping (with database) test passed!")
 
         finally:
-            db.disconnect()
-
-        logger.info("✅ JK sales scraping (with database) test passed!")
+            # Cleanup: remove the temporary database
+            if os.path.exists(temp_db_path):
+                os.remove(temp_db_path)
 
     def test_scrape_jk_sales_invalid_jk(self):
         """
