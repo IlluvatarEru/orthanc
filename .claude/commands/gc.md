@@ -1,0 +1,1 @@
+Commit the current changes. Run git status and git diff to understand what changed, stage only the modified files (not untracked files unless they're new files I created), write an appropriate commit message based on the changes, and commit.

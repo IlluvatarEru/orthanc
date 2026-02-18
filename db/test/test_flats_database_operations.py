@@ -7,6 +7,8 @@ pytest db/test/test_flats_database_operations.py -v
 """
 
 import pytest
+import tempfile
+import os
 from datetime import datetime
 
 from db.src.write_read_database import OrthancDB
@@ -18,8 +20,19 @@ class TestDatabaseOperations:
 
     @pytest.fixture
     def db(self):
-        """Create database connection using actual database."""
-        return OrthancDB("flats.db")
+        """Create database connection using a temporary test database."""
+        # Create a temporary database file for testing
+        fd, temp_db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+
+        db = OrthancDB(temp_db_path)
+
+        yield db
+
+        # Cleanup: remove the temporary database after test
+        db.disconnect()
+        if os.path.exists(temp_db_path):
+            os.remove(temp_db_path)
 
     @pytest.fixture
     def sample_rental_flat(self):
