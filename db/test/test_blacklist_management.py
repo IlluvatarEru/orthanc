@@ -15,7 +15,7 @@ class TestBlackListManagement:
     """Test class for blacklist management operations."""
 
     @pytest.fixture
-    def db_fx(self):
+    def db(self):
         """Create database connection using a temporary test database."""
         # Create a temporary database file for testing
         fd, temp_db_path = tempfile.mkstemp(suffix=".db")
@@ -42,55 +42,55 @@ class TestBlackListManagement:
         if os.path.exists(temp_db_path):
             os.remove(temp_db_path)
 
-    def test_blacklist_and_whitelist_jk(self, db_fx):
+    def test_blacklist_and_whitelist_jk(self, db):
         """Test blacklisting and whitelisting a JK."""
         jk_name = "Test Complex"
 
         # Initially should not be blacklisted
-        assert not db_fx.is_jk_blacklisted(name=jk_name), (
+        assert not db.is_jk_blacklisted(name=jk_name), (
             "JK should not be blacklisted initially"
         )
 
         # Blacklist the JK
-        success = db_fx.blacklist_jk_by_name(jk_name)
+        success = db.blacklist_jk_by_name(jk_name)
         assert success, "Failed to blacklist JK"
 
         # Verify it's now blacklisted
-        assert db_fx.is_jk_blacklisted(name=jk_name), (
+        assert db.is_jk_blacklisted(name=jk_name), (
             "JK should be blacklisted after blacklist operation"
         )
 
         # Whitelist the JK
-        success = db_fx.whitelist_jk_by_name(jk_name)
+        success = db.whitelist_jk_by_name(jk_name)
         assert success, "Failed to whitelist JK"
 
         # Verify it's no longer blacklisted
-        assert not db_fx.is_jk_blacklisted(name=jk_name), (
+        assert not db.is_jk_blacklisted(name=jk_name), (
             "JK should not be blacklisted after whitelist operation"
         )
 
-    def test_get_blacklisted_jks(self, db_fx):
+    def test_get_blacklisted_jks(self, db):
         """Test getting all blacklisted JKs."""
         jk_name = "Test Complex"
 
         # Initially no blacklisted JKs
-        blacklisted = db_fx.get_blacklisted_jks()
+        blacklisted = db.get_blacklisted_jks()
         assert len(blacklisted) == 0, "Should have no blacklisted JKs initially"
 
         # Blacklist the JK
-        db_fx.blacklist_jk_by_name(jk_name)
+        db.blacklist_jk_by_name(jk_name)
 
         # Verify it appears in the blacklist
-        blacklisted = db_fx.get_blacklisted_jks()
+        blacklisted = db.get_blacklisted_jks()
         assert len(blacklisted) == 1, "Should have 1 blacklisted JK"
         assert blacklisted[0]["name"] == jk_name, "Blacklisted JK should match"
 
-    def test_is_jk_blacklisted_with_invalid_input(self, db_fx):
+    def test_is_jk_blacklisted_with_invalid_input(self, db):
         """Test is_jk_blacklisted with invalid input."""
         # No identifier provided
-        result = db_fx.is_jk_blacklisted()
+        result = db.is_jk_blacklisted()
         assert result is False, "Should return False when no identifier provided"
 
         # Non-existent JK
-        result = db_fx.is_jk_blacklisted(name="NonExistentJK")
+        result = db.is_jk_blacklisted(name="NonExistentJK")
         assert result is False, "Should return False for non-existent JK"
