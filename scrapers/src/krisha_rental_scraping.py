@@ -8,6 +8,7 @@ using a single flat ID and return a FlatInfo object.
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional, List
 
@@ -31,6 +32,7 @@ from scrapers.src.utils import (
     extract_flat_id_from_url,
     fetch_url,
     get_city_url_slug,
+    get_scraping_config,
 )
 
 
@@ -309,6 +311,8 @@ def scrape_jk_rentals(
     logging.info(f"Max pages: {max_pages}")
 
     all_flats = []
+    config = get_scraping_config()
+    max_workers = config["concurrent_workers"]
 
     # Search for the complex to get its ID
     from scrapers.src.residential_complex_scraper import search_complex_by_name
@@ -345,36 +349,43 @@ def scrape_jk_rentals(
 
         logging.info(f"Found {len(flat_urls)} flats on page {page}")
 
-        # Scrape each flat
+        # Filter out archived flats first (main thread, uses DB)
+        flat_ids_to_scrape = []
         for flat_url in flat_urls:
-            try:
-                # Extract flat ID from URL
-                flat_id = extract_flat_id_from_url(flat_url)
-                if not flat_id:
-                    continue
-
-                # Check if flat is already archived before scraping
-                if db.is_flat_archived(flat_id, is_rental=True):
-                    logging.info(f"Skipping archived rental flat: {flat_id}")
-                    continue
-
-                # Scrape the flat with failover
-                flat_info = (
-                    scrape_rental_flat_from_analytics_page_with_failover_to_rental_page(
-                        flat_id
-                    )
-                )
-                if flat_info:
-                    all_flats.append(flat_info)
-                    logging.info(
-                        f"Successfully scraped rental flat: {flat_id} (archived: {flat_info.archived})"
-                    )
-                else:
-                    logging.error(f"Failed to scrape rental flat: {flat_id}")
-
-            except Exception as e:
-                logging.error(f"Error scraping flat from {flat_url}: {e}")
+            flat_id = extract_flat_id_from_url(flat_url)
+            if not flat_id:
                 continue
+            if db.is_flat_archived(flat_id, is_rental=True):
+                logging.info(f"Skipping archived rental flat: {flat_id}")
+                continue
+            flat_ids_to_scrape.append(flat_id)
+
+        # Scrape flats concurrently (rate limiter in fetch_url ensures polite spacing)
+        logging.info(
+            f"Scraping {len(flat_ids_to_scrape)} flats with {max_workers} workers"
+        )
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(
+                    scrape_rental_flat_from_analytics_page_with_failover_to_rental_page,
+                    flat_id,
+                ): flat_id
+                for flat_id in flat_ids_to_scrape
+            }
+
+            for future in as_completed(futures):
+                flat_id = futures[future]
+                try:
+                    flat_info = future.result()
+                    if flat_info:
+                        all_flats.append(flat_info)
+                        logging.info(
+                            f"Successfully scraped rental flat: {flat_id} (archived: {flat_info.archived})"
+                        )
+                    else:
+                        logging.error(f"Failed to scrape rental flat: {flat_id}")
+                except Exception as e:
+                    logging.error(f"Error scraping flat {flat_id}: {e}")
 
     logging.info(
         f"Completed JK rental scraping for {jk_name}. Total flats: {len(all_flats)}"

@@ -7,10 +7,12 @@ path = "flats.db"
 
 # Scraping configuration
 [scraping]
-delay_between_requests = 2.0  # seconds
-max_flats_per_query = 200     # maximum flats to scrape per query (increased from 50)
-max_pages_per_query = 10      # maximum pages to scrape per query (pagination) (increased from 5)
-retry_attempts = 3            # number of retry attempts for failed requests
+delay_between_requests = 2.0        # seconds between JKs
+delay_between_flat_requests = 0.3   # seconds between individual flat requests (rate limiter)
+concurrent_workers = 3              # number of concurrent threads for flat scraping within a JK
+max_flats_per_query = 200           # maximum flats to scrape per query (increased from 50)
+max_pages_per_query = 10            # maximum pages to scrape per query (pagination) (increased from 5)
+retry_attempts = 3                  # number of retry attempts for failed requests
 
 # Search queries for rentals
 [[rental_queries]]

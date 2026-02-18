@@ -10,9 +10,72 @@ import re
 import logging
 import time
 import functools
+import threading
+import os
 from typing import Optional, List
 from bs4 import BeautifulSoup
 from common.src.flat_type import FlatType
+
+# --- Shared HTTP session and rate limiter ---
+_session: Optional[requests.Session] = None
+_session_lock = threading.Lock()
+_rate_lock = threading.Lock()
+_last_request_time = 0.0
+
+
+def _load_scraping_config() -> dict:
+    """Load scraping configuration from config.toml."""
+    try:
+        import toml
+
+        config_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
+        )
+        config = toml.load(config_path)
+        return config.get("scraping", {})
+    except Exception:
+        return {}
+
+
+def get_scraping_config() -> dict:
+    """
+    Get scraping configuration with defaults.
+
+    :return: dict with keys: concurrent_workers, delay_between_flat_requests,
+             delay_between_requests, retry_attempts, max_pages_per_query
+    """
+    config = _load_scraping_config()
+    return {
+        "concurrent_workers": config.get("concurrent_workers", 3),
+        "delay_between_flat_requests": config.get("delay_between_flat_requests", 0.3),
+        "delay_between_requests": config.get("delay_between_requests", 2.0),
+        "retry_attempts": config.get("retry_attempts", 3),
+        "max_pages_per_query": config.get("max_pages_per_query", 10),
+    }
+
+
+def get_session() -> requests.Session:
+    """
+    Get or create a shared requests.Session for TCP connection reuse.
+    Thread-safe via double-checked locking.
+
+    :return: requests.Session
+    """
+    global _session
+    if _session is None:
+        with _session_lock:
+            if _session is None:
+                _session = requests.Session()
+                _session.headers.update(
+                    {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/123.0.0.0 Safari/537.36",
+                        "Accept-Encoding": "gzip, deflate",
+                        "Connection": "keep-alive",
+                    }
+                )
+    return _session
 
 
 def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
@@ -74,6 +137,8 @@ def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
 def fetch_url(url: str, headers: dict = None, timeout: int = 15) -> requests.Response:
     """
     Fetch a URL with automatic retry on transient failures.
+    Uses a shared Session for TCP connection reuse and a thread-safe rate
+    limiter to enforce minimum delay between requests.
 
     :param url: str, URL to fetch
     :param headers: dict, optional HTTP headers
@@ -81,7 +146,19 @@ def fetch_url(url: str, headers: dict = None, timeout: int = 15) -> requests.Res
     :return: requests.Response object
     :raises: requests.RequestException after all retries exhausted
     """
-    response = requests.get(url, headers=headers, timeout=timeout)
+    global _last_request_time
+
+    # Thread-safe rate limiting
+    min_interval = get_scraping_config()["delay_between_flat_requests"]
+    with _rate_lock:
+        now = time.time()
+        elapsed = now - _last_request_time
+        if elapsed < min_interval:
+            time.sleep(min_interval - elapsed)
+        _last_request_time = time.time()
+
+    session = get_session()
+    response = session.get(url, headers=headers, timeout=timeout)
     response.raise_for_status()
     return response
 
