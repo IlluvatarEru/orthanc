@@ -71,13 +71,22 @@ def index():
     max_age_days = request.args.get("max_age_days", 7, type=int)
     limit = request.args.get("limit", 25, type=int)
 
-    # Get top opportunities with filters
+    # City filter: almaty -> Алматы, astana -> Астане, all -> None
+    city_map = {"almaty": "Алматы", "astana": "Астане", "all": None}
+    city_param = request.args.get("city", "almaty")
+    city = city_map.get(city_param, "Алматы")
+
     with OrthancDB() as db:
         top_opportunities = db.get_top_opportunities(
             limit=limit,
             max_price=max_price,
             max_age_days=max_age_days,
+            city=city,
         )
+        price_movers = db.get_price_movers(city=city, limit=5)
+        rental_yields = db.get_best_rental_yields(city=city, limit=10)
+        market_velocity = db.get_market_velocity(city=city)
+        price_per_sqm = db.get_price_per_sqm_rankings(city=city, limit=15)
 
     return render_template(
         "index.html",
@@ -93,6 +102,11 @@ def index():
         max_price=max_price,
         max_age_days=max_age_days,
         limit=limit,
+        city=city_param,
+        price_movers=price_movers,
+        rental_yields=rental_yields,
+        market_velocity=market_velocity,
+        price_per_sqm=price_per_sqm,
     )
 
 

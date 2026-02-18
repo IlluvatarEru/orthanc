@@ -312,6 +312,23 @@ class DatabaseSchema:
             "CREATE INDEX IF NOT EXISTS idx_sales_flat_type ON sales_flats(flat_type)"
         )
 
+        # Dashboard query indexes (JOINs + GROUP BY)
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rc_name ON residential_complexes(name)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rc_city ON residential_complexes(city)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_residential_complex ON sales_flats(residential_complex)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_date_rc ON sales_flats(query_date, residential_complex)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rental_residential_complex ON rental_flats(residential_complex)"
+        )
+
         # FX indexes
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_currency_fetched ON mid_prices(currency, fetched_at)"
