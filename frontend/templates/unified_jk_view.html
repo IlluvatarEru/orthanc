@@ -47,6 +47,9 @@
                         <button id="refreshAnalysisBtn" class="btn btn-primary" onclick="showRefreshConfirm();">
                             <i class="fas fa-sync-alt me-1"></i>Refresh Analysis
                         </button>
+                        <button class="btn btn-danger" onclick="blacklistJK('{{ complex_info.name }}')">
+                            <i class="fas fa-ban me-1"></i>Blacklist JK
+                        </button>
                         <a href="{{ url_for('search_jk') }}" class="btn btn-secondary">
                             <i class="fas fa-arrow-left me-1"></i>Back
                         </a>
@@ -479,6 +482,23 @@
 {% endif %}
 
 <script>
+
+// Blacklist JK functionality
+window.blacklistJK = function(jkName) {
+    if (!confirm('Are you sure you want to blacklist "' + jkName + '"? This JK will be excluded from scraping and opportunities.')) {
+        return;
+    }
+    fetch('/blacklist_jk/' + encodeURIComponent(jkName), { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/';
+            } else {
+                alert('Failed to blacklist: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Error: ' + err));
+};
 
 // Refresh Analysis functionality - Global functions
 window.showRefreshConfirm = function() {
