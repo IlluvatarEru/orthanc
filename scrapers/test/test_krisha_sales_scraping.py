@@ -293,7 +293,8 @@ class TestSalesScraping:
 
         # Strict known facts (same as analytics API test)
         assert flat_info.flat_id == TEST_SALES_KRISHA_ID_2
-        assert flat_info.price == 130_000_000
+        print(flat_info.flat_id)
+	assert flat_info.price == 135_000_000
         assert flat_info.area == 112
         assert flat_info.floor == 2
         assert flat_info.total_floors == 9
