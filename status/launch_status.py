@@ -7,6 +7,13 @@ import sqlite3
 import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
+# Processes to monitor: display name -> command substring to match
+MONITORED_PROCESSES = {
+    "daily-sales": "launch_scraping_all_jks --mode daily-sales",
+    "daily-rentals": "launch_scraping_all_jks --mode daily-rentals",
+    "market-data": "price.launch.launch_market_data",
+}
+
 
 def get_service_status(service_name: str) -> bool:
     """Check if a systemd service is active."""
@@ -19,6 +26,31 @@ def get_service_status(service_name: str) -> bool:
         return result.stdout.strip() == "active"
     except Exception:
         return False
+
+
+def get_process_uptimes() -> dict:
+    """Get uptime info for monitored processes using ps."""
+    result = {}
+    try:
+        ps_output = subprocess.run(
+            ["/usr/bin/ps", "ax", "-o", "lstart=,args="],
+            capture_output=True,
+            text=True,
+        )
+        lines = ps_output.stdout.strip().splitlines()
+        for name, cmd_pattern in MONITORED_PROCESSES.items():
+            for line in lines:
+                if cmd_pattern in line:
+                    # lstart format: "Tue Feb 18 02:15:03 2026"
+                    # First 24 chars are the lstart, rest is the command
+                    since = line[:24].strip()
+                    result[name] = {"status": "running", "since": since}
+                    break
+            else:
+                result[name] = {"status": "stopped", "since": None}
+    except Exception:
+        pass
+    return result
 
 
 def get_latest_timestamps(db_path: str) -> dict:
@@ -52,6 +84,7 @@ class StatusHandler(BaseHTTPRequestHandler):
                 "api": "up" if get_service_status("orthanc-api") else "down",
                 "web": "up" if get_service_status("orthanc-web") else "down",
             },
+            "processes": get_process_uptimes(),
             "latest_timestamps": get_latest_timestamps(self.db_path),
         }
 
