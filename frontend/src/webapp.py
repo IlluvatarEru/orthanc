@@ -69,11 +69,12 @@ def index():
     # Get filter parameters from query string (with defaults)
     max_price = request.args.get("max_price", 50000000, type=int)
     max_age_days = request.args.get("max_age_days", 7, type=int)
+    limit = request.args.get("limit", 25, type=int)
 
-    # Get top 10 opportunities with filters
+    # Get top opportunities with filters
     with OrthancDB() as db:
         top_opportunities = db.get_top_opportunities(
-            limit=10,
+            limit=limit,
             max_price=max_price,
             max_age_days=max_age_days,
         )
@@ -91,6 +92,7 @@ def index():
         top_opportunities=top_opportunities,
         max_price=max_price,
         max_age_days=max_age_days,
+        limit=limit,
     )
 
 
@@ -384,6 +386,20 @@ def view_flat_details(flat_id):
         area_tolerance=area_tolerance,
         data_warning=data_warning,
     )
+
+
+@app.route("/blacklist_jk/<jk_name>", methods=["POST"])
+def blacklist_jk(jk_name):
+    """Blacklist a JK so it is excluded from scraping and opportunities."""
+    jk_name = unquote(jk_name)
+    try:
+        with OrthancDB() as db:
+            db.blacklist_jk_by_name(jk_name, notes="Blacklisted from UI")
+        logger.info(f"Blacklisted JK from UI: {jk_name}")
+        return jsonify({"success": True})
+    except Exception as e:
+        logger.error(f"Failed to blacklist JK {jk_name}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 
 @app.route("/refresh_analysis/<residential_complex_name>", methods=["POST"])

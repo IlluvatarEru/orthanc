@@ -2174,8 +2174,11 @@ class OrthancDB:
             conditions.append("price <= ?")
             params.append(max_price)
 
-        # Exclude ignored opportunities
+        # Exclude ignored opportunities and blacklisted JKs
         conditions.append("flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)")
+        conditions.append(
+            "residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
+        )
 
         where_clause = ""
         if conditions:

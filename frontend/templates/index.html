@@ -65,6 +65,15 @@
                             <option value="365" {% if max_age_days == 365 %}selected{% endif %}>All</option>
                         </select>
                     </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="limit" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Show:</label>
+                        <select name="limit" id="limit" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="10" {% if limit == 10 %}selected{% endif %}>10</option>
+                            <option value="25" {% if limit == 25 %}selected{% endif %}>25</option>
+                            <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
+                            <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+                        </select>
+                    </div>
                 </form>
             </div>
             <div class="card-body">
