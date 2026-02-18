@@ -309,7 +309,7 @@ db = OrthancDB("flats.db")
 - Database integrity is paramount
 
 ### Code Modification Guidelines
-1. **Always run tests** after making changes
+1. **Always run all relevant tests** after making changes — run `pytest` (full suite) or at minimum `pytest <module>/test/ -v` for the affected modules. Do NOT skip this step.
 2. **Format with Ruff** before committing
 3. **Follow existing patterns** in the codebase
 4. **Add documentation** for new features

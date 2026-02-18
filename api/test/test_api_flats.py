@@ -28,7 +28,7 @@ class TestFlatsAPI:
                 "--host",
                 "127.0.0.1",
                 "--port",
-                "8002",
+                "8099",
             ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -37,7 +37,7 @@ class TestFlatsAPI:
         # Wait for server to start
         time.sleep(3)
 
-        yield "http://127.0.0.1:8002"
+        yield "http://127.0.0.1:8099"
 
         # Clean up
         process.terminate()
