@@ -3,3 +3,19 @@ __pycache__/
 .ipynb_checkpoints
 logs/
 *.log
+
+# Virtual environment
+venv/
+
+# Database
+*.db
+
+# Output files
+*.out
+*.csv
+
+# Ruff cache
+.ruff_cache/
+
+# Claude
+.claude/

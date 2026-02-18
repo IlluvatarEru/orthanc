@@ -13,20 +13,14 @@ Usage:
 
 import argparse
 import csv
-import logging
 from datetime import datetime
 from typing import List, Dict
 
 from analytics.src.jk_sales_analytics import analyze_jk_for_sales
+from common.src.logging_config import setup_logging
 from db.src.write_read_database import OrthancDB
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("opportunity_finder.log"), logging.StreamHandler()],
-)
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__, log_file="opportunity_finder.log")
 
 
 def find_all_opportunities(

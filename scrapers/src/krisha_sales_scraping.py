@@ -27,6 +27,8 @@ from scrapers.src.utils import (
     extract_additional_info_from_description,
     get_flat_urls_from_search_page,
     extract_flat_id_from_url,
+    fetch_url,
+    get_city_url_slug,
 )
 
 
@@ -49,8 +51,7 @@ def scrape_sales_flat_from_sale_page(krisha_id: str) -> Optional[FlatInfo]:
             "Upgrade-Insecure-Requests": "1",
         }
 
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
+        response = fetch_url(url, headers=headers, timeout=15)
 
         # Parse HTML with BeautifulSoup
         soup = BeautifulSoup(response.content, "html.parser")
@@ -60,7 +61,7 @@ def scrape_sales_flat_from_sale_page(krisha_id: str) -> Optional[FlatInfo]:
 
     except requests.RequestException as e:
         logging.error(
-            f"Request error scraping sales flat {krisha_id} from sale page: {e}"
+            f"Request error scraping sales flat {krisha_id} from sale page (after retries): {e}"
         )
         return None
     except Exception as e:
@@ -132,8 +133,7 @@ def scrape_sales_flat_from_analytics_page(
             "Origin": "https://m.krisha.kz",
         }
 
-        response = requests.get(api_url, headers=headers, timeout=15)
-        response.raise_for_status()
+        response = fetch_url(api_url, headers=headers, timeout=15)
         logging.info(response.text)
 
         try:
@@ -290,7 +290,7 @@ def extract_sales_info(
 
 
 def scrape_jk_sales(
-    jk_name: str, max_pages: int = 10, db_path: str = "flats.db"
+    jk_name: str, max_pages: int = 10, db_path: str = "flats.db", city: str = "almaty"
 ) -> List[FlatInfo]:
     """
     Scrape all sales flats for a specific residential complex (JK).
@@ -298,6 +298,7 @@ def scrape_jk_sales(
     :param jk_name: str, name of the residential complex
     :param max_pages: int, maximum number of pages to scrape (default: 10)
     :param db_path: str, path to database file to check archived status
+    :param city: str, city name for URL construction (default: "almaty")
     :return: List[FlatInfo], list of scraped sales flats (with archived status in FlatInfo)
     """
     logging.info(f"Starting JK sales scraping for: {jk_name}")
@@ -327,7 +328,8 @@ def scrape_jk_sales(
         logging.info(f"Scraping page {page} for {jk_name}")
 
         # Construct search URL for this page
-        search_url = f"https://krisha.kz/prodazha/kvartiry/almaty/?das[map.complex]={complex_id}&page={page}"
+        city_slug = get_city_url_slug(city)
+        search_url = f"https://krisha.kz/prodazha/kvartiry/{city_slug}/?das[map.complex]={complex_id}&page={page}"
         logging.info(search_url)
 
         # Get flat URLs from this page
@@ -393,8 +395,7 @@ def check_if_sales_flat_is_archived(flat_id: str) -> bool:
             "Origin": "https://m.krisha.kz",
         }
 
-        response = requests.get(api_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        response = fetch_url(api_url, headers=headers, timeout=10)
 
         data = response.json()
 
@@ -409,7 +410,7 @@ def check_if_sales_flat_is_archived(flat_id: str) -> bool:
 
 
 def scrape_and_save_jk_sales(
-    jk_name: str, max_pages: int = 10, db_path: str = "flats.db"
+    jk_name: str, max_pages: int = 10, db_path: str = "flats.db", city: str = "almaty"
 ) -> int:
     """
     Scrape and save all sales flats for a specific residential complex (JK).
@@ -418,6 +419,7 @@ def scrape_and_save_jk_sales(
     :param jk_name: str, name of the residential complex
     :param max_pages: int, maximum number of pages to scrape (default: 10)
     :param db_path: str, path to database file
+    :param city: str, city name for URL construction (default: "almaty")
     :return: int, number of flats saved to database
     """
     logging.info(f"Starting JK sales scraping and saving for: {jk_name}")
@@ -429,7 +431,7 @@ def scrape_and_save_jk_sales(
     existing_flat_ids = db.get_non_archived_flat_ids_for_jk(jk_name, is_rental=False)
 
     # Scrape flats
-    flats: list[FlatInfo] = scrape_jk_sales(jk_name, max_pages, db_path)
+    flats: list[FlatInfo] = scrape_jk_sales(jk_name, max_pages, db_path, city)
 
     logging.info(f"Initializing database connection to: {db_path}")
     saved_count = 0

@@ -36,6 +36,79 @@
     </div>
 </div>
 
+<!-- Top Sale Opportunities -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-gem me-2"></i>Top Sale Opportunities</h5>
+                <form class="d-flex gap-2 align-items-center" method="GET" action="/">
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="max_price" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Max Price:</label>
+                        <select name="max_price" id="max_price" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="30000000" {% if max_price == 30000000 %}selected{% endif %}>₸30M</option>
+                            <option value="50000000" {% if max_price == 50000000 %}selected{% endif %}>₸50M</option>
+                            <option value="80000000" {% if max_price == 80000000 %}selected{% endif %}>₸80M</option>
+                            <option value="100000000" {% if max_price == 100000000 %}selected{% endif %}>₸100M</option>
+                            <option value="150000000" {% if max_price == 150000000 %}selected{% endif %}>₸150M</option>
+                            <option value="999999999" {% if max_price == 999999999 %}selected{% endif %}>All</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="max_age_days" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Updated:</label>
+                        <select name="max_age_days" id="max_age_days" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="1" {% if max_age_days == 1 %}selected{% endif %}>Today</option>
+                            <option value="3" {% if max_age_days == 3 %}selected{% endif %}>3 days</option>
+                            <option value="7" {% if max_age_days == 7 %}selected{% endif %}>1 week</option>
+                            <option value="14" {% if max_age_days == 14 %}selected{% endif %}>2 weeks</option>
+                            <option value="30" {% if max_age_days == 30 %}selected{% endif %}>1 month</option>
+                            <option value="365" {% if max_age_days == 365 %}selected{% endif %}>All</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="card-body">
+                {% if top_opportunities %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Complex</th>
+                                <th>Type</th>
+                                <th>Price</th>
+                                <th>Median</th>
+                                <th>Profit</th>
+                                <th>Return</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for opp in top_opportunities %}
+                            <tr id="opp-row-{{ opp.flat_id }}">
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.rank }}</td>
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.residential_complex }}</td>
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.flat_type }}</td>
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{% if show_eur %}€{{ "{:,.0f}".format(opp.price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.price / 1000000) }}M{% endif %}</td>
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</td>
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'"><span class="text-success">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span></td>
+                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'"><span class="text-success">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</span></td>
+                                <td>
+                                    <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); ignoreOpportunity('{{ opp.flat_id }}')">ignore</a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No opportunities found matching filters. Try adjusting the filters or run the opportunity finder.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Operations Summary -->
 <div class="row mb-4">
     <div class="col-12">
@@ -142,41 +215,6 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Top Performers</h5>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <div class="col-12 mb-3">
-                        <div class="d-flex justify-content-between align-items-center p-3" style="background: rgba(79, 158, 255, 0.1); border-radius: 8px;">
-                            <div>
-                                <h6 class="mb-1">Best Rental Yield</h6>
-                                <small class="text-muted">Meridian Apartments</small>
-                            </div>
-                            <div class="text-end">
-                                <div class="h5 mb-0 text-success">12.5%</div>
-                                <small class="text-muted">Annual Return</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-12 mb-3">
-                        <div class="d-flex justify-content-between align-items-center p-3" style="background: rgba(0, 212, 170, 0.1); border-radius: 8px;">
-                            <div>
-                                <h6 class="mb-1">Most Active Complex</h6>
-                                <small class="text-muted">4YOU</small>
-                            </div>
-                            <div class="text-end">
-                                <div class="h5 mb-0 text-primary">40</div>
-                                <small class="text-muted">Total Flats</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Recent Activity -->
@@ -231,6 +269,20 @@
 
 {% block extra_js %}
 <script>
+function ignoreOpportunity(flatId) {
+    fetch('/api/ignore_opportunity', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({flat_id: flatId})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('opp-row-' + flatId).remove();
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Flats by Type Chart
     const flatsByTypeCtx = document.getElementById('flatsByTypeChart').getContext('2d');

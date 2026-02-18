@@ -78,57 +78,6 @@
             </div>
             <div class="card-body collapse show" id="global-stats-content">
                 <div class="row">
-                    <!-- Rental Global Stats -->
-                    <div class="col-md-6">
-                        <h5 class="text-primary"><i class="fas fa-home me-1"></i>Rental Flats ({{ analysis.rental_stats.count }})</h5>
-                        {% if analysis.rental_stats.count > 0 and rental_analysis and rental_analysis.current_market.global_stats %}
-                            <div class="row mb-3">
-                                <div class="col-6">
-                                    <h6 class="text-muted">Min Yield</h6>
-                                    <p class="text-white h5">
-                                        {% if rental_analysis.current_market.global_stats.min_yield is not none %}
-                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.min_yield * 100) }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                <div class="col-6">
-                                    <h6 class="text-muted">Max Yield</h6>
-                                    <p class="text-white h5">
-                                        {% if rental_analysis.current_market.global_stats.max_yield is not none %}
-                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.max_yield * 100) }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                <div class="col-6">
-                                    <h6 class="text-muted">Mean Yield</h6>
-                                    <p class="text-white h5">
-                                        {% if rental_analysis.current_market.global_stats.mean_yield is not none %}
-                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.mean_yield * 100) }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                <div class="col-6">
-                                    <h6 class="text-muted">Median Yield</h6>
-                                    <p class="text-white h5">
-                                        {% if rental_analysis.current_market.global_stats.median_yield is not none %}
-                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.median_yield * 100) }}
-                                        {% else %}
-                                            N/A
-                                        {% endif %}
-                                    </p>
-                                </div>
-                            </div>
-                        {% else %}
-                            <p class="text-muted">No rental data available</p>
-                        {% endif %}
-                    </div>
-                    
                     <!-- Sales Global Stats -->
                     <div class="col-md-6">
                         <h5 class="text-success"><i class="fas fa-money-bill-wave me-1"></i>Sales Flats ({{ analysis.sales_stats.count }})</h5>
@@ -177,6 +126,57 @@
                             </div>
                         {% else %}
                             <p class="text-muted">No sales data available</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Rental Global Stats -->
+                    <div class="col-md-6">
+                        <h5 class="text-primary"><i class="fas fa-home me-1"></i>Rental Flats ({{ analysis.rental_stats.count }})</h5>
+                        {% if analysis.rental_stats.count > 0 and rental_analysis and rental_analysis.current_market.global_stats %}
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <h6 class="text-muted">Min Yield</h6>
+                                    <p class="text-white h5">
+                                        {% if rental_analysis.current_market.global_stats.min_yield is not none %}
+                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.min_yield * 100) }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Max Yield</h6>
+                                    <p class="text-white h5">
+                                        {% if rental_analysis.current_market.global_stats.max_yield is not none %}
+                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.max_yield * 100) }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Mean Yield</h6>
+                                    <p class="text-white h5">
+                                        {% if rental_analysis.current_market.global_stats.mean_yield is not none %}
+                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.mean_yield * 100) }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                <div class="col-6">
+                                    <h6 class="text-muted">Median Yield</h6>
+                                    <p class="text-white h5">
+                                        {% if rental_analysis.current_market.global_stats.median_yield is not none %}
+                                            {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.median_yield * 100) }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                        {% else %}
+                            <p class="text-muted">No rental data available</p>
                         {% endif %}
                     </div>
                 </div>
@@ -607,6 +607,70 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
 <div class="row mb-4">
     <div class="col-md-6 mb-4">
         <div class="card">
+            <div class="card-header" style="cursor: pointer;" onclick="toggleSection('summary-sales')">
+                <h5><i class="fas fa-chevron-down me-2" id="summary-sales-icon"></i>Sales Flats ({{ sales_flats|length }})</h5>
+            </div>
+            <div class="card-body collapse show" id="summary-sales-content">
+                {% if sales_flats %}
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format((sales_flats|map(attribute='price')|min) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(sales_flats|map(attribute='price')|min) }}
+                                    {% endif %}
+                                </div>
+                                <div class="kpi-label">Min Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format((sales_flats|map(attribute='price')|max) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(sales_flats|map(attribute='price')|max) }}
+                                    {% endif %}
+                                </div>
+                                <div class="kpi-label">Max Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length) / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length)|int) }}
+                                    {% endif %}
+                                </div>
+                                <div class="kpi-label">Avg Price</div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="kpi-card">
+                                <div class="kpi-value text-white">
+                                    {% if show_eur %}
+                                        €{{ "{:,.0f}".format(sales_median / eur_rate) }}
+                                    {% else %}
+                                        ₸{{ "{:,}".format(sales_median|int) }}
+                                    {% endif %}
+                                </div>
+                                <div class="kpi-label">Median Price</div>
+                            </div>
+                        </div>
+                    </div>
+                {% else %}
+                    <p class="text-muted">No sales flats found</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-4">
+        <div class="card">
             <div class="card-header" style="cursor: pointer;" onclick="toggleSection('summary-rental')">
                 <h5><i class="fas fa-chevron-down me-2" id="summary-rental-icon"></i>Rental Flats ({{ rental_flats|length }})</h5>
             </div>
@@ -671,70 +735,6 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
             </div>
         </div>
     </div>
-    
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header" style="cursor: pointer;" onclick="toggleSection('summary-sales')">
-                <h5><i class="fas fa-chevron-down me-2" id="summary-sales-icon"></i>Sales Flats ({{ sales_flats|length }})</h5>
-            </div>
-            <div class="card-body collapse show" id="summary-sales-content">
-                {% if sales_flats %}
-                    <div class="row">
-                        <div class="col-6">
-                            <div class="kpi-card">
-                                <div class="kpi-value text-white">
-                                    {% if show_eur %}
-                                        €{{ "{:,.0f}".format((sales_flats|map(attribute='price')|min) / eur_rate) }}
-                                    {% else %}
-                                        ₸{{ "{:,}".format(sales_flats|map(attribute='price')|min) }}
-                                    {% endif %}
-                                </div>
-                                <div class="kpi-label">Min Price</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="kpi-card">
-                                <div class="kpi-value text-white">
-                                    {% if show_eur %}
-                                        €{{ "{:,.0f}".format((sales_flats|map(attribute='price')|max) / eur_rate) }}
-                                    {% else %}
-                                        ₸{{ "{:,}".format(sales_flats|map(attribute='price')|max) }}
-                                    {% endif %}
-                                </div>
-                                <div class="kpi-label">Max Price</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="kpi-card">
-                                <div class="kpi-value text-white">
-                                    {% if show_eur %}
-                                        €{{ "{:,.0f}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length) / eur_rate) }}
-                                    {% else %}
-                                        ₸{{ "{:,}".format(((sales_flats|map(attribute='price')|sum) / sales_flats|length)|int) }}
-                                    {% endif %}
-                                </div>
-                                <div class="kpi-label">Avg Price</div>
-                            </div>
-                        </div>
-                        <div class="col-6">
-                            <div class="kpi-card">
-                                <div class="kpi-value text-white">
-                                    {% if show_eur %}
-                                        €{{ "{:,.0f}".format(sales_median / eur_rate) }}
-                                    {% else %}
-                                        ₸{{ "{:,}".format(sales_median|int) }}
-                                    {% endif %}
-                                </div>
-                                <div class="kpi-label">Median Price</div>
-                            </div>
-                        </div>
-                    </div>
-                {% else %}
-                    <p class="text-muted">No sales flats found</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- Sales Flats -->
@@ -783,7 +783,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                                                 data-url="{{ flat.url }}">
                                             <i class="fas fa-heart"></i>
                                         </button>
-                                        <a href="{{ url_for('estimate_flat') }}?flat_id={{ flat.flat_id }}" class="btn btn-sm btn-primary">
+                                        <a href="{{ url_for('view_flat_details', flat_id=flat.flat_id) }}" class="btn btn-sm btn-primary">
                                             <i class="fas fa-calculator me-1"></i>Analyze
                                         </a>
                                         <a href="https://krisha.kz/a/show/{{ flat.flat_id }}" target="_blank" class="btn btn-sm btn-outline-krisha">

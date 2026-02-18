@@ -130,7 +130,9 @@ class TestJKSalesScraping:
             )
 
             # Verify results
-            assert isinstance(saved_count, int), f"Expected int, got {type(saved_count)}"
+            assert isinstance(saved_count, int), (
+                f"Expected int, got {type(saved_count)}"
+            )
             assert saved_count >= 10, (
                 f"Saved count should be at least 10, got {saved_count}"
             )

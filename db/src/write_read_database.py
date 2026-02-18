@@ -53,6 +53,15 @@ class OrthancDB:
             self.conn.close()
             self.conn = None
 
+    def __enter__(self):
+        """Support usage as context manager: with OrthancDB() as db: ..."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Ensure connection is closed when exiting context."""
+        self.disconnect()
+        return False
+
     # Rental flats operations
     def insert_rental_flat(
         self,
@@ -1826,9 +1835,9 @@ class OrthancDB:
         # Try to find the flat in rental_flats first
         cursor = self.conn.execute(
             """
-            SELECT flat_id, price, area, flat_type, residential_complex, floor, 
-                   total_floors, construction_year, parking, description, url, query_date, archived
-            FROM rental_flats 
+            SELECT flat_id, price, area, flat_type, residential_complex, floor,
+                   total_floors, construction_year, parking, description, url, query_date, archived, scraped_at
+            FROM rental_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
             LIMIT 1
@@ -1851,6 +1860,7 @@ class OrthancDB:
                 description=row[9],
                 is_rental=True,
                 archived=bool(row[12] if len(row) > 12 else 0),
+                scraped_at=row[13] if len(row) > 13 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -1861,9 +1871,9 @@ class OrthancDB:
         # If not found in rental_flats, try sales_flats
         cursor = self.conn.execute(
             """
-            SELECT flat_id, price, area, flat_type, residential_complex, floor, 
-                   total_floors, construction_year, parking, description, url, query_date, archived
-            FROM sales_flats 
+            SELECT flat_id, price, area, flat_type, residential_complex, floor,
+                   total_floors, construction_year, parking, description, url, query_date, archived, scraped_at
+            FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
             LIMIT 1
@@ -1886,6 +1896,7 @@ class OrthancDB:
                 description=row[9],
                 is_rental=False,
                 archived=bool(row[12] if len(row) > 12 else 0),
+                scraped_at=row[13] if len(row) > 13 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2135,6 +2146,100 @@ class OrthancDB:
         self.disconnect()
         return result
 
+    def get_top_opportunities(
+        self,
+        limit: int = 5,
+        max_price: int = None,
+        max_age_days: int = None,
+    ) -> List[Dict]:
+        """
+        Get top N opportunities from the latest analysis run.
+
+        :param limit: int, number of opportunities to return (default: 5)
+        :param max_price: int, maximum price filter (optional)
+        :param max_age_days: int, only include opportunities from runs within this many days (optional)
+        :return: List[Dict], list of top opportunities
+        """
+        self.connect()
+
+        # Build query with optional filters
+        conditions = []
+        params = []
+
+        if max_age_days is not None:
+            conditions.append("run_timestamp >= datetime('now', ?)")
+            params.append(f"-{max_age_days} days")
+
+        if max_price is not None:
+            conditions.append("price <= ?")
+            params.append(max_price)
+
+        # Exclude ignored opportunities
+        conditions.append("flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)")
+
+        where_clause = ""
+        if conditions:
+            where_clause = "AND " + " AND ".join(conditions)
+
+        query = f"""
+            SELECT * FROM opportunity_analysis
+            WHERE run_timestamp = (
+                SELECT MAX(run_timestamp) FROM opportunity_analysis
+            )
+            {where_clause}
+            ORDER BY rank ASC
+            LIMIT ?
+        """
+        params.append(limit)
+
+        cursor = self.conn.execute(query, params)
+
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+
+    def ignore_opportunity(self, flat_id: str) -> bool:
+        """
+        Add a flat to the ignored opportunities list.
+
+        :param flat_id: str, flat ID to ignore
+        :return: bool, True if successful
+        """
+        self.connect()
+        try:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO ignored_opportunities (flat_id) VALUES (?)",
+                (flat_id,),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error ignoring opportunity {flat_id}: {e}")
+            return False
+        finally:
+            self.disconnect()
+
+    def unignore_opportunity(self, flat_id: str) -> bool:
+        """
+        Remove a flat from the ignored opportunities list.
+
+        :param flat_id: str, flat ID to unignore
+        :return: bool, True if successful
+        """
+        self.connect()
+        try:
+            self.conn.execute(
+                "DELETE FROM ignored_opportunities WHERE flat_id = ?",
+                (flat_id,),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error unignoring opportunity {flat_id}: {e}")
+            return False
+        finally:
+            self.disconnect()
+
     def is_flat_archived(self, flat_id: str, is_rental: bool = False) -> bool:
         """
         Check if a flat is archived.
@@ -2359,6 +2464,62 @@ class OrthancDB:
             return jks
         except Exception as e:
             logging.error(f"Error fetching JKs from database: {e}")
+            return []
+        finally:
+            self.disconnect()
+
+    def find_matching_jk_names(self, search_term: str) -> List[str]:
+        """
+        Find all JK names that match a search term (case-insensitive partial match).
+        Searches both residential_complexes table and existing flats tables.
+
+        :param search_term: str, search term to match against JK names
+        :return: List[str], list of matching JK names
+        """
+        self.connect()
+
+        try:
+            matching_names = set()
+            search_pattern = f"%{search_term}%"
+
+            # Search in residential_complexes table
+            cursor = self.conn.execute(
+                """
+                SELECT DISTINCT name FROM residential_complexes
+                WHERE LOWER(name) LIKE LOWER(?)
+                """,
+                (search_pattern,),
+            )
+            for row in cursor.fetchall():
+                matching_names.add(row[0])
+
+            # Also search in sales_flats (in case JK exists there but not in residential_complexes)
+            cursor = self.conn.execute(
+                """
+                SELECT DISTINCT residential_complex FROM sales_flats
+                WHERE LOWER(residential_complex) LIKE LOWER(?)
+                """,
+                (search_pattern,),
+            )
+            for row in cursor.fetchall():
+                if row[0]:
+                    matching_names.add(row[0])
+
+            # Also search in rental_flats
+            cursor = self.conn.execute(
+                """
+                SELECT DISTINCT residential_complex FROM rental_flats
+                WHERE LOWER(residential_complex) LIKE LOWER(?)
+                """,
+                (search_pattern,),
+            )
+            for row in cursor.fetchall():
+                if row[0]:
+                    matching_names.add(row[0])
+
+            return sorted(list(matching_names))
+        except Exception as e:
+            logging.error(f"Error finding matching JK names: {e}")
             return []
         finally:
             self.disconnect()

@@ -40,6 +40,7 @@ async def get_flat_details(flat_id: str):
             "description": flat_info.description,
             "is_rental": flat_info.is_rental,
             "url": getattr(flat_info, "url", f"https://krisha.kz/a/show/{flat_id}"),
+            "scraped_at": flat_info.scraped_at,
         }
 
         return {"success": True, "flat": flat_dict}

@@ -7,12 +7,12 @@ from the database, both for rentals and sales, with daily scheduling options.
 python -m scrapers.launch.launch_scraping_all_jks
 """
 
-import logging
 import sys
 import time
 from datetime import datetime, timedelta
 from typing import List, Dict
 
+from common.src.logging_config import setup_logging
 from db.src.write_read_database import OrthancDB
 from scrapers.src.krisha_rental_scraping import scrape_and_save_jk_rentals
 from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
@@ -21,13 +21,7 @@ from scrapers.src.residential_complex_scraper import (
     update_jks_with_unknown_cities,
 )
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("jk_scraping.log"), logging.StreamHandler()],
-)
-logger = logging.getLogger(__name__)
+logger = setup_logging(__name__, log_file="jk_scraping.log")
 
 
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
@@ -80,11 +74,15 @@ def scrape_all_jk_rentals(
 
     for i, jk_info in enumerate(jks, 1):
         jk_name = jk_info["residential_complex"]
-        logger.info(f"[{i}/{len(jks)}] Scraping rentals for: {jk_name}")
+        jk_city = jk_info.get("city", "almaty") or "almaty"
+        progress_pct = (i / len(jks)) * 100
+        logger.info(
+            f"[{i}/{len(jks)}] ({progress_pct:.1f}%) Scraping rentals for: {jk_name}"
+        )
 
         try:
             saved_count = scrape_and_save_jk_rentals(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path
+                jk_name=jk_name, max_pages=max_pages, db_path=db_path, city=jk_city
             )
 
             results[jk_name] = saved_count
@@ -125,11 +123,15 @@ def scrape_all_jk_sales(
 
     for i, jk_info in enumerate(jks, 1):
         jk_name = jk_info["residential_complex"]
-        logger.info(f"[{i}/{len(jks)}] Scraping sales for: {jk_name}")
+        jk_city = jk_info.get("city", "almaty") or "almaty"
+        progress_pct = (i / len(jks)) * 100
+        logger.info(
+            f"[{i}/{len(jks)}] ({progress_pct:.1f}%) Scraping sales for: {jk_name}"
+        )
 
         try:
             saved_count = scrape_and_save_jk_sales(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path
+                jk_name=jk_name, max_pages=max_pages, db_path=db_path, city=jk_city
             )
 
             results[jk_name] = saved_count
@@ -146,6 +148,23 @@ def scrape_all_jk_sales(
 
     logger.info(f"Completed JK sales scraping. Total saved: {total_saved}")
     return results
+
+
+def _calculate_seconds_until(target_hour: int, target_minute: int) -> float:
+    """
+    Calculate seconds from now until the next occurrence of target_hour:target_minute.
+
+    :param target_hour: int, target hour (0-23)
+    :param target_minute: int, target minute (0-59)
+    :return: float, seconds until target time
+    """
+    now = datetime.now()
+    next_run = now.replace(
+        hour=target_hour, minute=target_minute, second=0, microsecond=0
+    )
+    if next_run <= now:
+        next_run += timedelta(days=1)
+    return (next_run - now).total_seconds()
 
 
 def daily_rental_scraping_loop(
@@ -182,55 +201,30 @@ def daily_rental_scraping_loop(
     # Parse target time
     target_hour, target_minute = map(int, run_time.split(":"))
 
-    # Calculate next run time
-    now = datetime.now()
-    next_run = now.replace(
-        hour=target_hour, minute=target_minute, second=0, microsecond=0
-    )
-    if next_run <= now:
-        next_run = next_run + timedelta(days=1)
-
-    logging.info(f"Next launch at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
-
     while True:
         try:
-            now = datetime.now()
-            current_time = now.strftime("%H:%M")
+            # Sleep until exact target time
+            wait_seconds = _calculate_seconds_until(target_hour, target_minute)
+            next_run = datetime.now() + timedelta(seconds=wait_seconds)
+            logger.info(
+                f"Next rental scraping at {next_run.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"(sleeping {wait_seconds / 3600:.1f} hours)"
+            )
+            time.sleep(wait_seconds)
 
-            # Check if it's time to run (within 1 minute of target time)
-            if (now.hour == target_hour and now.minute == target_minute) or (
-                now.hour == target_hour and now.minute == target_minute + 1
-            ):
-                logger.info(f"Starting daily rental scraping at {current_time}")
+            logger.info(
+                f"Starting daily rental scraping at {datetime.now().strftime('%H:%M')}"
+            )
+            results = scrape_all_jk_rentals(db_path, max_pages)
 
-                results = scrape_all_jk_rentals(db_path, max_pages)
+            # Log summary
+            total_saved = sum(results.values())
+            successful_jks = len([r for r in results.values() if r > 0])
 
-                # Log summary
-                total_saved = sum(results.values())
-                successful_jks = len([r for r in results.values() if r > 0])
-
-                logger.info("Daily rental scraping completed:")
-                logger.info(f"  - JKs processed: {len(results)}")
-                logger.info(f"  - Successful JKs: {successful_jks}")
-                logger.info(f"  - Total flats saved: {total_saved}")
-
-                # Wait until next day to avoid multiple runs
-                next_run = now.replace(hour=23, minute=59, second=59)
-                wait_seconds = (next_run - now).total_seconds()
-                logger.info(f"Waiting {wait_seconds / 3600:.1f} hours until next run")
-
-                # Calculate and log the next scheduled run time
-                tomorrow_run = (now + timedelta(days=1)).replace(
-                    hour=target_hour, minute=target_minute, second=0, microsecond=0
-                )
-                logger.info(
-                    f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-
-                time.sleep(wait_seconds)
-            else:
-                # Check every minute
-                time.sleep(60)
+            logger.info("Daily rental scraping completed:")
+            logger.info(f"  - JKs processed: {len(results)}")
+            logger.info(f"  - Successful JKs: {successful_jks}")
+            logger.info(f"  - Total flats saved: {total_saved}")
 
         except KeyboardInterrupt:
             logger.info("Daily rental scraping loop stopped by user")
@@ -274,55 +268,30 @@ def daily_sales_scraping_loop(
     # Parse target time
     target_hour, target_minute = map(int, run_time.split(":"))
 
-    # Calculate next run time
-    now = datetime.now()
-    next_run = now.replace(
-        hour=target_hour, minute=target_minute, second=0, microsecond=0
-    )
-    if next_run <= now:
-        next_run = next_run + timedelta(days=1)
-
-    logging.info(f"Next launch at {next_run.strftime('%Y-%m-%d %H:%M:%S')}")
-
     while True:
         try:
-            now = datetime.now()
-            current_time = now.strftime("%H:%M")
+            # Sleep until exact target time
+            wait_seconds = _calculate_seconds_until(target_hour, target_minute)
+            next_run = datetime.now() + timedelta(seconds=wait_seconds)
+            logger.info(
+                f"Next sales scraping at {next_run.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"(sleeping {wait_seconds / 3600:.1f} hours)"
+            )
+            time.sleep(wait_seconds)
 
-            # Check if it's time to run (within 1 minute of target time)
-            if (now.hour == target_hour and now.minute == target_minute) or (
-                now.hour == target_hour and now.minute == target_minute + 1
-            ):
-                logger.info(f"Starting daily sales scraping at {current_time}")
+            logger.info(
+                f"Starting daily sales scraping at {datetime.now().strftime('%H:%M')}"
+            )
+            results = scrape_all_jk_sales(db_path, max_pages)
 
-                results = scrape_all_jk_sales(db_path, max_pages)
+            # Log summary
+            total_saved = sum(results.values())
+            successful_jks = len([r for r in results.values() if r > 0])
 
-                # Log summary
-                total_saved = sum(results.values())
-                successful_jks = len([r for r in results.values() if r > 0])
-
-                logger.info("Daily sales scraping completed:")
-                logger.info(f"  - JKs processed: {len(results)}")
-                logger.info(f"  - Successful JKs: {successful_jks}")
-                logger.info(f"  - Total flats saved: {total_saved}")
-
-                # Wait until next day to avoid multiple runs
-                next_run = now.replace(hour=23, minute=59, second=59)
-                wait_seconds = (next_run - now).total_seconds()
-                logger.info(f"Waiting {wait_seconds / 3600:.1f} hours until next run")
-
-                # Calculate and log the next scheduled run time
-                tomorrow_run = (now + timedelta(days=1)).replace(
-                    hour=target_hour, minute=target_minute, second=0, microsecond=0
-                )
-                logger.info(
-                    f"Next launch at {tomorrow_run.strftime('%Y-%m-%d %H:%M:%S')}"
-                )
-
-                time.sleep(wait_seconds)
-            else:
-                # Check every minute
-                time.sleep(60)
+            logger.info("Daily sales scraping completed:")
+            logger.info(f"  - JKs processed: {len(results)}")
+            logger.info(f"  - Successful JKs: {successful_jks}")
+            logger.info(f"  - Total flats saved: {total_saved}")
 
         except KeyboardInterrupt:
             logger.info("Daily sales scraping loop stopped by user")
@@ -437,8 +406,9 @@ def scrape_single_jk(
 ) -> None:
     """
     Scrape a single JK (rentals and/or sales).
+    Uses fuzzy matching to find all JKs that match the search term.
 
-    :param jk_name: str, name of the residential complex to scrape
+    :param jk_name: str, name of the residential complex to scrape (supports partial match)
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
     :param scrape_rentals: bool, whether to scrape rentals
@@ -448,27 +418,49 @@ def scrape_single_jk(
         logger.error("At least one of --rentals or --sales must be specified")
         return
 
-    logger.info(f"Starting scraping for single JK: {jk_name}")
+    # Find all matching JK names using fuzzy matching
+    db = OrthancDB(db_path)
+    matching_jks = db.find_matching_jk_names(jk_name)
 
+    if not matching_jks:
+        logger.warning(f"No JKs found matching '{jk_name}'. Trying exact name...")
+        matching_jks = [jk_name]
+    else:
+        logger.info(
+            f"Found {len(matching_jks)} JKs matching '{jk_name}': {matching_jks}"
+        )
+
+    total_rentals_saved = 0
+    total_sales_saved = 0
+
+    for jk in matching_jks:
+        logger.info(f"Starting scraping for JK: {jk}")
+
+        if scrape_rentals:
+            logger.info(f"Scraping rentals for: {jk}")
+            saved_count = scrape_and_save_jk_rentals(
+                jk_name=jk, max_pages=max_pages, db_path=db_path
+            )
+            total_rentals_saved += saved_count
+            logger.info(
+                f"✅ Rental scraping completed for {jk}: {saved_count} flats saved"
+            )
+
+        if scrape_sales:
+            logger.info(f"Scraping sales for: {jk}")
+            saved_count = scrape_and_save_jk_sales(
+                jk_name=jk, max_pages=max_pages, db_path=db_path
+            )
+            total_sales_saved += saved_count
+            logger.info(
+                f"✅ Sales scraping completed for {jk}: {saved_count} flats saved"
+            )
+
+    logger.info(f"Scraping completed for '{jk_name}' ({len(matching_jks)} JKs)")
     if scrape_rentals:
-        logger.info(f"Scraping rentals for: {jk_name}")
-        saved_count = scrape_and_save_jk_rentals(
-            jk_name=jk_name, max_pages=max_pages, db_path=db_path
-        )
-        logger.info(
-            f"✅ Rental scraping completed for {jk_name}: {saved_count} flats saved"
-        )
-
+        logger.info(f"Total rentals saved: {total_rentals_saved}")
     if scrape_sales:
-        logger.info(f"Scraping sales for: {jk_name}")
-        saved_count = scrape_and_save_jk_sales(
-            jk_name=jk_name, max_pages=max_pages, db_path=db_path
-        )
-        logger.info(
-            f"✅ Sales scraping completed for {jk_name}: {saved_count} flats saved"
-        )
-
-    logger.info(f"Scraping completed for {jk_name}!")
+        logger.info(f"Total sales saved: {total_sales_saved}")
 
 
 def manage_blacklist(

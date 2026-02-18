@@ -117,6 +117,25 @@ uvicorn==0.38.0
 - **Rentals**: Rental listings
 - **Flat Types**: Categorized (e.g., 1BR, 2BR, 3BR, Studio)
 
+### Currency Display Convention
+All prices in templates **must** support both KZT and EUR display via the toggle. Two context variables are available in all templates via the context processor in `webapp.py`:
+- `show_eur` (bool): Whether to show EUR
+- `eur_rate` (float): KZT-to-EUR exchange rate from database
+
+**Standard formatting pattern** (use this everywhere):
+```jinja2
+{% if show_eur %}
+    €{{ "{:,.0f}".format(price / eur_rate) }}
+{% else %}
+    ₸{{ "{:,}".format(price) }}
+{% endif %}
+```
+- **EUR**: `€` prefix, comma thousands separator, 0 decimals, use `"{:,.0f}".format(value / eur_rate)`
+- **KZT**: `₸` prefix, comma thousands separator, use `"{:,}".format(value)`
+- **KZT shorthand** (for dashboards/tables): `₸{{ "%.1f"|format(value / 1000000) }}M` (e.g. ₸27.0M)
+- **Never** use `"%.0f"|format()` for EUR — it lacks comma separators
+- **Every time** you add a price in KZT, always add the EUR toggle variant too
+
 ### Database Schema
 - **Main Database**: `flats.db` (SQLite)
 - **Key Tables**:

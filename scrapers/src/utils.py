@@ -8,9 +8,111 @@ to avoid code duplication.
 import requests
 import re
 import logging
+import time
+import functools
 from typing import Optional, List
 from bs4 import BeautifulSoup
 from common.src.flat_type import FlatType
+
+
+def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
+    """
+    Decorator that retries a function on requests.RequestException.
+    Uses exponential backoff: base_delay * 2^attempt (2s, 4s, 8s by default).
+    Backs off 60s on HTTP 429 (rate limit).
+
+    :param max_retries: int, maximum number of retry attempts
+    :param base_delay: float, base delay in seconds between retries
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            last_exception = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except requests.exceptions.HTTPError as e:
+                    last_exception = e
+                    if e.response is not None and e.response.status_code == 429:
+                        delay = 60
+                        logging.warning(
+                            f"Rate limited (429) in {func.__name__}, "
+                            f"waiting {delay}s before retry {attempt + 1}/{max_retries}"
+                        )
+                    elif attempt < max_retries:
+                        delay = base_delay * (2**attempt)
+                        logging.warning(
+                            f"HTTP error in {func.__name__}: {e}, "
+                            f"retrying in {delay:.0f}s ({attempt + 1}/{max_retries})"
+                        )
+                    else:
+                        break
+                    time.sleep(delay)
+                except requests.RequestException as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        delay = base_delay * (2**attempt)
+                        logging.warning(
+                            f"Request error in {func.__name__}: {e}, "
+                            f"retrying in {delay:.0f}s ({attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(delay)
+                    else:
+                        break
+            logging.error(
+                f"All {max_retries} retries exhausted for {func.__name__}: {last_exception}"
+            )
+            raise last_exception
+
+        return wrapper
+
+    return decorator
+
+
+@retry_on_failure(max_retries=3, base_delay=2.0)
+def fetch_url(url: str, headers: dict = None, timeout: int = 15) -> requests.Response:
+    """
+    Fetch a URL with automatic retry on transient failures.
+
+    :param url: str, URL to fetch
+    :param headers: dict, optional HTTP headers
+    :param timeout: int, request timeout in seconds
+    :return: requests.Response object
+    :raises: requests.RequestException after all retries exhausted
+    """
+    response = requests.get(url, headers=headers, timeout=timeout)
+    response.raise_for_status()
+    return response
+
+
+# City name to Krisha.kz URL slug mapping
+CITY_URL_SLUGS = {
+    "almaty": "almaty",
+    "astana": "astana",
+    "shymkent": "shymkent",
+    "караганда": "karaganda",
+    "karaganda": "karaganda",
+    "актау": "aktau",
+    "aktau": "aktau",
+    "атырау": "atyrau",
+    "atyrau": "atyrau",
+    "алматы": "almaty",
+    "астана": "astana",
+    "шымкент": "shymkent",
+}
+
+
+def get_city_url_slug(city: str) -> str:
+    """
+    Convert a city name to a Krisha.kz URL slug.
+
+    :param city: str, city name (e.g., "almaty", "Алматы", "Astana")
+    :return: str, URL slug (e.g., "almaty", "astana")
+    """
+    if not city:
+        return "almaty"
+    return CITY_URL_SLUGS.get(city.lower(), city.lower())
 
 
 def extract_price(soup: BeautifulSoup) -> Optional[int]:
@@ -431,8 +533,7 @@ def get_flat_urls_from_search_page(search_url: str) -> List[str]:
             "Upgrade-Insecure-Requests": "1",
         }
 
-        response = requests.get(search_url, headers=headers, timeout=10)
-        response.raise_for_status()
+        response = fetch_url(search_url, headers=headers, timeout=10)
 
         # Prefer bytes to avoid decoding issues and rely on lxml/html5lib fallback if installed
         soup = BeautifulSoup(response.content, "html.parser")

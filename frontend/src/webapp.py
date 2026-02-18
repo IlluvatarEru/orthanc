@@ -4,6 +4,7 @@ Clean, simple Flask webapp that fails fast and never silently catches errors.
 """
 
 import logging
+import os
 from datetime import datetime
 from urllib.parse import unquote
 
@@ -22,7 +23,14 @@ logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__, template_folder="../templates", static_folder="../static")
-app.secret_key = "your-secret-key-here"
+app.secret_key = os.environ.get("ORTHANC_SECRET_KEY", None)
+if not app.secret_key:
+    import secrets
+
+    app.secret_key = secrets.token_hex(32)
+    logger.warning(
+        "ORTHANC_SECRET_KEY not set, using random key. Sessions will not persist across restarts."
+    )
 
 
 # Context processor to make currency preference available in all templates
@@ -31,9 +39,8 @@ def inject_currency_preference():
     show_eur = request.cookies.get("showEur", "false") == "true"
 
     # Get EUR exchange rate
-    db = OrthancDB()
-    eur_rate = db.get_latest_rate("EUR")
-    db.disconnect()
+    with OrthancDB() as db:
+        eur_rate = db.get_latest_rate("EUR")
     if eur_rate is None:
         raise Exception(
             "EUR exchange rate not found in database. "
@@ -52,10 +59,25 @@ def index():
     """Dashboard home page."""
     stats_result = api_client.get_database_stats()
 
-    if not stats_result["success"]:
-        raise Exception(f"Database stats API failed: {stats_result['error']}")
+    if not stats_result.get("success"):
+        raise Exception(
+            f"Database stats API failed: {stats_result.get('error', 'Unknown error')}"
+        )
 
     stats = stats_result["stats"]
+
+    # Get filter parameters from query string (with defaults)
+    max_price = request.args.get("max_price", 50000000, type=int)
+    max_age_days = request.args.get("max_age_days", 7, type=int)
+
+    # Get top 10 opportunities with filters
+    with OrthancDB() as db:
+        top_opportunities = db.get_top_opportunities(
+            limit=10,
+            max_price=max_price,
+            max_age_days=max_age_days,
+        )
+
     return render_template(
         "index.html",
         total_flats=stats["total_flats"],
@@ -66,6 +88,9 @@ def index():
         new_rentals=stats["new_rentals"],
         new_sales=stats["new_sales"],
         new_complexes=stats["new_complexes"],
+        top_opportunities=top_opportunities,
+        max_price=max_price,
+        max_age_days=max_age_days,
     )
 
 
@@ -79,8 +104,10 @@ def search_jk():
 
         result = api_client.search_complexes(search_term)
 
-        if not result["success"]:
-            raise Exception(f"Search API failed: {result['error']}")
+        if not result.get("success"):
+            raise Exception(
+                f"Search API failed: {result.get('error', 'Unknown error')}"
+            )
 
         complexes = result["complexes"]
         deduplication_info = result["deduplication_info"]
@@ -112,14 +139,13 @@ def analyze_jk(
         raise Exception(f"Complex info API failed for: {residential_complex_name}")
 
     # Get all flats for this complex
-    db = OrthancDB(db_path)
-    rental_flats: list[FlatInfo] = db.get_flats_for_residential_complex(
-        residential_complex_name, "rental"
-    )
-    sales_flats: list[FlatInfo] = db.get_flats_for_residential_complex(
-        residential_complex_name, "sales"
-    )
-    db.disconnect()
+    with OrthancDB(db_path) as db:
+        rental_flats: list[FlatInfo] = db.get_flats_for_residential_complex(
+            residential_complex_name, "rental"
+        )
+        sales_flats: list[FlatInfo] = db.get_flats_for_residential_complex(
+            residential_complex_name, "sales"
+        )
 
     # If no flats found, scrape data
     if not rental_flats and not sales_flats and allow_scraping_data_if_not_in_db:
@@ -129,20 +155,19 @@ def analyze_jk(
             residential_complex_name, complex_id
         )
 
-        if not scrape_result["success"]:
+        if not scrape_result.get("success"):
             raise Exception(
-                f"Failed to scrape data for {residential_complex_name}: {scrape_result['error']}"
+                f"Failed to scrape data for {residential_complex_name}: {scrape_result.get('error')}"
             )
 
         # Get flats again after scraping
-        db = OrthancDB(db_path)
-        rental_flats = db.get_flats_for_residential_complex(
-            residential_complex_name, "rental"
-        )
-        sales_flats = db.get_flats_for_residential_complex(
-            residential_complex_name, "sales"
-        )
-        db.disconnect()
+        with OrthancDB(db_path) as db:
+            rental_flats = db.get_flats_for_residential_complex(
+                residential_complex_name, "rental"
+            )
+            sales_flats = db.get_flats_for_residential_complex(
+                residential_complex_name, "sales"
+            )
 
     # Get analysis using API
     # Convert discount_percentage from percentage (e.g., 20) to decimal (e.g., 0.20)
@@ -224,10 +249,6 @@ def analyze_jk(
     flat_type_buckets = sales_analysis.current_market.flat_type_buckets
     opportunities_by_flat_type = sales_analysis.current_market.opportunities
 
-    # Debug: Check what we're getting
-    print(f"DEBUG: flat_type_buckets: {flat_type_buckets}")
-    print(f"DEBUG: opportunities_by_flat_type: {opportunities_by_flat_type}")
-
     return render_template(
         "unified_jk_view.html",
         complex_info=complex_info,
@@ -261,43 +282,18 @@ def view_flat_details(flat_id):
 
     # Get similar flats using API
     similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
-    if not similar_result["success"]:
-        # Show error modal instead of raising exception
-        error_message = similar_result.get("error", "Failed to get similar flats")
-        rental_count = similar_result.get("rental_count", 0)
-        sales_count = similar_result.get("sales_count", 0)
-        min_required = similar_result.get("min_required", 3)
+    data_warning = None
 
-        return render_template(
-            "flat_error.html",
-            flat_data=flat_data,
-            error_message=error_message,
-            rental_count=rental_count,
-            sales_count=sales_count,
-            min_required=min_required,
-            area_tolerance=area_tolerance,
-            flat_id=flat_id,
-        )
-
-    similar_rentals = similar_result["similar_rentals"]
-    similar_sales = similar_result["similar_sales"]
-
-    if not similar_rentals or not similar_sales:
-        # Show error modal instead of raising exception
-        rental_count = len(similar_rentals) if similar_rentals else 0
-        sales_count = len(similar_sales) if similar_sales else 0
-        error_message = f"Insufficient data for analysis. Found {rental_count} rental and {sales_count} sales flats."
-
-        return render_template(
-            "flat_error.html",
-            flat_data=flat_data,
-            error_message=error_message,
-            rental_count=rental_count,
-            sales_count=sales_count,
-            min_required=3,
-            area_tolerance=area_tolerance,
-            flat_id=flat_id,
-        )
+    if not similar_result.get("success"):
+        data_warning = similar_result.get("error", "Failed to get similar flats")
+        similar_rentals = []
+        similar_sales = []
+    else:
+        similar_rentals = similar_result["similar_rentals"]
+        similar_sales = similar_result["similar_sales"]
+        if not similar_sales:
+            rental_count = len(similar_rentals)
+            data_warning = f"Insufficient sales data for analysis. Found {rental_count} rental and 0 sales flats. Try increasing Area Tolerance."
 
     # Calculate investment analysis
     investment_analysis = calculate_investment_analysis(
@@ -386,6 +382,7 @@ def view_flat_details(flat_id):
         buy_sell_net_return_percentage=buy_sell_net_return_percentage,
         equivalent_annual_net_return=equivalent_annual_net_return,
         area_tolerance=area_tolerance,
+        data_warning=data_warning,
     )
 
 
@@ -403,8 +400,8 @@ def refresh_analysis(residential_complex_name):
 
     # Refresh analysis using API
     refresh_result = api_client.refresh_complex_analysis(residential_complex_name)
-    if not refresh_result["success"]:
-        raise Exception(f"Refresh analysis API failed: {refresh_result['error']}")
+    if not refresh_result.get("success"):
+        raise Exception(f"Refresh analysis API failed: {refresh_result.get('error')}")
 
     return jsonify(
         {
@@ -507,7 +504,7 @@ def calculate_investment_analysis(
             else:
                 rental_median = sorted_rental_prices[n // 2]
 
-            # Expected Annual Rent = 12 × median monthly rent
+            # Expected Annual Rent = 12 x median monthly rent
             annual_rental_income = rental_median * 12
 
     # Calculate sales average
@@ -542,9 +539,8 @@ def calculate_investment_analysis(
 @app.route("/favorites")
 def favorites(db_path="flats.db"):
     """Display user's favorite flats."""
-    db = OrthancDB(db_path)
-    favorites_list = db.get_favorites()
-    db.disconnect()
+    with OrthancDB(db_path) as db:
+        favorites_list = db.get_favorites()
 
     return render_template("favorites.html", favorites=favorites_list)
 
@@ -559,21 +555,18 @@ def add_to_favorites(db_path="flats.db"):
     if not flat_id or not flat_type:
         raise Exception("Missing flat_id or flat_type")
 
-    db = OrthancDB(db_path)
+    with OrthancDB(db_path) as db:
+        # Check if already in favorites
+        if db.is_favorite(flat_id, flat_type):
+            return jsonify(
+                {
+                    "success": False,
+                    "message": "This flat is already in your favorites",
+                    "already_favorited": True,
+                }
+            )
 
-    # Check if already in favorites
-    if db.is_favorite(flat_id, flat_type):
-        db.disconnect()
-        return jsonify(
-            {
-                "success": False,
-                "message": "This flat is already in your favorites",
-                "already_favorited": True,
-            }
-        )
-
-    success = db.add_to_favorites(flat_id, flat_type)
-    db.disconnect()
+        success = db.add_to_favorites(flat_id, flat_type)
 
     if not success:
         raise Exception("Failed to add to favorites")
@@ -591,9 +584,8 @@ def remove_from_favorites(db_path="flats.db"):
     if not flat_id or not flat_type:
         raise Exception("Missing flat_id or flat_type")
 
-    db = OrthancDB(db_path)
-    success = db.remove_from_favorites(flat_id, flat_type)
-    db.disconnect()
+    with OrthancDB(db_path) as db:
+        success = db.remove_from_favorites(flat_id, flat_type)
 
     if not success:
         raise Exception("Failed to remove from favorites")
@@ -611,9 +603,8 @@ def check_favorite_status(db_path="flats.db"):
     if not flat_id or not flat_type:
         raise Exception("Missing flat_id or flat_type")
 
-    db = OrthancDB(db_path)
-    is_favorite = db.is_favorite(flat_id, flat_type)
-    db.disconnect()
+    with OrthancDB(db_path) as db:
+        is_favorite = db.is_favorite(flat_id, flat_type)
 
     return jsonify({"success": True, "is_favorite": is_favorite})
 
@@ -627,19 +618,18 @@ def check_favorite_status_batch(db_path="flats.db"):
     if not flats:
         raise Exception("No flats provided")
 
-    db = OrthancDB(db_path)
-    results = {}
-    for flat in flats:
-        flat_id = flat.get("flat_id")
-        flat_type = flat.get("flat_type")
+    with OrthancDB(db_path) as db:
+        results = {}
+        for flat in flats:
+            flat_id = flat.get("flat_id")
+            flat_type = flat.get("flat_type")
 
-        if flat_id and flat_type:
-            is_favorite = db.is_favorite(flat_id, flat_type)
-            results[flat_id] = is_favorite
-        else:
-            results[flat_id] = False
+            if flat_id and flat_type:
+                is_favorite = db.is_favorite(flat_id, flat_type)
+                results[flat_id] = is_favorite
+            else:
+                results[flat_id] = False
 
-    db.disconnect()
     return jsonify({"success": True, "results": results})
 
 
@@ -654,10 +644,9 @@ def api_complexes():
 def api_exchange_rates():
     """API endpoint to get current exchange rates."""
     # Get rates from database first
-    db = OrthancDB()
-    eur_rate = db.get_latest_rate("EUR")
-    usd_rate = db.get_latest_rate("USD")
-    db.disconnect()
+    with OrthancDB() as db:
+        eur_rate = db.get_latest_rate("EUR")
+        usd_rate = db.get_latest_rate("USD")
 
     # If no rates in database, fetch from web
     if not eur_rate or not usd_rate:
@@ -682,6 +671,18 @@ def toggle_currency():
     response = redirect(request.referrer or url_for("index"))
     response.set_cookie("showEur", str(show_eur).lower())
     return response
+
+
+@app.route("/api/ignore_opportunity", methods=["POST"])
+def ignore_opportunity():
+    """Add a flat to the ignored opportunities list."""
+    flat_id = request.json.get("flat_id")
+    if not flat_id:
+        return jsonify({"success": False, "error": "flat_id required"}), 400
+
+    with OrthancDB() as db:
+        success = db.ignore_opportunity(flat_id)
+    return jsonify({"success": success})
 
 
 if __name__ == "__main__":

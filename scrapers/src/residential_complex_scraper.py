@@ -11,7 +11,11 @@ import requests
 import time
 
 from db.src.write_read_database import OrthancDB
-from scrapers.src.utils import get_flat_urls_from_search_page, extract_flat_id_from_url
+from scrapers.src.utils import (
+    get_flat_urls_from_search_page,
+    extract_flat_id_from_url,
+    fetch_url,
+)
 import logging
 
 
@@ -214,8 +218,7 @@ def get_city_from_jk_sales(complex_id: str, jk_name: str) -> str:
                     "Origin": "https://m.krisha.kz",
                 }
 
-                response = requests.get(api_url, headers=headers, timeout=10)
-                response.raise_for_status()
+                response = fetch_url(api_url, headers=headers, timeout=10)
 
                 data = response.json()
                 city_name = data.get("cityName")
@@ -281,8 +284,7 @@ def get_city_from_jk_rentals(complex_id: str, jk_name: str) -> str:
                     "Origin": "https://m.krisha.kz",
                 }
 
-                response = requests.get(api_url, headers=headers, timeout=10)
-                response.raise_for_status()
+                response = fetch_url(api_url, headers=headers, timeout=10)
 
                 data = response.json()
                 city_name = data.get("cityName")
