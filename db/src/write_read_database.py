@@ -2152,6 +2152,7 @@ class OrthancDB:
         max_price: int = None,
         max_age_days: int = None,
         city: str = None,
+        flat_types: List[str] = None,
     ) -> List[Dict]:
         """
         Get top N opportunities from the latest analysis run.
@@ -2160,6 +2161,7 @@ class OrthancDB:
         :param max_price: int, maximum price filter (optional)
         :param max_age_days: int, only include opportunities from runs within this many days (optional)
         :param city: str, city name in Cyrillic (e.g. "Алматы") to filter by (optional)
+        :param flat_types: List[str], flat types to include (e.g. ["1BR", "2BR"]) (optional, None = all)
         :return: List[Dict], list of top opportunities
         """
         self.connect()
@@ -2188,6 +2190,11 @@ class OrthancDB:
             conditions.append("rc.city = ?")
             params.append(city)
 
+        if flat_types is not None:
+            placeholders = ",".join("?" for _ in flat_types)
+            conditions.append(f"oa.flat_type IN ({placeholders})")
+            params.extend(flat_types)
+
         where_clause = ""
         if conditions:
             where_clause = "AND " + " AND ".join(conditions)
@@ -2199,7 +2206,7 @@ class OrthancDB:
                 SELECT MAX(run_timestamp) FROM opportunity_analysis
             )
             {where_clause}
-            ORDER BY oa.rank ASC
+            ORDER BY oa.discount_percentage_vs_median DESC
             LIMIT ?
         """
         params.append(limit)
@@ -2207,6 +2214,9 @@ class OrthancDB:
         cursor = self.conn.execute(query, params)
 
         result = [dict(row) for row in cursor.fetchall()]
+        # Re-rank after filtering so numbers are always 1..N
+        for i, row in enumerate(result, 1):
+            row["rank"] = i
         self.disconnect()
         return result
 

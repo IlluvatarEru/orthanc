@@ -31,6 +31,17 @@
                         </select>
                     </div>
                     <div class="d-flex align-items-center gap-1">
+                        <label for="flat_type" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Type:</label>
+                        <select name="flat_type" id="flat_type" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="default" {% if flat_type == 'default' %}selected{% endif %}>S/1/2BR</option>
+                            <option value="all" {% if flat_type == 'all' %}selected{% endif %}>All</option>
+                            <option value="Studio" {% if flat_type == 'Studio' %}selected{% endif %}>Studio</option>
+                            <option value="1BR" {% if flat_type == '1BR' %}selected{% endif %}>1BR</option>
+                            <option value="2BR" {% if flat_type == '2BR' %}selected{% endif %}>2BR</option>
+                            <option value="3BR+" {% if flat_type == '3BR+' %}selected{% endif %}>3BR+</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
                         <label for="max_price" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Max Price:</label>
                         <select name="max_price" id="max_price" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
                             <option value="30000000" {% if max_price == 30000000 %}selected{% endif %}>₸30M</option>
@@ -66,7 +77,7 @@
             <div class="card-body">
                 {% if top_opportunities %}
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                    <table class="table table-sm mb-0">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -82,13 +93,13 @@
                         <tbody>
                             {% for opp in top_opportunities %}
                             <tr id="opp-row-{{ opp.flat_id }}">
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.rank }}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.residential_complex }}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.flat_type }}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{% if show_eur %}€{{ "{:,.0f}".format(opp.price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.price / 1000000) }}M{% endif %}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'"><span class="text-success">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span></td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'"><span class="text-success">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</span></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{{ opp.rank }}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{{ opp.residential_complex }}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{{ opp.flat_type }}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{% if show_eur %}€{{ "{:,.0f}".format(opp.price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.price / 1000000) }}M{% endif %}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset"><span class="text-success">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span></a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset"><span class="text-success">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</span></a></td>
                                 <td>
                                     <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); ignoreOpportunity('{{ opp.flat_id }}')">ignore</a>
                                 </td>
