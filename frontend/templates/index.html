@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}♖ Dashboard - Orthanc Capital{% endblock %}
+{% block title %}Dashboard - Orthanc Capital{% endblock %}
 
 {% block content %}
 <!-- Dashboard Header -->
@@ -11,27 +11,6 @@
                 <h1 class="h2 mb-1">Operations Dashboard</h1>
                 <p class="text-muted mb-0">Real Estate Analytics & Investment Intelligence</p>
             </div>
-            <div class="d-flex gap-2">
-                <div class="dropdown">
-                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-filter me-1"></i>Filter
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#">All Data</a></li>
-                        <li><a class="dropdown-item" href="#">Recent Only</a></li>
-                    </ul>
-                </div>
-                <div class="dropdown">
-                    <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-calendar me-1"></i>Date Range
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#">Last 7 days</a></li>
-                        <li><a class="dropdown-item" href="#">Last 30 days</a></li>
-                        <li><a class="dropdown-item" href="#">Last 90 days</a></li>
-                    </ul>
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -41,8 +20,27 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-gem me-2"></i>Top Sale Opportunities</h5>
+                <h5 class="mb-0">Top Sale Opportunities</h5>
                 <form class="d-flex gap-2 align-items-center" method="GET" action="/">
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="city" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">City:</label>
+                        <select name="city" id="city" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="almaty" {% if city == 'almaty' %}selected{% endif %}>Almaty</option>
+                            <option value="astana" {% if city == 'astana' %}selected{% endif %}>Astana</option>
+                            <option value="all" {% if city == 'all' %}selected{% endif %}>All Cities</option>
+                        </select>
+                    </div>
+                    <div class="d-flex align-items-center gap-1">
+                        <label for="flat_type" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Type:</label>
+                        <select name="flat_type" id="flat_type" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                            <option value="default" {% if flat_type == 'default' %}selected{% endif %}>S/1/2BR</option>
+                            <option value="all" {% if flat_type == 'all' %}selected{% endif %}>All</option>
+                            <option value="Studio" {% if flat_type == 'Studio' %}selected{% endif %}>Studio</option>
+                            <option value="1BR" {% if flat_type == '1BR' %}selected{% endif %}>1BR</option>
+                            <option value="2BR" {% if flat_type == '2BR' %}selected{% endif %}>2BR</option>
+                            <option value="3BR+" {% if flat_type == '3BR+' %}selected{% endif %}>3BR+</option>
+                        </select>
+                    </div>
                     <div class="d-flex align-items-center gap-1">
                         <label for="max_price" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Max Price:</label>
                         <select name="max_price" id="max_price" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
@@ -79,7 +77,7 @@
             <div class="card-body">
                 {% if top_opportunities %}
                 <div class="table-responsive">
-                    <table class="table table-sm table-hover mb-0">
+                    <table class="table table-sm mb-0">
                         <thead>
                             <tr>
                                 <th>#</th>
@@ -95,13 +93,13 @@
                         <tbody>
                             {% for opp in top_opportunities %}
                             <tr id="opp-row-{{ opp.flat_id }}">
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.rank }}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.residential_complex }}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{{ opp.flat_type }}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{% if show_eur %}€{{ "{:,.0f}".format(opp.price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.price / 1000000) }}M{% endif %}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'">{% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'"><span class="text-success">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span></td>
-                                <td style="cursor: pointer;" onclick="window.location='/flat/{{ opp.flat_id }}'"><span class="text-success">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</span></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{{ opp.rank }}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{{ opp.residential_complex }}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{{ opp.flat_type }}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{% if show_eur %}€{{ "{:,.0f}".format(opp.price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.price / 1000000) }}M{% endif %}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset"><span class="text-success">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span></a></td>
+                                <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset"><span class="text-success">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</span></a></td>
                                 <td>
                                     <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); ignoreOpportunity('{{ opp.flat_id }}')">ignore</a>
                                 </td>
@@ -122,20 +120,8 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Operations Summary</h4>
-                <div class="d-flex gap-2">
-                    <select class="form-select form-select-sm" style="width: auto;">
-                        <option>Past week</option>
-                        <option>Past month</option>
-                        <option>Past quarter</option>
-                    </select>
-                    <select class="form-select form-select-sm" style="width: auto;">
-                        <option>Prior week</option>
-                        <option>Prior month</option>
-                        <option>Prior quarter</option>
-                    </select>
-                </div>
+            <div class="card-header">
+                <h5 class="mb-0">Operations Summary</h5>
             </div>
             <div class="card-body">
                 <div class="row">
@@ -143,28 +129,28 @@
                         <div class="kpi-card">
                             <div class="kpi-value text-primary">{{ "{:,}".format(total_flats) }}</div>
                             <div class="kpi-label">Total Flats</div>
-                            <div class="kpi-change positive">↑{{ "{:,}".format(new_flats) }}</div>
+                            <div class="kpi-change positive">+{{ "{:,}".format(new_flats) }}</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-sm-6 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-success">{{ "{:,}".format(rental_flats) }}</div>
                             <div class="kpi-label">Rental Flats</div>
-                            <div class="kpi-change positive">↑{{ "{:,}".format(new_rentals) }}</div>
+                            <div class="kpi-change positive">+{{ "{:,}".format(new_rentals) }}</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-sm-6 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-warning">{{ "{:,}".format(sales_flats) }}</div>
                             <div class="kpi-label">Sales Flats</div>
-                            <div class="kpi-change positive">↑{{ "{:,}".format(new_sales) }}</div>
+                            <div class="kpi-change positive">+{{ "{:,}".format(new_sales) }}</div>
                         </div>
                     </div>
                     <div class="col-md-3 col-sm-6 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-info">{{ "{:,}".format(complexes) }}</div>
                             <div class="kpi-label">Residential Complexes</div>
-                            <div class="kpi-change positive">↑{{ "{:,}".format(new_complexes) }}</div>
+                            <div class="kpi-change positive">+{{ "{:,}".format(new_complexes) }}</div>
                         </div>
                     </div>
                 </div>
@@ -173,12 +159,139 @@
     </div>
 </div>
 
-<!-- Analytics Charts -->
+<!-- Price Movers -->
+{% if price_movers.risers or price_movers.fallers %}
 <div class="row mb-4">
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Flats by Type</h5>
+                <h5 class="mb-0">Rising Prices</h5>
+                {% if price_movers.old_date and price_movers.new_date %}
+                <small class="text-muted">{{ price_movers.old_date }} to {{ price_movers.new_date }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if price_movers.risers %}
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="risersChart"></canvas>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>JK</th>
+                                <th>Old Avg</th>
+                                <th>New Avg</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in price_movers.risers %}
+                            <tr>
+                                <td><a href="/analyze_jk/{{ r.residential_complex|urlencode }}">{{ r.residential_complex }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(r.old_price / 1000000) }}M{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(r.new_price / 1000000) }}M{% endif %}</td>
+                                <td><span class="text-success">+{{ "%.1f"|format(r.pct_change) }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Not enough data for rising prices analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Falling Prices</h5>
+                {% if price_movers.old_date and price_movers.new_date %}
+                <small class="text-muted">{{ price_movers.old_date }} to {{ price_movers.new_date }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if price_movers.fallers %}
+                <div class="chart-container" style="height: 250px;">
+                    <canvas id="fallersChart"></canvas>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>JK</th>
+                                <th>Old Avg</th>
+                                <th>New Avg</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in price_movers.fallers %}
+                            <tr>
+                                <td><a href="/analyze_jk/{{ f.residential_complex|urlencode }}">{{ f.residential_complex }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(f.old_price / 1000000) }}M{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(f.new_price / 1000000) }}M{% endif %}</td>
+                                <td><span class="text-danger">{{ "%.1f"|format(f.pct_change) }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Not enough data for falling prices analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Best Rental Yields + Flats by Type -->
+<div class="row mb-4">
+    <div class="col-md-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Best Rental Yields</h5>
+            </div>
+            <div class="card-body">
+                {% if rental_yields %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>JK</th>
+                                <th>Avg Rent/mo</th>
+                                <th>Avg Sale Price</th>
+                                <th>Annual Yield</th>
+                                <th>Data</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for y in rental_yields %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><a href="/analyze_jk/{{ y.jk_name|urlencode }}">{{ y.jk_name }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(y.avg_rent / eur_rate) }}{% else %}₸{{ "{:,}".format(y.avg_rent|int) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(y.avg_sale_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(y.avg_sale_price / 1000000) }}M{% endif %}</td>
+                                <td><span class="{% if y.yield_pct >= 8 %}text-success{% elif y.yield_pct >= 6 %}text-warning{% else %}text-muted{% endif %}">{{ "%.1f"|format(y.yield_pct) }}%</span></td>
+                                <td><small class="text-muted">{{ y.rental_count }}r / {{ y.sales_count }}s</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No rental yield data available. Both rental and sales data needed.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Flats by Type</h5>
             </div>
             <div class="card-body">
                 <div class="chart-container">
@@ -187,88 +300,122 @@
             </div>
         </div>
     </div>
-    <div class="col-md-6 mb-4">
+</div>
+
+<!-- Market Velocity -->
+{% if market_velocity.old_date %}
+<div class="row mb-4">
+    <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Price Distribution</h5>
+                <h5 class="mb-0">Market Velocity</h5>
+                <small class="text-muted">{{ market_velocity.old_date }} to {{ market_velocity.new_date }}</small>
             </div>
             <div class="card-body">
-                <div class="chart-container">
-                    <canvas id="priceDistributionChart"></canvas>
+                <div class="row">
+                    <div class="col-md-2 col-sm-4 mb-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value text-danger">{{ "{:,}".format(market_velocity.removed) }}</div>
+                            <div class="kpi-label">Removed / Sold</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 mb-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value text-success">{{ "{:,}".format(market_velocity.new_listings) }}</div>
+                            <div class="kpi-label">New Listings</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 mb-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value text-info">{{ "{:,}".format(market_velocity.stable) }}</div>
+                            <div class="kpi-label">Still Listed</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 mb-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value text-muted">{{ "{:,}".format(market_velocity.total_old) }}</div>
+                            <div class="kpi-label">Prev. Total</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 mb-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value text-primary">{{ "{:,}".format(market_velocity.total_new) }}</div>
+                            <div class="kpi-label">Current Total</div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-4 mb-3">
+                        <div class="kpi-card">
+                            <div class="kpi-value text-warning">{{ market_velocity.turnover_pct }}%</div>
+                            <div class="kpi-label">Turnover Rate</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+{% endif %}
+
+<!-- Price per sqm Rankings -->
+{% if price_per_sqm %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Price per m² Rankings</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>JK</th>
+                                <th>Avg per m²</th>
+                                <th>Min per m²</th>
+                                <th>Max per m²</th>
+                                <th>Listings</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in price_per_sqm %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><a href="/analyze_jk/{{ p.jk_name|urlencode }}">{{ p.jk_name }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(p.avg_price_sqm / eur_rate) }}{% else %}₸{{ "{:,}".format(p.avg_price_sqm|int) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(p.min_price_sqm / eur_rate) }}{% else %}₸{{ "{:,}".format(p.min_price_sqm|int) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(p.max_price_sqm / eur_rate) }}{% else %}₸{{ "{:,}".format(p.max_price_sqm|int) }}{% endif %}</td>
+                                <td>{{ p.count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Quick Actions -->
 <div class="row mb-4">
     <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-search me-2"></i>Search & Analysis</h5>
+                <h5 class="mb-0">Search & Analysis</h5>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-12 mb-3">
                         <a href="{{ url_for('search_jk') }}" class="btn btn-primary w-100">
-                            <i class="fas fa-building me-2"></i>Search Residential Complexes
+                            Search Residential Complexes
                         </a>
                     </div>
                     <div class="col-12 mb-3">
                         <a href="{{ url_for('estimate_flat') }}" class="btn btn-success w-100">
-                            <i class="fas fa-calculator me-2"></i>Estimate Flat Investment
+                            Estimate Flat Investment
                         </a>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Activity -->
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Recent Activity</h5>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Action</th>
-                                <th>Complex</th>
-                                <th>Type</th>
-                                <th>Count</th>
-                                <th>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><i class="fas fa-download text-info"></i> Data Scraped</td>
-                                <td>4YOU</td>
-                                <td><span class="badge bg-primary">Rental</span></td>
-                                <td>20 flats</td>
-                                <td>Today</td>
-                            </tr>
-                            <tr>
-                                <td><i class="fas fa-download text-info"></i> Data Scraped</td>
-                                <td>4YOU</td>
-                                <td><span class="badge bg-success">Sales</span></td>
-                                <td>20 flats</td>
-                                <td>Today</td>
-                            </tr>
-                            <tr>
-                                <td><i class="fas fa-chart-line text-warning"></i> Analysis</td>
-                                <td>Meridian Apartments</td>
-                                <td><span class="badge bg-info">Investment</span></td>
-                                <td>365 pairs</td>
-                                <td>Yesterday</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
             </div>
         </div>
@@ -327,57 +474,95 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Price Distribution Chart
-    const priceDistributionCtx = document.getElementById('priceDistributionChart').getContext('2d');
-    new Chart(priceDistributionCtx, {
-        type: 'line',
+    {% if price_movers.risers %}
+    // Rising Prices Chart
+    const risersCtx = document.getElementById('risersChart').getContext('2d');
+    new Chart(risersCtx, {
+        type: 'bar',
         data: {
-            labels: ['< 1M', '1-2M', '2-3M', '3-4M', '4-5M', '> 5M'],
+            labels: [{% for r in price_movers.risers %}'{{ r.residential_complex }}'{% if not loop.last %}, {% endif %}{% endfor %}],
             datasets: [{
-                label: 'Rental Prices',
-                data: [12, 19, 15, 8, 5, 2],
-                borderColor: 'rgba(79, 158, 255, 1)',
-                backgroundColor: 'rgba(79, 158, 255, 0.1)',
-                tension: 0.4
-            }, {
-                label: 'Sales Prices',
-                data: [5, 12, 18, 25, 20, 15],
+                label: '% Change',
+                data: [{% for r in price_movers.risers %}{{ "%.1f"|format(r.pct_change) }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                backgroundColor: 'rgba(0, 212, 170, 0.7)',
                 borderColor: 'rgba(0, 212, 170, 1)',
-                backgroundColor: 'rgba(0, 212, 170, 0.1)',
-                tension: 0.4
+                borderWidth: 1
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            indexAxis: 'y',
             plugins: {
-                legend: {
-                    labels: {
-                        color: '#b0b0b0'
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) { return '+' + ctx.raw + '%'; }
                     }
                 }
             },
             scales: {
-                y: {
+                x: {
                     beginAtZero: true,
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    },
+                    grid: { color: 'rgba(255,255,255,0.1)' },
                     ticks: {
-                        color: '#b0b0b0'
+                        color: '#b0b0b0',
+                        callback: function(v) { return '+' + v + '%'; }
                     }
                 },
-                x: {
-                    grid: {
-                        color: 'rgba(255, 255, 255, 0.1)'
-                    },
-                    ticks: {
-                        color: '#b0b0b0'
-                    }
+                y: {
+                    grid: { display: false },
+                    ticks: { color: '#b0b0b0' }
                 }
             }
         }
     });
+    {% endif %}
+
+    {% if price_movers.fallers %}
+    // Falling Prices Chart
+    const fallersCtx = document.getElementById('fallersChart').getContext('2d');
+    new Chart(fallersCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for f in price_movers.fallers %}'{{ f.residential_complex }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: '% Change',
+                data: [{% for f in price_movers.fallers %}{{ "%.1f"|format(f.pct_change|abs) }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderColor: 'rgba(255, 99, 132, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(ctx) { return '-' + ctx.raw + '%'; }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255,255,255,0.1)' },
+                    ticks: {
+                        color: '#b0b0b0',
+                        callback: function(v) { return '-' + v + '%'; }
+                    }
+                },
+                y: {
+                    grid: { display: false },
+                    ticks: { color: '#b0b0b0' }
+                }
+            }
+        }
+    });
+    {% endif %}
 });
 </script>
-{% endblock %} 
+{% endblock %}

@@ -2151,6 +2151,8 @@ class OrthancDB:
         limit: int = 5,
         max_price: int = None,
         max_age_days: int = None,
+        city: str = None,
+        flat_types: List[str] = None,
     ) -> List[Dict]:
         """
         Get top N opportunities from the latest analysis run.
@@ -2158,6 +2160,8 @@ class OrthancDB:
         :param limit: int, number of opportunities to return (default: 5)
         :param max_price: int, maximum price filter (optional)
         :param max_age_days: int, only include opportunities from runs within this many days (optional)
+        :param city: str, city name in Cyrillic (e.g. "Алматы") to filter by (optional)
+        :param flat_types: List[str], flat types to include (e.g. ["1BR", "2BR"]) (optional, None = all)
         :return: List[Dict], list of top opportunities
         """
         self.connect()
@@ -2167,30 +2171,42 @@ class OrthancDB:
         params = []
 
         if max_age_days is not None:
-            conditions.append("run_timestamp >= datetime('now', ?)")
+            conditions.append("oa.run_timestamp >= datetime('now', ?)")
             params.append(f"-{max_age_days} days")
 
         if max_price is not None:
-            conditions.append("price <= ?")
+            conditions.append("oa.price <= ?")
             params.append(max_price)
 
         # Exclude ignored opportunities and blacklisted JKs
-        conditions.append("flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)")
         conditions.append(
-            "residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
+            "oa.flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)"
         )
+        conditions.append(
+            "oa.residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
+        )
+
+        if city is not None:
+            conditions.append("rc.city = ?")
+            params.append(city)
+
+        if flat_types is not None:
+            placeholders = ",".join("?" for _ in flat_types)
+            conditions.append(f"oa.flat_type IN ({placeholders})")
+            params.extend(flat_types)
 
         where_clause = ""
         if conditions:
             where_clause = "AND " + " AND ".join(conditions)
 
         query = f"""
-            SELECT * FROM opportunity_analysis
-            WHERE run_timestamp = (
+            SELECT oa.* FROM opportunity_analysis oa
+            LEFT JOIN residential_complexes rc ON oa.residential_complex = rc.name
+            WHERE oa.run_timestamp = (
                 SELECT MAX(run_timestamp) FROM opportunity_analysis
             )
             {where_clause}
-            ORDER BY rank ASC
+            ORDER BY oa.discount_percentage_vs_median DESC
             LIMIT ?
         """
         params.append(limit)
@@ -2198,6 +2214,9 @@ class OrthancDB:
         cursor = self.conn.execute(query, params)
 
         result = [dict(row) for row in cursor.fetchall()]
+        # Re-rank after filtering so numbers are always 1..N
+        for i, row in enumerate(result, 1):
+            row["rank"] = i
         self.disconnect()
         return result
 
@@ -2242,6 +2261,262 @@ class OrthancDB:
             return False
         finally:
             self.disconnect()
+
+    def get_price_movers(self, city: str = None, limit: int = 5) -> Dict:
+        """
+        Get JKs with biggest price increases and decreases between earliest and latest query dates.
+
+        :param city: str, city name in Cyrillic to filter by (optional)
+        :param limit: int, number of top movers to return per direction
+        :return: Dict with 'risers', 'fallers', 'old_date', 'new_date' keys
+        """
+        self.connect()
+
+        city_join = ""
+        city_condition = ""
+        city_params = ()
+        if city is not None:
+            city_join = (
+                "JOIN residential_complexes rc ON s.residential_complex = rc.name"
+            )
+            city_condition = "AND rc.city = ?"
+            city_params = (city,)
+
+        # Get the two most recent distinct query dates
+        cursor = self.conn.execute(
+            "SELECT DISTINCT query_date FROM sales_flats ORDER BY query_date DESC LIMIT 2"
+        )
+        dates = [row[0] for row in cursor.fetchall()]
+        if len(dates) < 2:
+            self.disconnect()
+            return {"risers": [], "fallers": [], "old_date": None, "new_date": None}
+
+        new_date, old_date = dates[0], dates[1]
+
+        query_template = (
+            "WITH old_prices AS ("
+            "  SELECT s.residential_complex, AVG(s.price) as avg_price, COUNT(*) as cnt"
+            f"  FROM sales_flats s {city_join}"
+            f"  WHERE s.query_date = ? {city_condition}"
+            "  GROUP BY s.residential_complex HAVING cnt >= 3"
+            "), new_prices AS ("
+            "  SELECT s.residential_complex, AVG(s.price) as avg_price, COUNT(*) as cnt"
+            f"  FROM sales_flats s {city_join}"
+            f"  WHERE s.query_date = ? {city_condition}"
+            "  GROUP BY s.residential_complex HAVING cnt >= 3"
+            ") SELECT o.residential_complex, o.avg_price as old_price, n.avg_price as new_price,"
+            "  ((n.avg_price - o.avg_price) / o.avg_price * 100) as pct_change,"
+            "  o.cnt as count_old, n.cnt as count_new"
+            " FROM old_prices o JOIN new_prices n ON o.residential_complex = n.residential_complex"
+            " ORDER BY pct_change {order}"
+            " LIMIT ?"
+        )
+
+        # Get risers (params: old_date, [city], new_date, [city], limit)
+        risers_query = query_template.format(order="DESC")
+        cursor = self.conn.execute(
+            risers_query,
+            (old_date,) + city_params + (new_date,) + city_params + (limit,),
+        )
+        risers = [dict(row) for row in cursor.fetchall()]
+
+        # Get fallers
+        fallers_query = query_template.format(order="ASC")
+        cursor = self.conn.execute(
+            fallers_query,
+            (old_date,) + city_params + (new_date,) + city_params + (limit,),
+        )
+        fallers = [dict(row) for row in cursor.fetchall()]
+
+        self.disconnect()
+        return {
+            "risers": risers,
+            "fallers": fallers,
+            "old_date": old_date,
+            "new_date": new_date,
+        }
+
+    def get_best_rental_yields(self, city: str = None, limit: int = 10) -> List[Dict]:
+        """
+        Get JKs with best rental yields (annual rent / sale price).
+
+        :param city: str, city name in Cyrillic to filter by (optional)
+        :param limit: int, number of results to return
+        :return: List[Dict] with jk_name, avg_rent, avg_sale_price, yield_pct, rental_count, sales_count
+        """
+        self.connect()
+
+        city_join = ""
+        city_condition = ""
+        city_params = ()
+        if city is not None:
+            city_join = (
+                "JOIN residential_complexes rc ON r.residential_complex = rc.name"
+            )
+            city_condition = "AND rc.city = ?"
+            city_params = (city,)
+
+        query = f"""
+            SELECT r.residential_complex as jk_name,
+                   AVG(r.price) as avg_rent,
+                   s.avg_sale_price,
+                   (AVG(r.price) * 12.0 / s.avg_sale_price * 100) as yield_pct,
+                   COUNT(DISTINCT r.flat_id) as rental_count,
+                   s.sales_count
+            FROM rental_flats r
+            {city_join}
+            JOIN (
+                SELECT residential_complex, AVG(price) as avg_sale_price, COUNT(DISTINCT flat_id) as sales_count
+                FROM sales_flats
+                WHERE query_date = (SELECT MAX(query_date) FROM sales_flats)
+                GROUP BY residential_complex
+                HAVING sales_count >= 3
+            ) s ON r.residential_complex = s.residential_complex
+            WHERE 1=1 {city_condition}
+            GROUP BY r.residential_complex
+            HAVING rental_count >= 3
+            ORDER BY yield_pct DESC
+            LIMIT ?
+        """
+
+        cursor = self.conn.execute(query, city_params + (limit,))
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+
+    def get_market_velocity(self, city: str = None) -> Dict:
+        """
+        Get market turnover stats between the two most recent query dates.
+
+        :param city: str, city name in Cyrillic to filter by (optional)
+        :return: Dict with removed, new_listings, stable, total_old, total_new, turnover_pct, old_date, new_date
+        """
+        self.connect()
+
+        # Get the two most recent distinct query dates
+        cursor = self.conn.execute(
+            "SELECT DISTINCT query_date FROM sales_flats ORDER BY query_date DESC LIMIT 2"
+        )
+        dates = [row[0] for row in cursor.fetchall()]
+        if len(dates) < 2:
+            self.disconnect()
+            return {
+                "removed": 0,
+                "new_listings": 0,
+                "stable": 0,
+                "total_old": 0,
+                "total_new": 0,
+                "turnover_pct": 0,
+                "old_date": None,
+                "new_date": None,
+            }
+
+        new_date, old_date = dates[0], dates[1]
+
+        city_join = ""
+        city_condition = ""
+        city_params = ()
+        if city is not None:
+            city_join = (
+                "JOIN residential_complexes rc ON s.residential_complex = rc.name"
+            )
+            city_condition = "AND rc.city = ?"
+            city_params = (city,)
+
+        # Flats in old date
+        cursor = self.conn.execute(
+            f"SELECT COUNT(DISTINCT s.flat_id) FROM sales_flats s {city_join} WHERE s.query_date = ? {city_condition}",
+            (old_date,) + city_params,
+        )
+        total_old = cursor.fetchone()[0]
+
+        # Flats in new date
+        cursor = self.conn.execute(
+            f"SELECT COUNT(DISTINCT s.flat_id) FROM sales_flats s {city_join} WHERE s.query_date = ? {city_condition}",
+            (new_date,) + city_params,
+        )
+        total_new = cursor.fetchone()[0]
+
+        # Removed (in old but not new)
+        cursor = self.conn.execute(
+            f"""SELECT COUNT(*) FROM (
+                SELECT DISTINCT s.flat_id FROM sales_flats s {city_join} WHERE s.query_date = ? {city_condition}
+                EXCEPT
+                SELECT DISTINCT s.flat_id FROM sales_flats s {city_join} WHERE s.query_date = ? {city_condition}
+            )""",
+            (old_date,) + city_params + (new_date,) + city_params,
+        )
+        removed = cursor.fetchone()[0]
+
+        # New listings (in new but not old)
+        cursor = self.conn.execute(
+            f"""SELECT COUNT(*) FROM (
+                SELECT DISTINCT s.flat_id FROM sales_flats s {city_join} WHERE s.query_date = ? {city_condition}
+                EXCEPT
+                SELECT DISTINCT s.flat_id FROM sales_flats s {city_join} WHERE s.query_date = ? {city_condition}
+            )""",
+            (new_date,) + city_params + (old_date,) + city_params,
+        )
+        new_listings = cursor.fetchone()[0]
+
+        stable = total_old - removed
+        turnover_pct = (removed / total_old * 100) if total_old > 0 else 0
+
+        self.disconnect()
+        return {
+            "removed": removed,
+            "new_listings": new_listings,
+            "stable": stable,
+            "total_old": total_old,
+            "total_new": total_new,
+            "turnover_pct": round(turnover_pct, 1),
+            "old_date": old_date,
+            "new_date": new_date,
+        }
+
+    def get_price_per_sqm_rankings(
+        self, city: str = None, limit: int = 15
+    ) -> List[Dict]:
+        """
+        Get JKs ranked by average price per square meter.
+
+        :param city: str, city name in Cyrillic to filter by (optional)
+        :param limit: int, number of results to return
+        :return: List[Dict] with jk_name, avg_price_sqm, min_price_sqm, max_price_sqm, count
+        """
+        self.connect()
+
+        city_join = ""
+        city_condition = ""
+        city_params = ()
+        if city is not None:
+            city_join = (
+                "JOIN residential_complexes rc ON s.residential_complex = rc.name"
+            )
+            city_condition = "AND rc.city = ?"
+            city_params = (city,)
+
+        query = f"""
+            SELECT s.residential_complex as jk_name,
+                   COUNT(*) as count,
+                   AVG(s.price / s.area) as avg_price_sqm,
+                   MIN(s.price / s.area) as min_price_sqm,
+                   MAX(s.price / s.area) as max_price_sqm
+            FROM sales_flats s
+            {city_join}
+            WHERE s.query_date = (SELECT MAX(query_date) FROM sales_flats)
+              AND s.area > 0
+              {city_condition}
+            GROUP BY s.residential_complex
+            HAVING count >= 5
+            ORDER BY avg_price_sqm DESC
+            LIMIT ?
+        """
+
+        cursor = self.conn.execute(query, city_params + (limit,))
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
 
     def is_flat_archived(self, flat_id: str, is_rental: bool = False) -> bool:
         """

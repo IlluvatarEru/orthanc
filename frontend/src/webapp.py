@@ -71,13 +71,35 @@ def index():
     max_age_days = request.args.get("max_age_days", 7, type=int)
     limit = request.args.get("limit", 25, type=int)
 
-    # Get top opportunities with filters
+    # City filter: almaty -> Алматы, astana -> Астане, all -> None
+    city_map = {"almaty": "Алматы", "astana": "Астане", "all": None}
+    city_param = request.args.get("city", "almaty")
+    city = city_map.get(city_param, "Алматы")
+
+    # Flat type filter: "default" = Studio+1BR+2BR, "all" = no filter, or single type
+    flat_type_param = request.args.get("flat_type", "default")
+    flat_type_map = {
+        "default": ["Studio", "1BR", "2BR"],
+        "all": None,
+        "Studio": ["Studio"],
+        "1BR": ["1BR"],
+        "2BR": ["2BR"],
+        "3BR+": ["3BR+"],
+    }
+    flat_types = flat_type_map.get(flat_type_param, ["Studio", "1BR", "2BR"])
+
     with OrthancDB() as db:
         top_opportunities = db.get_top_opportunities(
             limit=limit,
             max_price=max_price,
             max_age_days=max_age_days,
+            city=city,
+            flat_types=flat_types,
         )
+        price_movers = db.get_price_movers(city=city, limit=5)
+        rental_yields = db.get_best_rental_yields(city=city, limit=10)
+        market_velocity = db.get_market_velocity(city=city)
+        price_per_sqm = db.get_price_per_sqm_rankings(city=city, limit=15)
 
     return render_template(
         "index.html",
@@ -93,6 +115,12 @@ def index():
         max_price=max_price,
         max_age_days=max_age_days,
         limit=limit,
+        city=city_param,
+        flat_type=flat_type_param,
+        price_movers=price_movers,
+        rental_yields=rental_yields,
+        market_velocity=market_velocity,
+        price_per_sqm=price_per_sqm,
     )
 
 
@@ -274,8 +302,8 @@ def analyze_jk(
 @app.route("/flat/<flat_id>")
 def view_flat_details(flat_id):
     """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
-    # Get analysis parameters
-    area_tolerance = float(request.args.get("area_tolerance", 10.0))
+    # Get analysis parameters (20% matches the opportunity finder's area bucket logic)
+    area_tolerance = float(request.args.get("area_tolerance", 20.0))
 
     # Get flat information using API
     flat_data = api_client.get_flat_info(flat_id)
