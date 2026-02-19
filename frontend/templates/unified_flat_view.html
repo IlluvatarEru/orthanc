@@ -7,8 +7,8 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
         <div class="d-flex gap-2 align-items-center">
-            <button class="btn btn-sm btn-outline-warning toggle-favorite" 
-                    data-flat-id="{{ flat_data.flat_id }}" 
+            <button class="btn btn-sm btn-outline-warning toggle-favorite"
+                    data-flat-id="{{ flat_data.flat_id }}"
                     data-flat-type="{% if flat_data.is_rental %}rental{% else %}sale{% endif %}"
                     data-price="{{ flat_data.price }}"
                     data-area="{{ flat_data.area }}"
@@ -22,6 +22,11 @@
                     title="Add to favorites">
                 <i class="fas fa-heart"></i>
             </button>
+            {% if flat_data.residential_complex %}
+            <button class="btn btn-sm btn-danger" onclick="blacklistJK('{{ flat_data.residential_complex }}')">
+                <i class="fas fa-ban me-1"></i>Blacklist JK
+            </button>
+            {% endif %}
             <div class="d-flex gap-2 align-items-center me-3">
                 <div class="d-flex flex-column">
                     <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 1rem;">Area Tolerance (%)</label>
@@ -363,6 +368,22 @@
 </div>
 
 <script>
+function blacklistJK(jkName) {
+    if (!confirm('Are you sure you want to blacklist "' + jkName + '"? This JK will be excluded from scraping and opportunities.')) {
+        return;
+    }
+    fetch('/blacklist_jk/' + encodeURIComponent(jkName), { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = '/';
+            } else {
+                alert('Failed to blacklist: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Error: ' + err));
+}
+
 function toggleSection(sectionId) {
     const content = document.getElementById(sectionId + '-content');
     const icon = document.getElementById(sectionId + '-icon');
