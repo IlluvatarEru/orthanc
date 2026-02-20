@@ -4,9 +4,9 @@
 
 {% block content %}
 <div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
         <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
-        <div class="d-flex gap-2 align-items-center">
+        <div class="d-flex gap-2 align-items-center flex-wrap">
             <button class="btn btn-sm btn-outline-warning toggle-favorite"
                     data-flat-id="{{ flat_data.flat_id }}"
                     data-flat-type="{% if flat_data.is_rental %}rental{% else %}sale{% endif %}"
@@ -27,13 +27,13 @@
                 <i class="fas fa-ban me-1"></i>Blacklist JK
             </button>
             {% endif %}
-            <div class="d-flex gap-2 align-items-center me-3">
+            <div class="d-flex gap-2 align-items-center">
                 <div class="d-flex flex-column">
-                    <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 1rem;">Area Tolerance (%)</label>
-                    <input type="number" id="area_tolerance" name="area_tolerance" 
-                           class="form-control form-control-sm" 
-                           min="1" max="100" value="{{ area_tolerance }}" 
-                           style="width: 80px;">
+                    <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 0.85rem;">Area Tol. (%)</label>
+                    <input type="number" id="area_tolerance" name="area_tolerance"
+                           class="form-control form-control-sm"
+                           min="1" max="100" value="{{ area_tolerance }}"
+                           style="width: 70px; max-width: 80px;">
                 </div>
             </div>
         </div>
@@ -90,7 +90,7 @@
                             <h6>Market Statistics for Similar Flats</h6>
                             {% if opportunity.market_stats.count > 0 %}
                             <div class="row">
-                                <div class="col-md-3">
+                                <div class="col-6 col-md-3">
                                     <h6 class="text-muted">Median Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
@@ -100,7 +100,7 @@
                                         {% endif %}
                                     </p>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-6 col-md-3">
                                     <h6 class="text-muted">Mean Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
@@ -110,7 +110,7 @@
                                         {% endif %}
                                     </p>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-6 col-md-3">
                                     <h6 class="text-muted">Min Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
@@ -120,7 +120,7 @@
                                         {% endif %}
                                     </p>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-6 col-md-3">
                                     <h6 class="text-muted">Max Price</h6>
                                     <p class="text-white h5">
                                         {% if show_eur %}
@@ -174,22 +174,22 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-6 col-12 col-md-4 mb-3">
                             <h6>Expected Return</h6>
                             <p class="h4 text-white">
                                 {% if buy_sell_return_percentage > 0 %}+{% endif %}{{ "{:.2f}".format(buy_sell_return_percentage) }}%
                             </p>
                             <p class="text-muted small">Gross return (before taxes & fees)</p>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-6 col-12 col-md-4 mb-3">
                             <h6>Expected Net Return</h6>
                             <p class="h4 text-white">
                                 {% if buy_sell_net_return_percentage > 0 %}+{% endif %}{{ "{:.2f}".format(buy_sell_net_return_percentage) }}%
                             </p>
-                            <p class="text-muted small">After 10% tax & 500k notary fee</p>
+                            <p class="text-muted small">After 10% tax & 500k notary</p>
                         </div>
-                        <div class="col-md-4">
-                            <h6>Equivalent Annual Net Return</h6>
+                        <div class="col-12 col-12 col-md-4 mb-3">
+                            <h6>Annual Net Return</h6>
                             <p class="h4 text-white">
                                 {% if equivalent_annual_net_return > 0 %}+{% endif %}{{ "{:.2f}".format(equivalent_annual_net_return) }}%
                             </p>
@@ -210,7 +210,7 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <h6>Expected Annual Rent</h6>
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.annual_rental_income %}
@@ -224,7 +224,7 @@
                                 {% endif %}
                             </p>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <h6>Rental Yield</h6>
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.yield_percentage %}
@@ -234,7 +234,7 @@
                                 {% endif %}
                             </p>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <h6>Median Rental Price</h6>
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.rental_median %}
@@ -248,7 +248,7 @@
                                 {% endif %}
                             </p>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-6 col-md-3 mb-3">
                             <h6>Average Sales Price</h6>
                             <p class="h4 text-white">
                                 {% if investment_analysis and investment_analysis.sales_avg %}
@@ -277,7 +277,7 @@
             {% if opportunity.bucket_flats and opportunity.bucket_flats|length > 0 %}
             <div class="row">
                 {% for flat in opportunity.bucket_flats %}
-                <div class="col-md-4 mb-3">
+                <div class="col-12 col-md-4 mb-3">
                     <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                         <div class="card-body">
                             <h5 class="card-title text-white">
@@ -326,7 +326,7 @@
             {% if similar_rentals and similar_rentals|length > 0 %}
             <div class="row">
                 {% for flat in similar_rentals %}
-                <div class="col-md-4 mb-3">
+                <div class="col-12 col-md-4 mb-3">
                     <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                         <div class="card-body">
                             <h5 class="card-title text-white">

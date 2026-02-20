@@ -758,5 +758,65 @@ def ignore_opportunity():
     return jsonify({"success": success})
 
 
+@app.route("/api/districts/<city>")
+def api_districts(city):
+    """Get districts for a city with their blacklist status."""
+    from scrapers.src.residential_complex_scraper import CITY_DISTRICTS
+
+    # Map URL param to Cyrillic city names used in DB
+    city_map = {"almaty": "Алматы", "astana": "Астане"}
+    db_city = city_map.get(city.lower(), city)
+
+    with OrthancDB() as db:
+        db_districts = db.get_districts_for_city(db_city)
+        blacklisted = db.get_blacklisted_districts(db_city)
+
+    # Use known district list as fallback if DB has no district data yet
+    known_districts = list(CITY_DISTRICTS.get(db_city, {}).keys())
+    districts = db_districts if db_districts else known_districts
+
+    blacklisted_names = {d["district"] for d in blacklisted}
+    result = [{"district": d, "blacklisted": d in blacklisted_names} for d in districts]
+    return jsonify({"city": city, "districts": result})
+
+
+@app.route("/api/blacklist_district", methods=["POST"])
+def blacklist_district():
+    """Add or remove a district from the blacklist."""
+    data = request.json
+    city = data.get("city")
+    district = data.get("district")
+    action = data.get("action", "add")  # "add" or "remove"
+
+    if not city or not district:
+        return jsonify({"success": False, "error": "city and district required"}), 400
+
+    # Map to Cyrillic city names
+    city_map = {"almaty": "Алматы", "astana": "Астане"}
+    db_city = city_map.get(city.lower(), city)
+
+    with OrthancDB() as db:
+        if action == "remove":
+            success = db.remove_blacklisted_district(db_city, district)
+        else:
+            notes = data.get("notes", "Blacklisted from UI")
+            success = db.add_blacklisted_district(db_city, district, notes)
+
+    return jsonify({"success": success})
+
+
+@app.route("/api/blacklisted_districts")
+def api_blacklisted_districts():
+    """Get all blacklisted districts."""
+    city = request.args.get("city")
+    city_map = {"almaty": "Алматы", "astana": "Астане"}
+    db_city = city_map.get(city.lower(), city) if city else None
+
+    with OrthancDB() as db:
+        blacklisted = db.get_blacklisted_districts(db_city)
+
+    return jsonify({"blacklisted_districts": blacklisted})
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)

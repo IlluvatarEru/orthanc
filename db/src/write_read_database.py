@@ -1621,6 +1621,106 @@ class OrthancDB:
             self.disconnect()
             raise Exception(f"JK '{jk_id}' not found in residential_complexes table")
 
+    # ---- District Blacklist Methods ----
+
+    def add_blacklisted_district(
+        self, city: str, district: str, notes: str = None
+    ) -> bool:
+        """Add a district to the blacklist."""
+        self.connect()
+        try:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO blacklisted_districts (city, district, notes) VALUES (?, ?, ?)",
+                (city, district, notes),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error blacklisting district: {e}")
+            return False
+        finally:
+            self.disconnect()
+
+    def remove_blacklisted_district(self, city: str, district: str) -> bool:
+        """Remove a district from the blacklist."""
+        self.connect()
+        try:
+            self.conn.execute(
+                "DELETE FROM blacklisted_districts WHERE city = ? AND district = ?",
+                (city, district),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error removing blacklisted district: {e}")
+            return False
+        finally:
+            self.disconnect()
+
+    def get_blacklisted_districts(self, city: str = None) -> List[dict]:
+        """Get blacklisted districts, optionally filtered by city."""
+        self.connect()
+        try:
+            if city:
+                cursor = self.conn.execute(
+                    "SELECT * FROM blacklisted_districts WHERE city = ? ORDER BY district",
+                    (city,),
+                )
+            else:
+                cursor = self.conn.execute(
+                    "SELECT * FROM blacklisted_districts ORDER BY city, district"
+                )
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            self.disconnect()
+
+    def get_districts_for_city(self, city: str) -> List[str]:
+        """Get all known districts for a city from residential_complexes."""
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT DISTINCT district FROM residential_complexes WHERE city = ? AND district IS NOT NULL AND district != '' ORDER BY district",
+                (city,),
+            )
+            return [row[0] for row in cursor.fetchall()]
+        finally:
+            self.disconnect()
+
+    def find_jk(self, query: str) -> List[dict]:
+        """
+        Fuzzy-search JKs by name (case-insensitive substring match).
+
+        :param query: str, search term
+        :return: List[dict] with keys: name, city, district
+        """
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT name, city, district FROM residential_complexes WHERE name LIKE ? ORDER BY name",
+                (f"%{query}%",),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            self.disconnect()
+
+    def get_jks_in_district(self, city: str, district: str) -> List[dict]:
+        """
+        Get all JKs in a given district.
+
+        :param city: str, city name (e.g. "Алматы")
+        :param district: str, district name (e.g. "Бостандыкский р-н")
+        :return: List[dict] with keys: name, city, district
+        """
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT name, city, district FROM residential_complexes WHERE city = ? AND district = ? ORDER BY name",
+                (city, district),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            self.disconnect()
+
     def get_latest_sales_by_jk(self, jk_name: str) -> List[dict]:
         """
         Get sales data for a residential complex where query_date is within the past 24 hours.
@@ -2325,12 +2425,15 @@ class OrthancDB:
             conditions.append("oa.price <= ?")
             params.append(max_price)
 
-        # Exclude ignored opportunities and blacklisted JKs
+        # Exclude ignored opportunities, blacklisted JKs, and blacklisted districts
         conditions.append(
             "oa.flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)"
         )
         conditions.append(
             "oa.residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
+        )
+        conditions.append(
+            "NOT EXISTS (SELECT 1 FROM blacklisted_districts bd WHERE bd.city = rc.city AND bd.district = rc.district)"
         )
 
         if city is not None:
@@ -2850,11 +2953,16 @@ class OrthancDB:
             placeholders = ",".join(["?"] * len(city_variants))
             query = f"""
                 SELECT name as residential_complex, complex_id, city, district
-                FROM residential_complexes 
+                FROM residential_complexes
                 WHERE name NOT IN (
                     SELECT name FROM blacklisted_jks
                 )
                 AND (city IN ({placeholders}))
+                AND NOT EXISTS (
+                    SELECT 1 FROM blacklisted_districts bd
+                    WHERE bd.city = residential_complexes.city
+                    AND bd.district = residential_complexes.district
+                )
                 ORDER BY name
             """
             cursor = self.conn.execute(query, city_variants)
@@ -2879,9 +2987,14 @@ class OrthancDB:
         try:
             cursor = self.conn.execute("""
                 SELECT name as residential_complex, complex_id, city, district
-                FROM residential_complexes 
+                FROM residential_complexes
                 WHERE name NOT IN (
                     SELECT name FROM blacklisted_jks
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM blacklisted_districts bd
+                    WHERE bd.city = residential_complexes.city
+                    AND bd.district = residential_complexes.district
                 )
                 ORDER BY name
             """)
@@ -3044,6 +3157,33 @@ class OrthancDB:
             return True
         except Exception as e:
             logging.error(f"Error updating residential complex city: {e}")
+            self.conn.rollback()
+            return False
+        finally:
+            self.disconnect()
+
+    def update_residential_complex_district(
+        self, complex_id: str, district: str
+    ) -> bool:
+        """
+        Update only the district for an existing residential complex.
+        Does NOT change the city.
+
+        :param complex_id: str, complex ID
+        :param district: str, district name
+        :return: bool, True if successful
+        """
+        self.connect()
+
+        try:
+            self.conn.execute(
+                "UPDATE residential_complexes SET district = ? WHERE complex_id = ?",
+                (district, complex_id),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error updating residential complex district: {e}")
             self.conn.rollback()
             return False
         finally:

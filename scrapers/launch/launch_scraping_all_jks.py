@@ -19,6 +19,8 @@ from scrapers.src.krisha_sales_scraping import scrape_and_save_jk_sales
 from scrapers.src.residential_complex_scraper import (
     update_complex_database,
     update_jks_with_unknown_cities,
+    scrape_districts_for_city,
+    CITY_DISTRICTS,
 )
 from scrapers.src.utils import get_and_reset_error_counts, get_scraping_config
 
@@ -633,6 +635,7 @@ if __name__ == "__main__":
             "fetch-jks",
             "scrape-jk",
             "update-jks-cities",
+            "update-districts",
         ],
         default="immediate",
         help="Scraping mode",
@@ -731,3 +734,9 @@ if __name__ == "__main__":
             )
         else:
             logger.info("ℹ️ No JKs needed updating or no cities could be determined")
+    elif args.mode == "update-districts":
+        logger.info("Updating district info for JKs...")
+        total = 0
+        for city in CITY_DISTRICTS:
+            total += scrape_districts_for_city(city, db_path=args.db_path)
+        logger.info(f"Updated {total} JKs with district information")

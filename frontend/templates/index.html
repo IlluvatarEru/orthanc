@@ -19,9 +19,10 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header">
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Top Sale Opportunities</h5>
-                <form class="d-flex gap-2 align-items-center" method="GET" action="/">
+                <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="/">
                     <div class="d-flex align-items-center gap-1">
                         <label for="city" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">City:</label>
                         <select name="city" id="city" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
@@ -73,10 +74,12 @@
                         </select>
                     </div>
                 </form>
+                </div>
             </div>
             <div class="card-body">
                 {% if top_opportunities %}
-                <div class="table-responsive">
+                <!-- Desktop: Table view -->
+                <div class="table-responsive d-none d-md-block">
                     <table class="table table-sm mb-0">
                         <thead>
                             <tr>
@@ -108,6 +111,35 @@
                         </tbody>
                     </table>
                 </div>
+                <!-- Mobile: Card view -->
+                <div class="d-md-none">
+                    {% for opp in top_opportunities %}
+                    <div class="opp-card mb-2 p-3" id="opp-card-{{ opp.flat_id }}" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%); border-radius: 10px; border-left: 3px solid var(--accent-green);">
+                        <a href="/flat/{{ opp.flat_id }}" class="text-decoration-none">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="text-white fw-bold" style="font-size: 0.95rem;">{{ opp.residential_complex }}</div>
+                                    <div class="text-muted" style="font-size: 0.8rem;">{{ opp.flat_type }}</div>
+                                </div>
+                                <div class="text-end">
+                                    <div class="text-success fw-bold" style="font-size: 1.1rem;">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</div>
+                                </div>
+                            </div>
+                            <div class="d-flex justify-content-between align-items-end mt-2">
+                                <div>
+                                    <span class="text-white" style="font-size: 0.85rem;">{% if show_eur %}€{{ "{:,.0f}".format(opp.price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.price / 1000000) }}M{% endif %}</span>
+                                    <span class="text-muted mx-1" style="font-size: 0.75rem;">&rarr;</span>
+                                    <span class="text-muted" style="font-size: 0.85rem;">med. {% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</span>
+                                </div>
+                                <span class="text-success" style="font-size: 0.8rem;">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span>
+                            </div>
+                        </a>
+                        <div class="text-end mt-1">
+                            <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); ignoreOpportunityMobile('{{ opp.flat_id }}')">ignore</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
                 {% else %}
                 <p class="text-muted mb-0">No opportunities found matching filters. Try adjusting the filters or run the opportunity finder.</p>
                 {% endif %}
@@ -125,31 +157,31 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="col-6 col-md-3 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-primary">{{ "{:,}".format(total_flats) }}</div>
                             <div class="kpi-label">Total Flats</div>
                             <div class="kpi-change positive">+{{ "{:,}".format(new_flats) }}</div>
                         </div>
                     </div>
-                    <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="col-6 col-md-3 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-success">{{ "{:,}".format(rental_flats) }}</div>
                             <div class="kpi-label">Rental Flats</div>
                             <div class="kpi-change positive">+{{ "{:,}".format(new_rentals) }}</div>
                         </div>
                     </div>
-                    <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="col-6 col-md-3 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-warning">{{ "{:,}".format(sales_flats) }}</div>
                             <div class="kpi-label">Sales Flats</div>
                             <div class="kpi-change positive">+{{ "{:,}".format(new_sales) }}</div>
                         </div>
                     </div>
-                    <div class="col-md-3 col-sm-6 mb-3">
+                    <div class="col-6 col-md-3 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-info">{{ "{:,}".format(complexes) }}</div>
-                            <div class="kpi-label">Residential Complexes</div>
+                            <div class="kpi-label">Complexes</div>
                             <div class="kpi-change positive">+{{ "{:,}".format(new_complexes) }}</div>
                         </div>
                     </div>
@@ -172,7 +204,7 @@
             </div>
             <div class="card-body">
                 {% if price_movers.risers %}
-                <div class="chart-container" style="height: 250px;">
+                <div class="chart-container">
                     <canvas id="risersChart"></canvas>
                 </div>
                 <div class="table-responsive mt-3">
@@ -213,7 +245,7 @@
             </div>
             <div class="card-body">
                 {% if price_movers.fallers %}
-                <div class="chart-container" style="height: 250px;">
+                <div class="chart-container">
                     <canvas id="fallersChart"></canvas>
                 </div>
                 <div class="table-responsive mt-3">
@@ -313,37 +345,37 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-2 col-sm-4 mb-3">
+                    <div class="col-4 col-md-2 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-danger">{{ "{:,}".format(market_velocity.removed) }}</div>
                             <div class="kpi-label">Removed / Sold</div>
                         </div>
                     </div>
-                    <div class="col-md-2 col-sm-4 mb-3">
+                    <div class="col-4 col-md-2 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-success">{{ "{:,}".format(market_velocity.new_listings) }}</div>
                             <div class="kpi-label">New Listings</div>
                         </div>
                     </div>
-                    <div class="col-md-2 col-sm-4 mb-3">
+                    <div class="col-4 col-md-2 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-info">{{ "{:,}".format(market_velocity.stable) }}</div>
                             <div class="kpi-label">Still Listed</div>
                         </div>
                     </div>
-                    <div class="col-md-2 col-sm-4 mb-3">
+                    <div class="col-4 col-md-2 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-muted">{{ "{:,}".format(market_velocity.total_old) }}</div>
                             <div class="kpi-label">Prev. Total</div>
                         </div>
                     </div>
-                    <div class="col-md-2 col-sm-4 mb-3">
+                    <div class="col-4 col-md-2 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-primary">{{ "{:,}".format(market_velocity.total_new) }}</div>
                             <div class="kpi-label">Current Total</div>
                         </div>
                     </div>
-                    <div class="col-md-2 col-sm-4 mb-3">
+                    <div class="col-4 col-md-2 mb-3">
                         <div class="kpi-card">
                             <div class="kpi-value text-warning">{{ market_velocity.turnover_pct }}%</div>
                             <div class="kpi-label">Turnover Rate</div>
@@ -397,7 +429,7 @@
 </div>
 {% endif %}
 
-<!-- Quick Actions -->
+<!-- Quick Actions + District Blacklist -->
 <div class="row mb-4">
     <div class="col-md-6 mb-4">
         <div class="card">
@@ -420,6 +452,22 @@
             </div>
         </div>
     </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="fas fa-map-marker-alt me-1"></i>District Blacklist</h5>
+                <select id="districtCity" class="form-select form-select-sm" style="width: auto;" onchange="loadDistricts()">
+                    <option value="almaty">Almaty</option>
+                    <option value="astana">Astana</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="districtList">
+                    <p class="text-muted mb-0">Loading districts...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -435,6 +483,76 @@ function ignoreOpportunity(flatId) {
     .then(data => {
         if (data.success) {
             document.getElementById('opp-row-' + flatId).remove();
+        }
+    });
+}
+
+function loadDistricts() {
+    const city = document.getElementById('districtCity').value;
+    const container = document.getElementById('districtList');
+    container.innerHTML = '<p class="text-muted mb-0">Loading...</p>';
+
+    fetch('/api/districts/' + city)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.districts || data.districts.length === 0) {
+                container.innerHTML = '<p class="text-muted mb-0">No districts found. Run district scraper to populate.</p>';
+                return;
+            }
+            let html = '';
+            data.districts.forEach(d => {
+                const checked = d.blacklisted ? 'checked' : '';
+                const labelClass = d.blacklisted ? 'text-danger text-decoration-line-through' : 'text-white';
+                html += `<div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="dist-${d.district}" ${checked}
+                           onchange="toggleDistrict('${city}', '${d.district}', this.checked)">
+                    <label class="form-check-label ${labelClass}" for="dist-${d.district}" id="dist-label-${d.district}"
+                           style="font-size: 0.85rem;">${d.district}</label>
+                </div>`;
+            });
+            container.innerHTML = html;
+        })
+        .catch(() => {
+            container.innerHTML = '<p class="text-muted mb-0">Error loading districts.</p>';
+        });
+}
+
+function toggleDistrict(city, district, blacklisted) {
+    const action = blacklisted ? 'add' : 'remove';
+    const label = document.getElementById('dist-label-' + district);
+
+    fetch('/api/blacklist_district', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({city: city, district: district, action: action})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (blacklisted) {
+                label.classList.add('text-danger', 'text-decoration-line-through');
+                label.classList.remove('text-white');
+            } else {
+                label.classList.remove('text-danger', 'text-decoration-line-through');
+                label.classList.add('text-white');
+            }
+        }
+    });
+}
+
+// Load districts on page load
+document.addEventListener('DOMContentLoaded', function() { loadDistricts(); });
+
+function ignoreOpportunityMobile(flatId) {
+    fetch('/api/ignore_opportunity', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({flat_id: flatId})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('opp-card-' + flatId).remove();
         }
     });
 }

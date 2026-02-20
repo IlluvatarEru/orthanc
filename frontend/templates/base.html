@@ -447,15 +447,37 @@
             margin: 1rem 0;
         }
 
-        /* Responsive */
+        /* Responsive - Tablet */
+        @media (max-width: 1024px) {
+            .chart-container { height: 250px; }
+        }
+
+        /* Responsive - Phone */
+        @media (max-width: 576px) {
+            .kpi-value { font-size: 1.5rem; }
+            .kpi-label { font-size: 0.75rem; }
+            .kpi-card { padding: 0.75rem; }
+            .card-header { padding: 0.5rem 0.75rem; }
+            .card-header h5, .card-header h4 { font-size: 0.9rem; }
+            .card-body { padding: 0.75rem; }
+            .chart-container { height: 200px; }
+            .table { font-size: 0.75rem; }
+            .navbar-brand .brand-tagline { display: none; }
+            .navbar-brand { font-size: 1.3rem; }
+            .navbar-brand .brand-icon { font-size: 1.3rem; }
+            h1.h2 { font-size: 1.3rem; }
+            h2 { font-size: 1.2rem; }
+            .container-fluid.py-4 { padding-left: 0.5rem !important; padding-right: 0.5rem !important; }
+            .nav-item.me-5 { margin-right: 0 !important; }
+            #eurRateDisplay { width: auto; font-size: 0.8rem; }
+            .btn { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+        }
+
+        /* Responsive - Small phone */
         @media (max-width: 768px) {
-            .kpi-value {
-                font-size: 2rem;
-            }
-            
-            .card-body {
-                padding: 1rem;
-            }
+            .kpi-value { font-size: 1.8rem; }
+            .card-body { padding: 1rem; }
+            .nav-item.me-5 { margin-right: 1rem !important; }
         }
 
         /* Custom scrollbar */
@@ -489,8 +511,8 @@
                 <span class="brand-tagline">International Real Estate Investments</span>
             </a>
             
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
+            <button class="navbar-toggler border-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <i class="fas fa-bars" style="color: var(--text-primary);"></i>
             </button>
             
             <div class="collapse navbar-collapse" id="navbarNav">

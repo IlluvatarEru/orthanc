@@ -139,6 +139,18 @@ class DatabaseSchema:
             )
         """)
 
+        # Create blacklisted districts table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS blacklisted_districts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                city TEXT NOT NULL,
+                district TEXT NOT NULL,
+                blacklisted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT,
+                UNIQUE(city, district)
+            )
+        """)
+
         # Create mid_prices table for FX data
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS mid_prices (
