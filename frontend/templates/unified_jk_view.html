@@ -8,7 +8,7 @@
     <div class="col-12">
         <div class="card">
             <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <div>
                         <h2 class="mb-1"><i class="fas fa-building me-2"></i>{{ complex_info.name }}</h2>
                         {% if complex_info.city %}
@@ -27,32 +27,34 @@
                             {% endif %}
                         </p>
                     </div>
-                    <div class="d-flex gap-2 align-items-center">
-                        <div class="d-flex gap-2 align-items-center me-3">
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <div class="d-flex gap-2 align-items-center">
                             <div class="d-flex flex-column">
-                                <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 1rem;">Area Tolerance (%)</label>
-                                <input type="number" id="area_tolerance" name="area_tolerance" 
-                                       class="form-control form-control-sm" 
-                                       min="1" max="100" value="{{ area_tolerance }}" 
-                                       style="width: 80px;">
+                                <label for="area_tolerance" class="form-label mb-0 text-white" style="font-size: 0.85rem;">Area Tol. (%)</label>
+                                <input type="number" id="area_tolerance" name="area_tolerance"
+                                       class="form-control form-control-sm"
+                                       min="1" max="100" value="{{ area_tolerance }}"
+                                       style="width: 70px; max-width: 80px;">
                             </div>
                             <div class="d-flex flex-column">
-                                <label for="discount_percentage" class="form-label mb-0 text-white" style="font-size: 1rem;">Discount (%)</label>
-                                <input type="number" id="discount_percentage" name="discount_percentage" 
-                                       class="form-control form-control-sm" 
-                                       min="1" max="100" value="{{ discount_percentage }}" 
-                                       style="width: 80px;">
+                                <label for="discount_percentage" class="form-label mb-0 text-white" style="font-size: 0.85rem;">Disc. (%)</label>
+                                <input type="number" id="discount_percentage" name="discount_percentage"
+                                       class="form-control form-control-sm"
+                                       min="1" max="100" value="{{ discount_percentage }}"
+                                       style="width: 70px; max-width: 80px;">
                             </div>
                         </div>
-                        <button id="refreshAnalysisBtn" class="btn btn-primary" onclick="showRefreshConfirm();">
-                            <i class="fas fa-sync-alt me-1"></i>Refresh Analysis
-                        </button>
-                        <button class="btn btn-danger" onclick="blacklistJK('{{ complex_info.name }}')">
-                            <i class="fas fa-ban me-1"></i>Blacklist JK
-                        </button>
-                        <a href="{{ url_for('search_jk') }}" class="btn btn-secondary">
-                            <i class="fas fa-arrow-left me-1"></i>Back
-                        </a>
+                        <div class="d-flex gap-2 flex-wrap">
+                            <button id="refreshAnalysisBtn" class="btn btn-sm btn-primary" onclick="showRefreshConfirm();">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                            <button class="btn btn-sm btn-danger" onclick="blacklistJK('{{ complex_info.name }}')">
+                                <i class="fas fa-ban me-1"></i>Blacklist
+                            </button>
+                            <a href="{{ url_for('search_jk') }}" class="btn btn-sm btn-secondary">
+                                <i class="fas fa-arrow-left me-1"></i>Back
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -211,7 +213,7 @@
                             <div class="card-body">
                                 <!-- Price Statistics -->
                                 <div class="row mb-3">
-                                    <div class="col-md-3">
+                                    <div class="col-6 col-md-3">
                                         <h6 class="text-muted">Min Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
@@ -221,7 +223,7 @@
                                             {% endif %}
                                         </p>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-6 col-md-3">
                                         <h6 class="text-muted">Max Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
@@ -231,7 +233,7 @@
                                             {% endif %}
                                         </p>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-6 col-md-3">
                                         <h6 class="text-muted">Mean Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
@@ -241,7 +243,7 @@
                                             {% endif %}
                                         </p>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-6 col-md-3">
                                         <h6 class="text-muted">Median Price</h6>
                                         <p class="text-white h5">
                                             {% if show_eur %}
@@ -259,7 +261,7 @@
                                     <h6 class="text-success"><i class="fas fa-star me-1"></i>Good Opportunities (15%+ below median)</h6>
                                     <div class="row">
                                         {% for opp in opportunities_by_flat_type[flat_type] %}
-                                        <div class="col-md-6 col-lg-4 mb-2">
+                                        <div class="col-12 col-md-6 col-lg-4 mb-2">
                                             <div class="card border-success">
                                                 <div class="card-body p-2">
                                                     <h6 class="card-title text-success">₸{{ "{:,}".format(opp.price) }}</h6>
@@ -325,7 +327,7 @@
                             <h6 class="text-muted">{{ flat_type }} ({{ opportunities|length }} opportunities)</h6>
                             <div class="row">
                                 {% for opp in opportunities[:3] %}
-                                <div class="col-md-4 mb-2">
+                                <div class="col-12 col-md-4 mb-2">
                                     <div class="card border-success">
                                         <div class="card-body p-2">
                                             <h6 class="card-title text-success">₸{{ "{:,}".format(opp.flat_info.price) }}</h6>
@@ -355,7 +357,7 @@
                             <h6 class="text-muted">{{ flat_type }} ({{ opportunities|length }} opportunities)</h6>
                             <div class="row">
                                 {% for opp in opportunities[:3] %}
-                                <div class="col-md-4 mb-2">
+                                <div class="col-12 col-md-4 mb-2">
                                     <div class="card border-primary">
                                         <div class="card-body p-2">
                                             <h6 class="card-title text-primary">₸{{ "{:,}".format(opp.flat_info.price) }}</h6>
@@ -392,9 +394,9 @@
             <div class="card-body collapse show" id="rental-analysis-content">
                 <!-- Overall Summary -->
                 <div class="row mb-4">
-                    <div class="col-md-4">
+                    <div class="col-4">
                         <div class="text-center">
-                            <h5 class="text-white">Overall Median Yield</h5>
+                            <h6 class="text-white">Median Yield</h6>
                             <h3 class="text-white">
                                 {% if rental_analysis.current_market.global_stats.median_yield %}
                                     {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.median_yield * 100) }}
@@ -404,9 +406,9 @@
                             </h3>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-4">
                         <div class="text-center">
-                            <h5 class="text-white">Overall Mean Yield</h5>
+                            <h6 class="text-white">Mean Yield</h6>
                             <h3 class="text-white">
                                 {% if rental_analysis.current_market.global_stats.mean_yield %}
                                     {{ "{:.2f}%".format(rental_analysis.current_market.global_stats.mean_yield * 100) }}
@@ -416,9 +418,9 @@
                             </h3>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-4">
                         <div class="text-center">
-                            <h5 class="text-white">Total Rental Flats</h5>
+                            <h6 class="text-white">Total Rentals</h6>
                             <h3 class="text-white">
                                 {{ rental_analysis.current_market.global_stats.count }}
                             </h3>
@@ -430,7 +432,7 @@
                 <div class="row">
                     {% for flat_type, rental_bucket_stats in rental_analysis.current_market.flat_type_buckets.items() %}
                     {% if rental_bucket_stats.count > 0 %}
-                    <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                             <div class="card-header">
                                 <h6 class="mb-0">
@@ -770,7 +772,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
             <div class="card-body collapse" id="sales-flats-content">
                 <div class="row">
                     {% for flat in sales_flats %}
-                    <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
@@ -835,7 +837,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
             <div class="card-body collapse" id="rental-flats-content">
                 <div class="row">
                     {% for flat in rental_flats %}
-                    <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="col-12 col-md-6 col-lg-4 mb-3">
                         <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
                             <div class="card-body">
                                 <div class="d-flex justify-content-between align-items-start mb-2">
