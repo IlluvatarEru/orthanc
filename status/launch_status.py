@@ -3,16 +3,19 @@
 
 import argparse
 import json
+import os
+import re
 import sqlite3
 import subprocess
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
-# Processes to monitor: display name -> command substring to match
+# Persistent processes to monitor: display name -> command substring to match
 MONITORED_PROCESSES = {
-    "daily-sales": "launch_scraping_all_jks --mode daily-sales",
-    "daily-rentals": "launch_scraping_all_jks --mode daily-rentals",
     "market-data": "price.launch.launch_market_data",
 }
+
+PIPELINE_LOG = "/root/orthanc/daily_pipeline.out"
+PIPELINE_CMD_PATTERN = "daily_sales_pipeline"
 
 
 def get_service_status(service_name: str) -> bool:
@@ -41,8 +44,6 @@ def get_process_uptimes() -> dict:
         for name, cmd_pattern in MONITORED_PROCESSES.items():
             for line in lines:
                 if cmd_pattern in line:
-                    # lstart format: "Tue Feb 18 02:15:03 2026"
-                    # First 24 chars are the lstart, rest is the command
                     since = line[:24].strip()
                     result[name] = {"status": "running", "since": since}
                     break
@@ -51,6 +52,73 @@ def get_process_uptimes() -> dict:
     except Exception:
         pass
     return result
+
+
+def get_pipeline_status() -> dict:
+    """Get daily sales pipeline status from cron job."""
+    status = {"running": False, "last_start": None, "last_complete": None}
+
+    # Check if pipeline is currently running
+    try:
+        ps_output = subprocess.run(
+            ["/usr/bin/ps", "ax", "-o", "args="],
+            capture_output=True,
+            text=True,
+        )
+        status["running"] = PIPELINE_CMD_PATTERN in ps_output.stdout
+    except Exception:
+        pass
+
+    # Parse log file for last start/complete timestamps
+    if os.path.exists(PIPELINE_LOG):
+        try:
+            result = subprocess.run(
+                ["/usr/bin/tail", "-50", PIPELINE_LOG],
+                capture_output=True,
+                text=True,
+            )
+            lines = result.stdout.strip().splitlines()
+            for line in reversed(lines):
+                if "Starting daily sales pipeline" in line and not status["last_start"]:
+                    match = re.search(r"=== (.+?) ===", line)
+                    if match:
+                        status["last_start"] = match.group(1)
+                if (
+                    "Daily sales pipeline complete" in line
+                    and not status["last_complete"]
+                ):
+                    match = re.search(r"=== (.+?) ===", line)
+                    if match:
+                        status["last_complete"] = match.group(1)
+                if status["last_start"] and status["last_complete"]:
+                    break
+        except Exception:
+            pass
+
+    return status
+
+
+def get_latest_pipeline_run(db_path: str) -> dict:
+    """Get the most recent pipeline run stats from database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT started_at, finished_at, duration_seconds, city,
+                   jks_total, jks_successful, jks_failed, flats_scraped,
+                   rate_limited, http_errors, request_errors, error_breakdown
+            FROM pipeline_runs
+            ORDER BY finished_at DESC
+            LIMIT 1
+            """
+        )
+        row = cur.fetchone()
+        conn.close()
+        return dict(row) if row else None
+    except Exception:
+        return None
 
 
 def get_latest_timestamps(db_path: str) -> dict:
@@ -85,6 +153,8 @@ class StatusHandler(BaseHTTPRequestHandler):
                 "web": "up" if get_service_status("orthanc-web") else "down",
             },
             "processes": get_process_uptimes(),
+            "pipeline": get_pipeline_status(),
+            "last_run": get_latest_pipeline_run(self.db_path),
             "latest_timestamps": get_latest_timestamps(self.db_path),
         }
 

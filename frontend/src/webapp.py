@@ -308,7 +308,11 @@ def view_flat_details(flat_id):
     # Get flat information using API
     flat_data = api_client.get_flat_info(flat_id)
     if not flat_data:
-        raise Exception(f"Flat {flat_id} not found")
+        return render_template(
+            "error.html",
+            title="Flat Not Found",
+            message=f"Flat {flat_id} was not found in the database. It may have been archived or removed from Krisha.kz.",
+        ), 404
 
     # Get similar flats using API
     similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
@@ -578,6 +582,31 @@ def calculate_investment_analysis(
         "annual_rental_income": annual_rental_income,
         "yield_percentage": yield_percentage,
     }
+
+
+@app.route("/tech-status")
+def tech_status():
+    """Tech status dashboard showing pipeline run history."""
+    import json
+
+    with OrthancDB() as db:
+        pipeline_data = db.get_pipeline_runs_history(limit=90)
+
+    # Parse error_breakdown JSON for latest run
+    error_breakdown = {}
+    last_run = pipeline_data["kpis"].get("last_run")
+    if last_run and last_run.get("error_breakdown"):
+        try:
+            error_breakdown = json.loads(last_run["error_breakdown"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    return render_template(
+        "tech_status.html",
+        runs=pipeline_data["runs"],
+        kpis=pipeline_data["kpis"],
+        error_breakdown=error_breakdown,
+    )
 
 
 @app.route("/favorites")

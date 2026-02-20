@@ -239,79 +239,115 @@ def write_opportunities_to_csv(
         raise
 
 
+def _find_opportunities_for_city(
+    city: str,
+    db_path: str,
+    discount_threshold: float,
+    top_n: int,
+    max_discount: float,
+) -> List[Dict]:
+    """
+    Find, filter, and rank top N opportunities for a single city.
+
+    :param city: str, city slug (e.g. "almaty")
+    :param db_path: str, path to database file
+    :param discount_threshold: float, minimum discount percentage
+    :param top_n: int, number of top opportunities per city
+    :param max_discount: float, maximum discount percentage to allow
+    :return: List[Dict], ranked top N opportunities for this city
+    """
+    logger.info(f"--- Analyzing city: {city} ---")
+
+    all_opportunities = find_all_opportunities(db_path, discount_threshold, city)
+    if not all_opportunities:
+        logger.warning(f"No opportunities found for {city}")
+        return []
+
+    filtered = filter_opportunities(all_opportunities, max_discount)
+    if not filtered:
+        logger.warning(f"No opportunities remaining after filtering for {city}")
+        return []
+
+    ranked = rank_opportunities(filtered)
+    top = ranked[:top_n]
+
+    logger.info(
+        f"{city}: {len(all_opportunities)} total -> {len(filtered)} filtered -> top {len(top)}"
+    )
+    return top
+
+
 def main(
     db_path: str = "flats.db",
     discount_threshold: float = 0.15,
     output_file: str = "opportunities.csv",
-    top_n: int = 50,
+    top_n: int = 100,
     max_discount: float = 50.0,
-    city: str = "almaty",
+    cities: List[str] = None,
 ) -> None:
     """
     Main function to find and rank opportunities across all JKs.
+    Runs per city, saving top N per city under a single run timestamp.
 
     :param db_path: str, path to database file
     :param discount_threshold: float, minimum discount percentage (e.g., 0.15 = 15%)
     :param output_file: str, output CSV file path
-    :param top_n: int, number of top opportunities to include in CSV
+    :param top_n: int, number of top opportunities per city (default: 100)
     :param max_discount: float, maximum discount percentage to allow (default: 50%, filters likely scams)
-    :param city: str, city name to filter JKs by (default: "almaty")
+    :param cities: List[str], city slugs to analyze (default: ["almaty", "astana"])
     """
+    if cities is None:
+        cities = ["almaty", "astana"]
+
     logger.info("=" * 80)
     logger.info("Starting Opportunity Finder")
     logger.info("=" * 80)
     logger.info(f"Database: {db_path}")
-    logger.info(f"City: {city}")
+    logger.info(f"Cities: {cities}")
     logger.info(f"Discount threshold: {discount_threshold * 100}%")
     logger.info(f"Max discount filter: {max_discount}% (filters likely scams)")
     logger.info(f"Output file: {output_file}")
-    logger.info(f"Top N opportunities: {top_n}")
+    logger.info(f"Top N per city: {top_n}")
     logger.info("=" * 80)
 
     start_time = datetime.now()
 
-    # Find all opportunities
-    all_opportunities = find_all_opportunities(db_path, discount_threshold, city)
+    all_top_opportunities = []
+    for city in cities:
+        city_opps = _find_opportunities_for_city(
+            city, db_path, discount_threshold, top_n, max_discount
+        )
+        all_top_opportunities.extend(city_opps)
 
-    if not all_opportunities:
-        logger.warning("No opportunities found. Exiting.")
+    if not all_top_opportunities:
+        logger.warning("No opportunities found across any city. Exiting.")
         return
 
-    # Filter out likely scams (discount > max_discount)
-    filtered_opportunities = filter_opportunities(all_opportunities, max_discount)
-
-    if not filtered_opportunities:
-        logger.warning("No opportunities remaining after filtering. Exiting.")
-        return
-
-    # Rank opportunities
-    ranked_opportunities = rank_opportunities(filtered_opportunities)
-
-    # Get top N
-    top_opportunities = ranked_opportunities[:top_n]
+    # Re-rank the combined list so ranks are 1..N
+    for rank, opp in enumerate(all_top_opportunities, 1):
+        opp["rank"] = rank
 
     logger.info(
-        f"Top opportunity: {top_opportunities[0]['residential_complex']} "
-        f"({top_opportunities[0]['discount_percentage_vs_median']}% discount)"
+        f"Top opportunity: {all_top_opportunities[0]['residential_complex']} "
+        f"({all_top_opportunities[0]['discount_percentage_vs_median']}% discount)"
     )
 
     # Save to database with run timestamp
-    run_timestamp = save_opportunities_to_db(top_opportunities, db_path)
+    run_timestamp = save_opportunities_to_db(all_top_opportunities, db_path)
     logger.info(
-        f"Saved {len(top_opportunities)} opportunities to database with run_timestamp: {run_timestamp}"
+        f"Saved {len(all_top_opportunities)} opportunities to database with run_timestamp: {run_timestamp}"
     )
 
     # Write to CSV
-    write_opportunities_to_csv(top_opportunities, output_file)
+    write_opportunities_to_csv(all_top_opportunities, output_file)
 
     end_time = datetime.now()
     duration = (end_time - start_time).total_seconds()
 
     logger.info("=" * 80)
     logger.info("Opportunity Finder Completed")
-    logger.info(f"Total opportunities found: {len(all_opportunities)}")
-    logger.info(f"Opportunities after filtering: {len(filtered_opportunities)}")
-    logger.info(f"Top {len(top_opportunities)} opportunities written to {output_file}")
+    logger.info(f"Total opportunities saved: {len(all_top_opportunities)}")
+    logger.info(f"Top {top_n} per city: {', '.join(cities)}")
     logger.info(f"Duration: {duration:.1f} seconds")
     logger.info("=" * 80)
 
@@ -339,8 +375,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--top-n",
         type=int,
-        default=50,
-        help="Number of top opportunities to include in CSV (default: 50)",
+        default=100,
+        help="Number of top opportunities per city (default: 100)",
     )
     parser.add_argument(
         "--max-discount",
@@ -351,8 +387,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--city",
         type=str,
-        default="almaty",
-        help="City name to filter JKs by (default: almaty)",
+        nargs="+",
+        default=["almaty", "astana"],
+        help="City name(s) to analyze (default: almaty astana)",
     )
 
     args = parser.parse_args()
@@ -363,5 +400,5 @@ if __name__ == "__main__":
         output_file=args.output,
         top_n=args.top_n,
         max_discount=args.max_discount,
-        city=args.city,
+        cities=args.city,
     )

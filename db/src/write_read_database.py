@@ -2082,6 +2082,153 @@ class OrthancDB:
 
         return inserted_count
 
+    def insert_pipeline_run(self, stats: Dict) -> bool:
+        """
+        Insert a pipeline run stats row.
+
+        :param stats: dict with keys: started_at, finished_at, duration_seconds,
+                      city, jks_total, jks_successful, jks_failed, flats_scraped,
+                      error_breakdown (dict of error_type -> count)
+        :return: bool, True if successful
+        """
+        self.connect()
+        try:
+            # Compute legacy aggregate columns from breakdown
+            error_breakdown = stats.get("error_breakdown", {})
+            rate_limited = error_breakdown.get("http_429", 0)
+            http_errors = sum(v for k, v in error_breakdown.items() if k.startswith("http_"))
+            request_errors = sum(
+                v for k, v in error_breakdown.items()
+                if k in ("timeout", "connection_error", "other_error")
+            )
+
+            import json
+
+            self.conn.execute(
+                """
+                INSERT INTO pipeline_runs (
+                    started_at, finished_at, duration_seconds, city,
+                    jks_total, jks_successful, jks_failed, flats_scraped,
+                    rate_limited, http_errors, request_errors, error_breakdown
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    stats["started_at"],
+                    stats["finished_at"],
+                    stats["duration_seconds"],
+                    stats.get("city"),
+                    stats["jks_total"],
+                    stats["jks_successful"],
+                    stats["jks_failed"],
+                    stats["flats_scraped"],
+                    rate_limited,
+                    http_errors,
+                    request_errors,
+                    json.dumps(error_breakdown) if error_breakdown else None,
+                ),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error inserting pipeline run: {e}")
+            return False
+        finally:
+            self.disconnect()
+
+    def get_latest_pipeline_run(self) -> Optional[Dict]:
+        """
+        Get the most recent pipeline run stats.
+
+        :return: Optional[Dict], latest run stats or None
+        """
+        self.connect()
+        try:
+            self.conn.row_factory = sqlite3.Row
+            cursor = self.conn.execute(
+                """
+                SELECT started_at, finished_at, duration_seconds, city,
+                       jks_total, jks_successful, jks_failed, flats_scraped,
+                       rate_limited, http_errors, request_errors, error_breakdown
+                FROM pipeline_runs
+                ORDER BY finished_at DESC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except Exception as e:
+            logging.error(f"Error fetching latest pipeline run: {e}")
+            return None
+        finally:
+            self.disconnect()
+
+    def get_pipeline_runs_history(self, limit: int = 90) -> Dict:
+        """
+        Get pipeline run history for the tech status dashboard.
+
+        :param limit: int, max number of runs to return (most recent first)
+        :return: dict with keys 'runs' (list of dicts) and 'kpis' (aggregated stats)
+        """
+        self.connect()
+        try:
+            self.conn.row_factory = sqlite3.Row
+            cursor = self.conn.execute(
+                """
+                SELECT started_at, finished_at, duration_seconds, city,
+                       jks_total, jks_successful, jks_failed, flats_scraped,
+                       rate_limited, http_errors, request_errors, error_breakdown
+                FROM pipeline_runs
+                ORDER BY finished_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = [dict(row) for row in cursor.fetchall()]
+
+            if not rows:
+                return {
+                    "runs": [],
+                    "kpis": {
+                        "total_runs": 0,
+                        "avg_duration": 0,
+                        "total_flats_scraped": 0,
+                        "total_errors": 0,
+                        "last_run": None,
+                    },
+                }
+
+            total_runs = len(rows)
+            total_errors = sum(
+                r["rate_limited"] + r["http_errors"] + r["request_errors"] for r in rows
+            )
+            avg_duration = sum(r["duration_seconds"] for r in rows) / total_runs
+            total_flats = sum(r["flats_scraped"] for r in rows)
+
+            return {
+                "runs": rows,
+                "kpis": {
+                    "total_runs": total_runs,
+                    "avg_duration": round(avg_duration, 1),
+                    "total_flats_scraped": total_flats,
+                    "total_errors": total_errors,
+                    "last_run": rows[0],
+                },
+            }
+        except Exception as e:
+            logging.error(f"Error fetching pipeline runs history: {e}")
+            return {
+                "runs": [],
+                "kpis": {
+                    "total_runs": 0,
+                    "avg_duration": 0,
+                    "total_flats_scraped": 0,
+                    "total_errors": 0,
+                    "last_run": None,
+                },
+            }
+        finally:
+            self.disconnect()
+
     def get_latest_opportunity_analysis_run_timestamp(self) -> Optional[str]:
         """
         Get the latest run timestamp from opportunity analysis.

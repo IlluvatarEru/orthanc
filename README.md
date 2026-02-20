@@ -1,88 +1,83 @@
 # Orthanc Capital
 
-## Realtime Processes
+## Daily Pipeline
 
-These processes should be running continuously to keep the database populated and provide API access:
+Sales scraping and opportunity finding run automatically via a single cron job at 14:50 CET daily:
 
-| Process | Command | Purpose |
-|---------|---------|---------|
-| Daily Sales Scraper | `nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-sales > daily_sales.out 2>&1 &` | Continuously scrapes sales listings |
-| Daily Rentals Scraper | `nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-rentals > daily_rentals.out 2>&1 &` | Continuously scrapes rental listings |
-| Market Data | `nohup python -m price.launch.launch_market_data > market_data.out 2>&1 &` | Fetches MIG exchange rates daily at midday UTC |
-| API Server | `systemctl start orthanc-api` | Serves the explorer/API |
-| Frontend | `systemctl start orthanc-web` | Serves the frontend |
-| Status Service | `systemctl start orthanc-status` | Health check endpoint on port 8002 |
-
-To check if processes are running:
-```bash
-ps aux | grep launch_scraping_all_jks
-ps aux | grep launch_market_data
-systemctl status orthanc-api
-systemctl status orthanc-web
-systemctl status orthanc-status
+```
+50 8 * * * /root/orthanc/scripts/daily_sales_pipeline.sh >> /root/orthanc/daily_pipeline.out 2>&1
 ```
 
-Or use the status endpoint:
+(Server is US/Eastern, so 14:50 CET = 08:50 EST.)
+
+The pipeline (`scripts/daily_sales_pipeline.sh`) prioritizes Almaty:
+1. **Scrape Almaty sales** -- scrapes Almaty JKs first (638 JKs, ~fastest)
+2. **In parallel**: runs the **opportunity finder** for Almaty while scraping **remaining cities** in the background
+3. Waits for remaining cities to finish
+
+This means Almaty opportunities are available on the dashboard as soon as Almaty scraping completes, without waiting for all other cities.
+
+Logs go to `/root/orthanc/daily_pipeline.out`. To check the latest run:
+```bash
+tail -100 /root/orthanc/daily_pipeline.out
+```
+
+## Services
+
+These run continuously via systemd:
+
+| Service | Command | Purpose |
+|---------|---------|---------|
+| API Server | `systemctl start orthanc-api` | REST API on port 8000 |
+| Frontend | `systemctl start orthanc-web` | Dashboard on port 5000 |
+| Status | `systemctl start orthanc-status` | Health check on port 8002 |
+| Market Data | `nohup python -m price.launch.launch_market_data > market_data.out 2>&1 &` | Fetches exchange rates daily |
+
+To check status:
 ```bash
 curl localhost:8002
+systemctl status orthanc-api orthanc-web orthanc-status
 ```
 
 ### Restarting after code updates
 
-After pulling new code changes, restart the services:
 ```bash
 git pull
-systemctl restart orthanc-api
-systemctl restart orthanc-web
-systemctl restart orthanc-status
+systemctl restart orthanc-api orthanc-web orthanc-status
 ```
 
 ---
 
 ### How do I...
-1. scrap sales on a regular basis?
-```commandline
-python -m scrapers.launch.launch_scraping_all_jks --mode daily-sales
-```
-   Run in background with nohup:
-```commandline
-nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-sales > daily_sales.out 2>&1 &
-```
-2. scrap sales the current sales as a one off?
+1. run sales scraping as a one-off?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales
+python -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales --city almaty
+python -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales --exclude-city almaty
 ```
-3. scrap rentals on a regular daily basis?
-```commandline
-python -m scrapers.launch.launch_scraping_all_jks --mode daily-rentals
-```
-   Run in background with nohup:
-```commandline
-nohup python -m scrapers.launch.launch_scraping_all_jks --mode daily-rentals > daily_rentals.out 2>&1 &
-```
-4. scrap rentals just as a one off?
+2. run rental scraping as a one-off?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode immediate --rentals
 ```
-5. scrap all the JKs?
+3. scrape a specific JK?
 ```commandline
-python -m scrapers.launch.launch_scraping_all_jks --mode immediate
-```
-6. fetch all residential complexes from Krisha?
-```commandline
-python -m scrapers.launch.launch_scraping_all_jks --mode fetch-jks
-```
-7. update JKs with unknown cities?
-```commandline
-python -m scrapers.launch.launch_scraping_all_jks --mode update-jks-cities
-```
-8. scrap a specific JK (only if it doesn't already have data)?
-```commandline
-python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Meridian" --rentals --sales
+python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Meridian" --sales
 python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Jazz" --rentals
 python -m scrapers.launch.launch_scraping_all_jks --mode scrape-jk --jk-name "Istanbul" --sales --max-pages 5
 ```
-9. manage blacklisted JKs?
+4. fetch all residential complexes from Krisha?
+```commandline
+python -m scrapers.launch.launch_scraping_all_jks --mode fetch-jks
+```
+5. update JKs with unknown cities?
+```commandline
+python -m scrapers.launch.launch_scraping_all_jks --mode update-jks-cities
+```
+6. run the opportunity finder manually?
+```commandline
+python -m analytics.launch.launch_opportunity_finder --city almaty
+```
+7. manage blacklisted JKs?
 ```commandline
 python -m scrapers.launch.launch_scraping_all_jks --mode blacklist --blacklist-action list
 python -m scrapers.launch.launch_scraping_all_jks --mode blacklist --blacklist-action add --jk-name "Complex Name"

@@ -20,8 +20,38 @@ from scrapers.src.residential_complex_scraper import (
     update_complex_database,
     update_jks_with_unknown_cities,
 )
+from scrapers.src.utils import get_and_reset_error_counts, get_scraping_config
 
 logger = setup_logging(__name__, log_file="jk_scraping.log")
+
+
+def _prioritize_jks(jks: List[Dict]) -> List[Dict]:
+    """
+    Sort JKs so that priority JKs (from config) come first.
+    Priority is determined by case-insensitive partial match on JK name.
+
+    :param jks: List[Dict], list of JK information
+    :return: List[Dict], sorted with priority JKs first
+    """
+    config = get_scraping_config()
+    priority_patterns = config.get("priority_jks", [])
+    if not priority_patterns:
+        return jks
+
+    priority = []
+    rest = []
+    for jk in jks:
+        name = jk.get("residential_complex", "").lower()
+        if any(p.lower() in name for p in priority_patterns):
+            priority.append(jk)
+        else:
+            rest.append(jk)
+
+    if priority:
+        names = [jk["residential_complex"] for jk in priority]
+        logger.info(f"Priority JKs ({len(priority)}): {names}")
+
+    return priority + rest
 
 
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
@@ -53,7 +83,7 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
 
 
 def scrape_all_jk_rentals(
-    db_path: str = "flats.db", max_pages: int = 1
+    db_path: str = "flats.db", max_pages: int = 10
 ) -> Dict[str, int]:
     """
     Scrape all JK rentals from the database.
@@ -102,24 +132,65 @@ def scrape_all_jk_rentals(
 
 
 def scrape_all_jk_sales(
-    db_path: str = "flats.db", max_pages: int = 1
-) -> Dict[str, int]:
+    db_path: str = "flats.db",
+    max_pages: int = 10,
+    city: str = None,
+    exclude_city: str = None,
+) -> Dict:
     """
     Scrape all JK sales from the database.
 
     :param db_path: str, path to database file
     :param max_pages: int, maximum pages to scrape per JK
-    :return: Dict[str, int], results with JK names and saved counts
+    :param city: str, city name in Cyrillic to include only (e.g. "Алматы"), None for all
+    :param exclude_city: str, city name in Cyrillic to exclude (e.g. "Алматы"), None for none
+    :return: Dict with keys: results, started_at, finished_at, duration_seconds,
+             city, jks_total, jks_successful, jks_failed, flats_scraped,
+             rate_limited, http_errors, request_errors
     """
-    logger.info("Starting scraping of all JK sales")
+    # Reset error counters before this run
+    get_and_reset_error_counts()
+    start_time = time.time()
+    started_at = datetime.now().isoformat()
+
+    if city:
+        logger.info(f"Starting scraping of JK sales for city: {city}")
+    elif exclude_city:
+        logger.info(f"Starting scraping of JK sales excluding city: {exclude_city}")
+    else:
+        logger.info("Starting scraping of all JK sales")
 
     jks = get_all_jks_from_db(db_path)
     if not jks:
         logger.warning("No JKs found in database")
-        return {}
+        finished_at = datetime.now().isoformat()
+        return {
+            "results": {},
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "duration_seconds": time.time() - start_time,
+            "city": city,
+            "jks_total": 0,
+            "jks_successful": 0,
+            "jks_failed": 0,
+            "flats_scraped": 0,
+            "rate_limited": 0,
+            "http_errors": 0,
+            "request_errors": 0,
+        }
+
+    if city:
+        jks = [jk for jk in jks if jk.get("city") == city]
+        logger.info(f"Filtered to {len(jks)} JKs in {city}")
+    elif exclude_city:
+        jks = [jk for jk in jks if jk.get("city") != exclude_city]
+        logger.info(f"Filtered to {len(jks)} JKs (excluding {exclude_city})")
+
+    jks = _prioritize_jks(jks)
 
     results = {}
     total_saved = 0
+    jks_failed = 0
 
     for i, jk_info in enumerate(jks, 1):
         jk_name = jk_info["residential_complex"]
@@ -145,9 +216,33 @@ def scrape_all_jk_sales(
         except Exception as e:
             logger.error(f"❌ Error scraping {jk_name}: {e}")
             results[jk_name] = 0
+            jks_failed += 1
+
+    finished_at = datetime.now().isoformat()
+    duration = time.time() - start_time
+    jks_successful = len([r for r in results.values() if r > 0])
+    error_counts = get_and_reset_error_counts()
 
     logger.info(f"Completed JK sales scraping. Total saved: {total_saved}")
-    return results
+    logger.info(
+        f"Stats: {len(results)} JKs total, {jks_successful} successful, "
+        f"{jks_failed} failed, {total_saved} flats, {duration:.1f}s"
+    )
+    if error_counts:
+        logger.warning(f"Error breakdown: {error_counts}")
+
+    return {
+        "results": results,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "duration_seconds": round(duration, 1),
+        "city": city,
+        "jks_total": len(results),
+        "jks_successful": jks_successful,
+        "jks_failed": jks_failed,
+        "flats_scraped": total_saved,
+        "error_breakdown": error_counts,
+    }
 
 
 def _calculate_seconds_until(target_hour: int, target_minute: int) -> float:
@@ -168,7 +263,7 @@ def _calculate_seconds_until(target_hour: int, target_minute: int) -> float:
 
 
 def daily_rental_scraping_loop(
-    db_path: str = "flats.db", max_pages: int = 1, run_time: str = "12:00"
+    db_path: str = "flats.db", max_pages: int = 10, run_time: str = "12:00"
 ) -> None:
     """
     Run daily rental scraping in a continuous loop.
@@ -235,7 +330,7 @@ def daily_rental_scraping_loop(
 
 
 def daily_sales_scraping_loop(
-    db_path: str = "flats.db", max_pages: int = 1, run_time: str = "13:00"
+    db_path: str = "flats.db", max_pages: int = 10, run_time: str = "13:00"
 ) -> None:
     """
     Run daily sales scraping in a continuous loop.
@@ -252,16 +347,12 @@ def daily_sales_scraping_loop(
     # Run immediately on startup
     logger.info("Running initial sales scraping immediately...")
     try:
-        results = scrape_all_jk_sales(db_path, max_pages)
-
-        # Log summary
-        total_saved = sum(results.values())
-        successful_jks = len([r for r in results.values() if r > 0])
+        stats = scrape_all_jk_sales(db_path, max_pages)
 
         logger.info("Initial sales scraping completed:")
-        logger.info(f"  - JKs processed: {len(results)}")
-        logger.info(f"  - Successful JKs: {successful_jks}")
-        logger.info(f"  - Total flats saved: {total_saved}")
+        logger.info(f"  - JKs processed: {stats['jks_total']}")
+        logger.info(f"  - Successful JKs: {stats['jks_successful']}")
+        logger.info(f"  - Total flats saved: {stats['flats_scraped']}")
     except Exception as e:
         logger.error(f"Error in initial sales scraping: {e}")
 
@@ -282,16 +373,12 @@ def daily_sales_scraping_loop(
             logger.info(
                 f"Starting daily sales scraping at {datetime.now().strftime('%H:%M')}"
             )
-            results = scrape_all_jk_sales(db_path, max_pages)
-
-            # Log summary
-            total_saved = sum(results.values())
-            successful_jks = len([r for r in results.values() if r > 0])
+            stats = scrape_all_jk_sales(db_path, max_pages)
 
             logger.info("Daily sales scraping completed:")
-            logger.info(f"  - JKs processed: {len(results)}")
-            logger.info(f"  - Successful JKs: {successful_jks}")
-            logger.info(f"  - Total flats saved: {total_saved}")
+            logger.info(f"  - JKs processed: {stats['jks_total']}")
+            logger.info(f"  - Successful JKs: {stats['jks_successful']}")
+            logger.info(f"  - Total flats saved: {stats['flats_scraped']}")
 
         except KeyboardInterrupt:
             logger.info("Daily sales scraping loop stopped by user")
@@ -303,9 +390,11 @@ def daily_sales_scraping_loop(
 
 def run_immediate_scraping(
     db_path: str = "flats.db",
-    max_pages: int = 1,
+    max_pages: int = 10,
     scrape_rentals: bool = True,
     scrape_sales: bool = True,
+    city: str = None,
+    exclude_city: str = None,
 ) -> None:
     """
     Run immediate scraping of all JKs (rentals and/or sales).
@@ -314,8 +403,13 @@ def run_immediate_scraping(
     :param max_pages: int, maximum pages to scrape per JK
     :param scrape_rentals: bool, whether to scrape rentals
     :param scrape_sales: bool, whether to scrape sales
+    :param city: str, city name in Cyrillic to include only (e.g. "Алматы"), None for all
+    :param exclude_city: str, city name in Cyrillic to exclude, None for none
     """
-    logger.info("Starting immediate scraping of all JKs")
+    city_label = city or (
+        "all except " + exclude_city if exclude_city else "all cities"
+    )
+    logger.info(f"Starting immediate scraping of JKs ({city_label})")
 
     if scrape_rentals:
         logger.info("Scraping all JK rentals...")
@@ -328,14 +422,19 @@ def run_immediate_scraping(
         )
 
     if scrape_sales:
-        logger.info("Scraping all JK sales...")
-        sales_results = scrape_all_jk_sales(db_path, max_pages)
-
-        sales_total = sum(sales_results.values())
-        sales_successful = len([r for r in sales_results.values() if r > 0])
-        logger.info(
-            f"Sales scraping completed: {sales_successful}/{len(sales_results)} JKs successful, {sales_total} flats saved"
+        logger.info(f"Scraping JK sales ({city_label})...")
+        sales_stats = scrape_all_jk_sales(
+            db_path, max_pages, city=city, exclude_city=exclude_city
         )
+
+        logger.info(
+            f"Sales scraping completed: {sales_stats['jks_successful']}/{sales_stats['jks_total']} JKs successful, "
+            f"{sales_stats['flats_scraped']} flats saved, {sales_stats['duration_seconds']}s"
+        )
+
+        # Save run stats to database
+        db = OrthancDB(db_path)
+        db.insert_pipeline_run(sales_stats)
 
     logger.info("Immediate scraping completed!")
 
@@ -539,7 +638,7 @@ if __name__ == "__main__":
         help="Scraping mode",
     )
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
-    parser.add_argument("--max-pages", type=int, default=1, help="Maximum pages per JK")
+    parser.add_argument("--max-pages", type=int, default=10, help="Maximum pages per JK")
     parser.add_argument(
         "--rentals", action="store_true", help="Include rentals (immediate mode)"
     )
@@ -557,11 +656,28 @@ if __name__ == "__main__":
         default="list",
         help="Blacklist action",
     )
+    parser.add_argument(
+        "--city",
+        help="Only scrape this city (e.g. almaty, astana). Default: all cities",
+    )
+    parser.add_argument(
+        "--exclude-city",
+        help="Scrape all cities except this one (e.g. almaty). Cannot combine with --city",
+    )
     parser.add_argument("--krisha-id", help="Krisha ID for blacklist operations")
     parser.add_argument("--jk-name", help="JK name for blacklist operations")
     parser.add_argument("--notes", help="Notes for blacklisting")
 
     args = parser.parse_args()
+
+    # Map city shorthand to Cyrillic
+    city_map = {"almaty": "Алматы", "astana": "Астане", "all": None}
+    city = city_map.get(args.city, args.city) if args.city else None
+    exclude_city = (
+        city_map.get(args.exclude_city, args.exclude_city)
+        if args.exclude_city
+        else None
+    )
 
     if args.mode == "immediate":
         run_immediate_scraping(
@@ -569,6 +685,8 @@ if __name__ == "__main__":
             max_pages=args.max_pages,
             scrape_rentals=args.rentals or not (args.rentals or args.sales),
             scrape_sales=args.sales or not (args.rentals or args.sales),
+            city=city,
+            exclude_city=exclude_city,
         )
     elif args.mode == "daily-rentals":
         daily_rental_scraping_loop(

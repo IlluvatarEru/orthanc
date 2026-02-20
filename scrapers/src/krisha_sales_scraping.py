@@ -30,7 +30,6 @@ from scrapers.src.utils import (
     extract_flat_id_from_url,
     fetch_url,
     get_city_url_slug,
-    get_scraping_config,
 )
 
 
@@ -307,8 +306,7 @@ def scrape_jk_sales(
     logging.info(f"Max pages: {max_pages}")
 
     all_flats = []
-    config = get_scraping_config()
-    max_workers = config["concurrent_workers"]
+    from scrapers.src.utils import throttle
 
     # Search for the complex to get its ID
     from scrapers.src.residential_complex_scraper import search_complex_by_name
@@ -356,11 +354,12 @@ def scrape_jk_sales(
                 continue
             flat_ids_to_scrape.append(flat_id)
 
-        # Scrape flats concurrently (rate limiter in fetch_url ensures polite spacing)
+        # Scrape flats concurrently (adaptive throttle controls worker count)
+        current_workers = throttle.max_workers
         logging.info(
-            f"Scraping {len(flat_ids_to_scrape)} flats with {max_workers} workers"
+            f"Scraping {len(flat_ids_to_scrape)} flats with {current_workers} workers"
         )
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        with ThreadPoolExecutor(max_workers=current_workers) as executor:
             futures = {
                 executor.submit(
                     scrape_sales_flat_from_analytics_page_with_failover_to_sale_page,
