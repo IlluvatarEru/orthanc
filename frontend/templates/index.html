@@ -429,7 +429,7 @@
 </div>
 {% endif %}
 
-<!-- Quick Actions -->
+<!-- Quick Actions + District Blacklist -->
 <div class="row mb-4">
     <div class="col-md-6 mb-4">
         <div class="card">
@@ -452,6 +452,22 @@
             </div>
         </div>
     </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h5 class="mb-0"><i class="fas fa-map-marker-alt me-1"></i>District Blacklist</h5>
+                <select id="districtCity" class="form-select form-select-sm" style="width: auto;" onchange="loadDistricts()">
+                    <option value="almaty">Almaty</option>
+                    <option value="astana">Astana</option>
+                </select>
+            </div>
+            <div class="card-body">
+                <div id="districtList">
+                    <p class="text-muted mb-0">Loading districts...</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -470,6 +486,62 @@ function ignoreOpportunity(flatId) {
         }
     });
 }
+
+function loadDistricts() {
+    const city = document.getElementById('districtCity').value;
+    const container = document.getElementById('districtList');
+    container.innerHTML = '<p class="text-muted mb-0">Loading...</p>';
+
+    fetch('/api/districts/' + city)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.districts || data.districts.length === 0) {
+                container.innerHTML = '<p class="text-muted mb-0">No districts found. Run district scraper to populate.</p>';
+                return;
+            }
+            let html = '';
+            data.districts.forEach(d => {
+                const checked = d.blacklisted ? 'checked' : '';
+                const labelClass = d.blacklisted ? 'text-danger text-decoration-line-through' : 'text-white';
+                html += `<div class="form-check form-switch mb-1">
+                    <input class="form-check-input" type="checkbox" id="dist-${d.district}" ${checked}
+                           onchange="toggleDistrict('${city}', '${d.district}', this.checked)">
+                    <label class="form-check-label ${labelClass}" for="dist-${d.district}" id="dist-label-${d.district}"
+                           style="font-size: 0.85rem;">${d.district}</label>
+                </div>`;
+            });
+            container.innerHTML = html;
+        })
+        .catch(() => {
+            container.innerHTML = '<p class="text-muted mb-0">Error loading districts.</p>';
+        });
+}
+
+function toggleDistrict(city, district, blacklisted) {
+    const action = blacklisted ? 'add' : 'remove';
+    const label = document.getElementById('dist-label-' + district);
+
+    fetch('/api/blacklist_district', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({city: city, district: district, action: action})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            if (blacklisted) {
+                label.classList.add('text-danger', 'text-decoration-line-through');
+                label.classList.remove('text-white');
+            } else {
+                label.classList.remove('text-danger', 'text-decoration-line-through');
+                label.classList.add('text-white');
+            }
+        }
+    });
+}
+
+// Load districts on page load
+document.addEventListener('DOMContentLoaded', function() { loadDistricts(); });
 
 function ignoreOpportunityMobile(flatId) {
     fetch('/api/ignore_opportunity', {

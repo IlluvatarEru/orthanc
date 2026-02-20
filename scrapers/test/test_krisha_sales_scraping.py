@@ -92,15 +92,15 @@ class TestSalesScraping:
 
     def test_scrape_sales_flat_with_failover(self):
         """Test the failover function (analytics -> sale page)."""
-        logger.info(f"Testing sales scraping with failover for: {TEST_SALES_KRISHA_ID_1}")
+        logger.info(
+            f"Testing sales scraping with failover for: {TEST_SALES_KRISHA_ID_1}"
+        )
 
         flat_info = scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(
             TEST_SALES_KRISHA_ID_1
         )
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
@@ -119,9 +119,7 @@ class TestSalesScraping:
 
         flat_info = scrape_sales_flat_from_sale_page(TEST_SALES_KRISHA_ID_1)
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
@@ -140,9 +138,7 @@ class TestSalesScraping:
             TEST_SALES_KRISHA_ID_1
         )
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha")
 
         # Validate data quality
         assert flat_info.price > 0, "Price should be positive"
