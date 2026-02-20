@@ -435,6 +435,120 @@ def update_jks_with_unknown_cities(db_path: str = "flats.db", time_to_wait=2) ->
         return 0
 
 
+# Known districts per city with their Krisha aliases
+CITY_DISTRICTS = {
+    "Алматы": {
+        "Алатауский р-н": "almaty-alatauskij",
+        "Алмалинский р-н": "almaty-almalinskij",
+        "Ауэзовский р-н": "almaty-aujezovskij",
+        "Бостандыкский р-н": "almaty-bostandykskij",
+        "Жетысуский р-н": "almaty-zhetysuskij",
+        "Медеуский р-н": "almaty-medeuskij",
+        "Наурызбайский р-н": "almaty-nauryzbajskiy",
+        "Турксибский р-н": "almaty-turksibskij",
+    },
+    "Астане": {
+        "Алматы р-н": "astana-almatinskij",
+        "Байконыр р-н": "astana-bajkonyrskij",
+        "Есиль р-н": "astana-esilskij",
+        "Нура р-н": "astana-nura",
+        "Сарыарка р-н": "astana-saryarkinskij",
+    },
+}
+
+
+def scrape_districts_for_city(city: str = "Алматы", db_path: str = "flats.db") -> int:
+    """
+    Scrape Krisha complex search pages per district to populate the district
+    column in residential_complexes.
+
+    :param city: str, city name in Cyrillic (e.g. "Алматы")
+    :param db_path: str, database file path
+    :return: int, number of JKs updated with district info
+    """
+    import re
+
+    from bs4 import BeautifulSoup
+
+    districts = CITY_DISTRICTS.get(city, {})
+    if not districts:
+        logging.error(f"No district data for city: {city}")
+        return 0
+
+    db = OrthancDB(db_path)
+    # Build a lookup from name -> complex_id, scoped to this city only
+    all_jks = db.get_all_residential_complexes()
+    name_to_id = {
+        jk["name"]: jk["complex_id"] for jk in all_jks if jk.get("city") == city
+    }
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+    }
+
+    updated = 0
+    for district_name, district_alias in districts.items():
+        logging.info(f"Scraping district: {district_name} ({district_alias})")
+
+        page = 1
+        while True:
+            if page == 1:
+                url = f"https://krisha.kz/complex/search/{district_alias}/"
+            else:
+                url = f"https://krisha.kz/complex/search/{district_alias}/?page={page}"
+
+            try:
+                response = requests.get(url, headers=headers, timeout=15)
+                if response.status_code != 200:
+                    logging.warning(
+                        f"Failed to fetch {district_alias} page {page}: HTTP {response.status_code}"
+                    )
+                    break
+
+                soup = BeautifulSoup(response.text, "html.parser")
+
+                # Extract clean names from data-name attribute on complex cards
+                cards = soup.select(".complex-card[data-name]")
+                if not cards:
+                    break
+
+                for card in cards:
+                    name = card.get("data-name", "").strip()
+                    if not name:
+                        continue
+                    if name in name_to_id:
+                        complex_id = name_to_id[name]
+                        if db.update_residential_complex_district(
+                            complex_id, district_name
+                        ):
+                            updated += 1
+                            logging.info(f"  Updated {name} -> {district_name}")
+
+                # Check if there's a next page
+                max_page = 1
+                for link in soup.select("a[href*='page=']"):
+                    m = re.search(r"page=(\d+)", link.get("href", ""))
+                    if m:
+                        max_page = max(max_page, int(m.group(1)))
+
+                if page >= max_page:
+                    break
+                page += 1
+                time.sleep(1)  # Be respectful between pages
+
+            except Exception as e:
+                logging.warning(
+                    f"Error scraping district {district_name} page {page}: {e}"
+                )
+                break
+
+        time.sleep(1)  # Be respectful between districts
+
+    logging.info(f"Updated {updated} JKs with district info for {city}")
+    return updated
+
+
 def search_complex_by_name(name: str, db_path: str = "flats.db") -> Optional[Dict]:
     """
     Search for a residential complex by name.

@@ -11,7 +11,6 @@ import logging
 
 import pytest
 
-from common.src.flat_type import FlatType
 from scrapers.src.krisha_rental_scraping import (
     scrape_rental_flat,
     scrape_rental_flat_from_analytics_page_with_failover_to_rental_page,
@@ -95,9 +94,7 @@ class TestRentalsScraping:
             TEST_RENTAL_KRISHA_ID_1
         )
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_RENTAL_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_RENTAL_KRISHA_ID_1} no longer available on Krisha")
 
         assert isinstance(flat_info, FlatInfo)
         assert isinstance(flat_info.flat_id, str)
@@ -114,9 +111,7 @@ class TestRentalsScraping:
             krisha_id
         )
         if flat_info is None:
-            pytest.skip(
-                f"Flat {krisha_id} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {krisha_id} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
@@ -131,9 +126,7 @@ class TestRentalsScraping:
             TEST_RENTAL_KRISHA_ID_1
         )
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_RENTAL_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_RENTAL_KRISHA_ID_1} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
@@ -150,9 +143,7 @@ class TestRentalsScraping:
             TEST_RENTAL_KRISHA_ID_2
         )
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_RENTAL_KRISHA_ID_2} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_RENTAL_KRISHA_ID_2} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
@@ -167,9 +158,7 @@ class TestRentalsScraping:
 
         flat_info = scrape_rental_flat_from_rental_page(TEST_RENTAL_KRISHA_ID_1)
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_RENTAL_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_RENTAL_KRISHA_ID_1} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
@@ -184,9 +173,7 @@ class TestRentalsScraping:
 
         flat_info = scrape_rental_flat_from_rental_page(TEST_RENTAL_KRISHA_ID_2)
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_RENTAL_KRISHA_ID_2} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_RENTAL_KRISHA_ID_2} no longer available on Krisha")
 
         _log_flat_info(flat_info)
 
