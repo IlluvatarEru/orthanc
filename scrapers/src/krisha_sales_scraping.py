@@ -9,6 +9,7 @@ import requests
 import re
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, List
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -134,7 +135,10 @@ def scrape_sales_flat_from_analytics_page(
         }
 
         response = fetch_url(api_url, headers=headers, timeout=15)
-        logging.info(response.text)
+
+        if response.status_code == 204 or not response.text.strip():
+            logging.warning(f"Analytics API returned no content for flat {krisha_id}")
+            return None
 
         try:
             data = response.json()
@@ -305,6 +309,7 @@ def scrape_jk_sales(
     logging.info(f"Max pages: {max_pages}")
 
     all_flats = []
+    from scrapers.src.utils import throttle
 
     # Search for the complex to get its ID
     from scrapers.src.residential_complex_scraper import search_complex_by_name
@@ -341,36 +346,44 @@ def scrape_jk_sales(
 
         logging.info(f"Found {len(flat_urls)} flats on page {page}")
 
-        # Scrape each flat
+        # Filter out archived flats first (main thread, uses DB)
+        flat_ids_to_scrape = []
         for flat_url in flat_urls:
-            try:
-                # Extract flat ID from URL
-                flat_id = extract_flat_id_from_url(flat_url)
-                if not flat_id:
-                    continue
-
-                # Check if flat is already archived before scraping
-                if db.is_flat_archived(flat_id, is_rental=False):
-                    logging.info(f"Skipping archived sales flat: {flat_id}")
-                    continue
-
-                # Scrape the flat with failover
-                flat_info = (
-                    scrape_sales_flat_from_analytics_page_with_failover_to_sale_page(
-                        flat_id
-                    )
-                )
-                if flat_info:
-                    all_flats.append(flat_info)
-                    logging.info(
-                        f"Successfully scraped sales flat: {flat_id} (archived: {flat_info.archived})"
-                    )
-                else:
-                    logging.error(f"Failed to scrape sales flat: {flat_id}")
-
-            except Exception as e:
-                logging.error(f"Error scraping flat from {flat_url}: {e}")
+            flat_id = extract_flat_id_from_url(flat_url)
+            if not flat_id:
                 continue
+            if db.is_flat_archived(flat_id, is_rental=False):
+                logging.info(f"Skipping archived sales flat: {flat_id}")
+                continue
+            flat_ids_to_scrape.append(flat_id)
+
+        # Scrape flats concurrently (adaptive throttle controls worker count)
+        current_workers = throttle.max_workers
+        logging.info(
+            f"Scraping {len(flat_ids_to_scrape)} flats with {current_workers} workers"
+        )
+        with ThreadPoolExecutor(max_workers=current_workers) as executor:
+            futures = {
+                executor.submit(
+                    scrape_sales_flat_from_analytics_page_with_failover_to_sale_page,
+                    flat_id,
+                ): flat_id
+                for flat_id in flat_ids_to_scrape
+            }
+
+            for future in as_completed(futures):
+                flat_id = futures[future]
+                try:
+                    flat_info = future.result()
+                    if flat_info:
+                        all_flats.append(flat_info)
+                        logging.info(
+                            f"Successfully scraped sales flat: {flat_id} (archived: {flat_info.archived})"
+                        )
+                    else:
+                        logging.error(f"Failed to scrape sales flat: {flat_id}")
+                except Exception as e:
+                    logging.error(f"Error scraping flat {flat_id}: {e}")
 
     logging.info(
         f"Completed JK sales scraping for {jk_name}. Total flats: {len(all_flats)}"

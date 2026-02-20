@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Orthanc Capital{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h2 mb-3">{{ title }}</h1>
+        <div class="card">
+            <div class="card-body">
+                <p class="text-muted mb-3">{{ message }}</p>
+                <a href="{{ url_for('index') }}" class="btn btn-outline-light btn-sm">Back to Dashboard</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
