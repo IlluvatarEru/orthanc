@@ -135,7 +135,10 @@ def scrape_sales_flat_from_analytics_page(
         }
 
         response = fetch_url(api_url, headers=headers, timeout=15)
-        logging.info(response.text)
+
+        if response.status_code == 204 or not response.text.strip():
+            logging.warning(f"Analytics API returned no content for flat {krisha_id}")
+            return None
 
         try:
             data = response.json()

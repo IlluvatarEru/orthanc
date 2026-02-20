@@ -12,7 +12,7 @@ import time
 import functools
 import threading
 import os
-from typing import Optional, List
+from typing import Dict, Optional, List
 from bs4 import BeautifulSoup
 from common.src.flat_type import FlatType
 
@@ -455,7 +455,7 @@ def extract_area(soup: BeautifulSoup) -> Optional[float]:
                 area_match = re.search(r"(\d+(?:\.\d+)?)", area_text)
                 if area_match:
                     area_value = float(area_match.group(1))
-                    if 10 <= area_value <= 500:  # Reasonable area range
+                    if 10 <= area_value <= 2000:  # Reasonable area range
                         return area_value
 
         # If selectors don't work, try to find area in the page text
@@ -477,7 +477,7 @@ def extract_area(soup: BeautifulSoup) -> Optional[float]:
                 # Get the first reasonable area
                 for match in matches:
                     area_value = float(match)
-                    if 10 <= area_value <= 500:  # Reasonable area range
+                    if 10 <= area_value <= 2000:  # Reasonable area range
                         logging.info(f"Found area in text: {area_value}")
                         return area_value
 
