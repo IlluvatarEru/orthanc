@@ -14,7 +14,7 @@ MONITORED_PROCESSES = {
     "market-data": "price.launch.launch_market_data",
 }
 
-PIPELINE_LOG = "/root/orthanc/daily_pipeline.out"
+PIPELINE_LOG_DIR = "/root/orthanc/logs"
 PIPELINE_CMD_PATTERN = "daily_sales_pipeline"
 
 
@@ -54,6 +54,15 @@ def get_process_uptimes() -> dict:
     return result
 
 
+def _get_latest_pipeline_log() -> str:
+    """Find the most recent pipeline log file in the logs directory."""
+    import glob
+
+    pattern = os.path.join(PIPELINE_LOG_DIR, "pipeline_*.log")
+    files = sorted(glob.glob(pattern))
+    return files[-1] if files else None
+
+
 def get_pipeline_status() -> dict:
     """Get daily sales pipeline status from cron job."""
     status = {"running": False, "last_start": None, "last_complete": None}
@@ -69,28 +78,35 @@ def get_pipeline_status() -> dict:
     except Exception:
         pass
 
-    # Parse log file for last start/complete timestamps
-    if os.path.exists(PIPELINE_LOG):
+    # Parse latest log file for start/complete timestamps
+    # Start is at the top, complete is at the bottom
+    log_file = _get_latest_pipeline_log()
+    if log_file:
         try:
-            result = subprocess.run(
-                ["/usr/bin/tail", "-50", PIPELINE_LOG],
+            # Get first few lines for start timestamp
+            head = subprocess.run(
+                ["/usr/bin/head", "-5", log_file],
                 capture_output=True,
                 text=True,
             )
-            lines = result.stdout.strip().splitlines()
-            for line in reversed(lines):
-                if "Starting daily sales pipeline" in line and not status["last_start"]:
+            for line in head.stdout.strip().splitlines():
+                if "Starting daily sales pipeline" in line:
                     match = re.search(r"=== (.+?) ===", line)
                     if match:
                         status["last_start"] = match.group(1)
-                if (
-                    "Daily sales pipeline complete" in line
-                    and not status["last_complete"]
-                ):
+                    break
+
+            # Get last few lines for complete timestamp
+            tail = subprocess.run(
+                ["/usr/bin/tail", "-5", log_file],
+                capture_output=True,
+                text=True,
+            )
+            for line in reversed(tail.stdout.strip().splitlines()):
+                if "Daily sales pipeline complete" in line:
                     match = re.search(r"=== (.+?) ===", line)
                     if match:
                         status["last_complete"] = match.group(1)
-                if status["last_start"] and status["last_complete"]:
                     break
         except Exception:
             pass
@@ -147,14 +163,18 @@ class StatusHandler(BaseHTTPRequestHandler):
     db_path = "flats.db"
 
     def do_GET(self):
+        pipeline = get_pipeline_status()
+        last_run = get_latest_pipeline_run(self.db_path)
+        if last_run:
+            pipeline.update(last_run)
+
         status = {
             "services": {
                 "api": "up" if get_service_status("orthanc-api") else "down",
                 "web": "up" if get_service_status("orthanc-web") else "down",
             },
             "processes": get_process_uptimes(),
-            "pipeline": get_pipeline_status(),
-            "last_run": get_latest_pipeline_run(self.db_path),
+            "pipeline": pipeline,
             "latest_timestamps": get_latest_timestamps(self.db_path),
         }
 
