@@ -129,6 +129,7 @@ class OrthancDB:
         url: str,
         query_date: str,
         flat_type: str = None,
+        city: str = None,
     ) -> bool:
         """
         Insert sales flat information into database.
@@ -137,6 +138,7 @@ class OrthancDB:
         :param url: str, original URL of the flat
         :param query_date: str, date when the query was made (YYYY-MM-DD)
         :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+') - optional, uses flat_info.flat_type if not provided
+        :param city: str, city name in Cyrillic (e.g. "Алматы")
         :return: bool, True if successful
         """
         self.connect()
@@ -149,8 +151,8 @@ class OrthancDB:
                 """
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                    construction_year, parking, description, url, query_date, archived
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    construction_year, parking, description, url, query_date, archived, city
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -166,6 +168,7 @@ class OrthancDB:
                     url,
                     query_date,
                     1 if flat_info.archived else 0,
+                    city,
                 ),
             )
 
@@ -1766,23 +1769,31 @@ class OrthancDB:
         self.disconnect()
         return latest_rentals
 
-    def get_latest_sales_for_jk(self, jk_name: str) -> List[dict]:
+    def get_latest_sales_for_jk(self, jk_name: str, city: str = None) -> List[dict]:
         """
         Get latest sales data for a residential complex (most recent query_date for each flat_id).
 
         :param jk_name: str, name of the residential complex
+        :param city: str, city name in Cyrillic to filter by (optional)
         :return: List[dict], list of latest sales data with all fields
         """
         self.connect()
 
-        query = """
+        params = [jk_name]
+        city_filter = ""
+        if city:
+            city_filter = "AND sf.city = ?"
+            params.append(city)
+
+        query = f"""
             SELECT sf.*,
                    ROW_NUMBER() OVER (PARTITION BY sf.flat_id ORDER BY sf.query_date DESC) as rn
             FROM sales_flats sf
             WHERE sf.residential_complex = ? AND (sf.archived = 0 OR sf.archived IS NULL)
+            {city_filter}
         """
 
-        cursor = self.conn.execute(query, (jk_name,))
+        cursor = self.conn.execute(query, params)
         latest_sales = [dict(row) for row in cursor.fetchall() if row["rn"] == 1]
 
         self.disconnect()
@@ -2196,9 +2207,12 @@ class OrthancDB:
             # Compute legacy aggregate columns from breakdown
             error_breakdown = stats.get("error_breakdown", {})
             rate_limited = error_breakdown.get("http_429", 0)
-            http_errors = sum(v for k, v in error_breakdown.items() if k.startswith("http_"))
+            http_errors = sum(
+                v for k, v in error_breakdown.items() if k.startswith("http_")
+            )
             request_errors = sum(
-                v for k, v in error_breakdown.items()
+                v
+                for k, v in error_breakdown.items()
                 if k in ("timeout", "connection_error", "other_error")
             )
 
@@ -2425,19 +2439,28 @@ class OrthancDB:
             conditions.append("oa.price <= ?")
             params.append(max_price)
 
-        # Exclude ignored opportunities, blacklisted JKs, and blacklisted districts
+        # Exclude ignored opportunities and blacklisted JKs
         conditions.append(
             "oa.flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)"
         )
         conditions.append(
             "oa.residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
         )
+
+        # Exclude JKs in blacklisted districts
         conditions.append(
-            "NOT EXISTS (SELECT 1 FROM blacklisted_districts bd WHERE bd.city = rc.city AND bd.district = rc.district)"
+            """NOT EXISTS (
+                SELECT 1 FROM residential_complexes rc2
+                JOIN blacklisted_districts bd ON bd.city = rc2.city AND bd.district = rc2.district
+                WHERE rc2.name = oa.residential_complex
+            )"""
         )
 
+        # City filter: require at least one matching RC in the target city
         if city is not None:
-            conditions.append("rc.city = ?")
+            conditions.append(
+                "EXISTS (SELECT 1 FROM residential_complexes rc3 WHERE rc3.name = oa.residential_complex AND rc3.city = ?)"
+            )
             params.append(city)
 
         if flat_types is not None:
@@ -2451,7 +2474,6 @@ class OrthancDB:
 
         query = f"""
             SELECT oa.* FROM opportunity_analysis oa
-            LEFT JOIN residential_complexes rc ON oa.residential_complex = rc.name
             WHERE oa.run_timestamp = (
                 SELECT MAX(run_timestamp) FROM opportunity_analysis
             )

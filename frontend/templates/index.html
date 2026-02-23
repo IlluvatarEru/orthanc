@@ -22,18 +22,14 @@
             <div class="card-header">
                 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">Top Sale Opportunities</h5>
-                <form class="d-flex flex-wrap gap-2 align-items-center" method="GET" action="/">
-                    <div class="d-flex align-items-center gap-1">
-                        <label for="city" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">City:</label>
-                        <select name="city" id="city" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                <form method="GET" action="/">
+                    <div class="d-flex flex-wrap gap-2 align-items-center" style="overflow-x: auto;">
+                        <select name="city" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
                             <option value="almaty" {% if city == 'almaty' %}selected{% endif %}>Almaty</option>
                             <option value="astana" {% if city == 'astana' %}selected{% endif %}>Astana</option>
-                            <option value="all" {% if city == 'all' %}selected{% endif %}>All Cities</option>
+                            <option value="all" {% if city == 'all' %}selected{% endif %}>All</option>
                         </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label for="flat_type" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Type:</label>
-                        <select name="flat_type" id="flat_type" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        <select name="flat_type" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
                             <option value="default" {% if flat_type == 'default' %}selected{% endif %}>S/1/2BR</option>
                             <option value="all" {% if flat_type == 'all' %}selected{% endif %}>All</option>
                             <option value="Studio" {% if flat_type == 'Studio' %}selected{% endif %}>Studio</option>
@@ -41,36 +37,28 @@
                             <option value="2BR" {% if flat_type == '2BR' %}selected{% endif %}>2BR</option>
                             <option value="3BR+" {% if flat_type == '3BR+' %}selected{% endif %}>3BR+</option>
                         </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label for="max_price" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Max Price:</label>
-                        <select name="max_price" id="max_price" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        <select name="max_price" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
                             <option value="30000000" {% if max_price == 30000000 %}selected{% endif %}>₸30M</option>
                             <option value="50000000" {% if max_price == 50000000 %}selected{% endif %}>₸50M</option>
                             <option value="80000000" {% if max_price == 80000000 %}selected{% endif %}>₸80M</option>
                             <option value="100000000" {% if max_price == 100000000 %}selected{% endif %}>₸100M</option>
                             <option value="150000000" {% if max_price == 150000000 %}selected{% endif %}>₸150M</option>
-                            <option value="999999999" {% if max_price == 999999999 %}selected{% endif %}>All</option>
+                            <option value="999999999" {% if max_price == 999999999 %}selected{% endif %}>No limit</option>
                         </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label for="max_age_days" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Updated:</label>
-                        <select name="max_age_days" id="max_age_days" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
+                        <select name="max_age_days" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
                             <option value="1" {% if max_age_days == 1 %}selected{% endif %}>Today</option>
-                            <option value="3" {% if max_age_days == 3 %}selected{% endif %}>3 days</option>
-                            <option value="7" {% if max_age_days == 7 %}selected{% endif %}>1 week</option>
-                            <option value="14" {% if max_age_days == 14 %}selected{% endif %}>2 weeks</option>
-                            <option value="30" {% if max_age_days == 30 %}selected{% endif %}>1 month</option>
+                            <option value="3" {% if max_age_days == 3 %}selected{% endif %}>3d</option>
+                            <option value="7" {% if max_age_days == 7 %}selected{% endif %}>1w</option>
+                            <option value="14" {% if max_age_days == 14 %}selected{% endif %}>2w</option>
+                            <option value="30" {% if max_age_days == 30 %}selected{% endif %}>1mo</option>
                             <option value="365" {% if max_age_days == 365 %}selected{% endif %}>All</option>
                         </select>
-                    </div>
-                    <div class="d-flex align-items-center gap-1">
-                        <label for="limit" class="text-muted mb-0" style="font-size: 0.85rem; white-space: nowrap;">Show:</label>
-                        <select name="limit" id="limit" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
-                            <option value="10" {% if limit == 10 %}selected{% endif %}>10</option>
+                        <select name="limit" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
                             <option value="25" {% if limit == 25 %}selected{% endif %}>25</option>
                             <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>
                             <option value="100" {% if limit == 100 %}selected{% endif %}>100</option>
+                            <option value="200" {% if limit == 200 %}selected{% endif %}>200</option>
+                            <option value="300" {% if limit == 300 %}selected{% endif %}>300</option>
                         </select>
                     </div>
                 </form>

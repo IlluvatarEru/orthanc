@@ -145,9 +145,10 @@
                                 <th>OK</th>
                                 <th>Failed</th>
                                 <th>Flats</th>
-                                <th>Rate Ltd</th>
-                                <th>HTTP Err</th>
-                                <th>Req Err</th>
+                                <th>Timeouts</th>
+                                <th>429s</th>
+                                <th>404s</th>
+                                <th>Conn Err</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -160,9 +161,10 @@
                                 <td style="color: var(--accent-green);">{{ run.jks_successful }}</td>
                                 <td {% if run.jks_failed > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.jks_failed }}</td>
                                 <td>{{ "{:,}".format(run.flats_scraped) }}</td>
-                                <td {% if run.rate_limited > 0 %}style="color: var(--accent-orange);"{% endif %}>{{ run.rate_limited }}</td>
-                                <td {% if run.http_errors > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.http_errors }}</td>
-                                <td {% if run.request_errors > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.request_errors }}</td>
+                                <td {% if run.timeouts > 0 %}style="color: var(--accent-orange);"{% endif %}>{{ run.timeouts }}</td>
+                                <td {% if run.http_429 > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.http_429 }}</td>
+                                <td>{{ run.http_404 }}</td>
+                                <td {% if run.conn_errors > 0 %}style="color: var(--accent-orange);"{% endif %}>{{ run.conn_errors }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -185,9 +187,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const labels = [{% for run in runs|reverse %}'{{ run.finished_at[:10] }} {{ (run.city or "All")[:3] }}'{% if not loop.last %}, {% endif %}{% endfor %}];
     const durations = [{% for run in runs|reverse %}{{ "%.1f"|format(run.duration_seconds / 60) }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const flatsScraped = [{% for run in runs|reverse %}{{ run.flats_scraped }}{% if not loop.last %}, {% endif %}{% endfor %}];
-    const rateLimited = [{% for run in runs|reverse %}{{ run.rate_limited }}{% if not loop.last %}, {% endif %}{% endfor %}];
-    const httpErrors = [{% for run in runs|reverse %}{{ run.http_errors }}{% if not loop.last %}, {% endif %}{% endfor %}];
-    const requestErrors = [{% for run in runs|reverse %}{{ run.request_errors }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const timeouts = [{% for run in runs|reverse %}{{ run.timeouts }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const http429 = [{% for run in runs|reverse %}{{ run.http_429 }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const http404 = [{% for run in runs|reverse %}{{ run.http_404 }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const jksFailed = [{% for run in runs|reverse %}{{ run.jks_failed }}{% if not loop.last %}, {% endif %}{% endfor %}];
 
     const gridColor = 'rgba(255,255,255,0.1)';
@@ -250,22 +252,22 @@ document.addEventListener('DOMContentLoaded', function() {
             labels: labels,
             datasets: [
                 {
-                    label: 'Rate Limited',
-                    data: rateLimited,
+                    label: 'Timeouts',
+                    data: timeouts,
                     backgroundColor: 'rgba(255, 165, 2, 0.7)',
                     borderColor: '#ffa502',
                     borderWidth: 1
                 },
                 {
-                    label: 'HTTP Errors',
-                    data: httpErrors,
+                    label: '429 Rate Limited',
+                    data: http429,
                     backgroundColor: 'rgba(255, 71, 87, 0.7)',
                     borderColor: '#ff4757',
                     borderWidth: 1
                 },
                 {
-                    label: 'Request Errors',
-                    data: requestErrors,
+                    label: '404 Not Found',
+                    data: http404,
                     backgroundColor: 'rgba(165, 94, 234, 0.7)',
                     borderColor: '#a55eea',
                     borderWidth: 1

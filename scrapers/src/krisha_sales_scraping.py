@@ -190,6 +190,9 @@ def scrape_sales_flat_from_analytics_page(
 
         flat_type = determine_flat_type_from_text(title, description, area)
 
+        # City from API response (e.g. "Астана", "Алматы")
+        api_city = advert.get("city")
+
         flat_info = FlatInfo(
             flat_id=str(krisha_id),
             price=int(price),
@@ -203,6 +206,7 @@ def scrape_sales_flat_from_analytics_page(
             description=description,
             is_rental=False,  # Sales flat
             archived=is_archived,
+            city=api_city,
         )
 
         return flat_info
@@ -454,12 +458,14 @@ def scrape_and_save_jk_sales(
 
     # Save scraped flats
     for flat_info in flats:
-        # Save sales flat to database with archived status
+        # Prefer city from API response (per-flat), fall back to JK-level city
+        flat_city = flat_info.city or city
         success = db.insert_sales_flat(
             flat_info=flat_info,
             url=f"https://krisha.kz/a/show/{flat_info.flat_id}",
             query_date=datetime.now().strftime("%Y-%m-%d"),
             flat_type=flat_info.flat_type,
+            city=flat_city,
         )
 
         if success:
@@ -469,22 +475,30 @@ def scrape_and_save_jk_sales(
         else:
             logging.error(f"Failed to save sales flat: {flat_info.flat_id}")
 
-    # Check existing non-archived flats that weren't in the scraped results
-    flats_to_check = [
-        flat_id for flat_id in existing_flat_ids if flat_id not in scraped_flat_ids
-    ]
+    # Check existing non-archived flats that weren't in the scraped results.
+    # Skip if the scrape returned 0 flats -- Krisha may be blocking us,
+    # and checking individual flats would just burn retries on a blocked IP.
+    if flats:
+        flats_to_check = [
+            flat_id for flat_id in existing_flat_ids if flat_id not in scraped_flat_ids
+        ]
 
-    if flats_to_check:
+        if flats_to_check:
+            logging.info(
+                f"Checking {len(flats_to_check)} existing non-archived flats for archived status..."
+            )
+            archived_count = 0
+            for flat_id in flats_to_check:
+                if check_if_sales_flat_is_archived(flat_id):
+                    if db.mark_flat_as_archived(flat_id, is_rental=False):
+                        archived_count += 1
+                        logging.info(f"Marked sales flat {flat_id} as archived")
+            logging.info(f"Marked {archived_count} sales flats as archived")
+    elif existing_flat_ids:
         logging.info(
-            f"Checking {len(flats_to_check)} existing non-archived flats for archived status..."
+            f"Skipping archived check for {len(existing_flat_ids)} existing flats "
+            f"(scrape returned 0 results, Krisha may be blocking us)"
         )
-        archived_count = 0
-        for flat_id in flats_to_check:
-            if check_if_sales_flat_is_archived(flat_id):
-                if db.mark_flat_as_archived(flat_id, is_rental=False):
-                    archived_count += 1
-                    logging.info(f"Marked sales flat {flat_id} as archived")
-        logging.info(f"Marked {archived_count} sales flats as archived")
 
     logging.info(
         f"Completed JK sales scraping and saving for {jk_name}. Saved: {saved_count}/{len(flats)}"

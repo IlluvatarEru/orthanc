@@ -147,3 +147,36 @@ class TestSalesScraping:
             f"Invalid flat type: {flat_info.flat_type}"
         )
         assert flat_info.description, "Description should not be empty"
+
+    def test_city_classification_astana_ak_bota(self):
+        """Test that Ак Бота flat 1009432578 in Astana is classified as Астана."""
+        flat_info = scrape_sales_flat_from_analytics_page("1009432578")
+        if flat_info is None:
+            pytest.skip("Flat 1009432578 no longer available on Krisha")
+
+        assert flat_info.city == "Астана", (
+            f"Flat 1009432578 (Ак Бота) should be Астана, got {flat_info.city}"
+        )
+        assert flat_info.residential_complex == "Ак Бота"
+
+    def test_city_classification_astana_1008682324(self):
+        """Test that flat 1008682324 in Astana is classified as Астана."""
+        flat_info = scrape_sales_flat_from_analytics_page("1008682324")
+        if flat_info is None:
+            pytest.skip("Flat 1008682324 no longer available on Krisha")
+
+        assert flat_info.city == "Астана", (
+            f"Flat 1008682324 should be Астана, got {flat_info.city}"
+        )
+
+    def test_city_classification_almaty(self):
+        """Test that a known Almaty flat is classified as Алматы."""
+        flat_info = scrape_sales_flat_from_analytics_page(TEST_SALES_KRISHA_ID_1)
+        if flat_info is None:
+            pytest.skip(
+                f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha"
+            )
+
+        assert flat_info.city == "Алматы", (
+            f"Flat {TEST_SALES_KRISHA_ID_1} (Meridian) should be Алматы, got {flat_info.city}"
+        )

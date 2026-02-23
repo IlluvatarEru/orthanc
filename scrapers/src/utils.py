@@ -101,12 +101,24 @@ def get_session() -> requests.Session:
     return _session
 
 
+class ScrapingCircuitBreaker(Exception):
+    """Raised when too many consecutive failures indicate Krisha is blocking us."""
+
+    pass
+
+
 class AdaptiveThrottle:
     """
     Monitors recent request error rates and dynamically adjusts delay and
     worker count.  Escalates (slower, fewer workers) when errors spike,
     recovers (faster, more workers) when stable.
+
+    Also tracks consecutive JK-level failures. If N JKs in a row produce
+    zero results (all requests failed), the circuit breaker trips and the
+    run should be stopped early.
     """
+
+    CONSECUTIVE_FAILURE_LIMIT = 10
 
     def __init__(self):
         cfg = get_scraping_config()
@@ -126,6 +138,10 @@ class AdaptiveThrottle:
         self._recent_requests = 0
         self._window_start = time.time()
         self._cooldown_until = 0.0
+
+        # Circuit breaker: consecutive JK failures
+        self._consecutive_jk_failures = 0
+        self._circuit_broken = False
 
     def _reset_window(self):
         """Reset the rolling window counters."""
@@ -193,6 +209,46 @@ class AdaptiveThrottle:
         if remaining > 0:
             logging.info(f"Throttle cooldown: waiting {remaining:.0f}s")
             time.sleep(remaining)
+
+    def record_jk_result(self, saved_count: int) -> None:
+        """
+        Record whether a JK scrape produced results.
+        If N consecutive JKs fail (0 results), trip the circuit breaker.
+
+        :param saved_count: int, number of flats saved for this JK (0 = failure)
+        """
+        with self._lock:
+            if saved_count > 0:
+                self._consecutive_jk_failures = 0
+            else:
+                self._consecutive_jk_failures += 1
+                if (
+                    self._consecutive_jk_failures >= self.CONSECUTIVE_FAILURE_LIMIT
+                    and not self._circuit_broken
+                ):
+                    self._circuit_broken = True
+                    logging.error(
+                        f"Circuit breaker tripped: {self._consecutive_jk_failures} "
+                        f"consecutive JKs returned 0 results. "
+                        f"Krisha is likely blocking us."
+                    )
+
+    @property
+    def is_circuit_broken(self) -> bool:
+        """Check if the circuit breaker has tripped."""
+        return self._circuit_broken
+
+    def reset(self) -> None:
+        """Reset the throttle state for a new run."""
+        with self._lock:
+            self.delay = self.base_delay
+            self.max_workers = self.base_workers
+            self._recent_errors = 0
+            self._recent_requests = 0
+            self._window_start = time.time()
+            self._cooldown_until = 0.0
+            self._consecutive_jk_failures = 0
+            self._circuit_broken = False
 
 
 # Module-level singleton
@@ -617,12 +673,9 @@ def determine_flat_type(area: float) -> str:
 def determine_flat_type_from_text(
     title: str, description: str, area: Optional[float]
 ) -> str:
-    """Derive flat type preferring title, then description, then area fallback."""
+    """Derive flat type preferring room count, then studio keyword, then area fallback."""
     combined = f"{title}\n{description}".lower()
-    # Studio keywords
-    if re.search(r"студи\w+", combined):
-        return "Studio"
-    # N-room patterns
+    # N-room patterns (check first -- most reliable signal)
     m = re.search(r"(\d+)\s*[-–]?\s*комнатн", combined)
     if m:
         try:
@@ -636,6 +689,12 @@ def determine_flat_type_from_text(
             return "3BR+"
         except Exception:
             pass
+    # Studio keywords -- but not "кухня-студия" / "кухней-студией" which describes
+    # the kitchen layout, not the flat type
+    if re.search(r"студи\w+", combined) and not re.search(
+        r"кухн\w*[- ]студи", combined
+    ):
+        return "Studio"
     # Fallback to area-based determination
     if area is not None:
         return determine_flat_type(area)

@@ -34,3 +34,4 @@ class FlatInfo:
     is_rental: bool = False
     archived: bool = False
     scraped_at: Optional[str] = None
+    city: Optional[str] = None

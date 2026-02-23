@@ -22,7 +22,7 @@ from scrapers.src.residential_complex_scraper import (
     scrape_districts_for_city,
     CITY_DISTRICTS,
 )
-from scrapers.src.utils import get_and_reset_error_counts, get_scraping_config
+from scrapers.src.utils import get_and_reset_error_counts, get_scraping_config, throttle
 
 logger = setup_logging(__name__, log_file="jk_scraping.log")
 
@@ -56,6 +56,34 @@ def _prioritize_jks(jks: List[Dict]) -> List[Dict]:
     return priority + rest
 
 
+def _log_scraping_summary(db: OrthancDB, jks: List[Dict], city: str = None) -> None:
+    """
+    Log a summary of how many JKs will be scraped and how many were excluded.
+
+    :param db: OrthancDB, database instance
+    :param jks: List[Dict], JKs that will be scraped (after all filtering)
+    :param city: str, city filter applied (None = all cities)
+    """
+    blacklisted_jks = db.get_blacklisted_jks()
+    blacklisted_districts = db.get_blacklisted_districts()
+    excluded_count = db.get_residential_complexes_count() - len(jks)
+
+    city_label = city or "all cities"
+    district_names = [f"{d['district']} ({d['city']})" for d in blacklisted_districts]
+
+    logger.info("=" * 60)
+    logger.info(f"SCRAPING SUMMARY ({city_label})")
+    logger.info(f"  JKs to scrape:          {len(jks)}")
+    logger.info(f"  Excluded:               {excluded_count}")
+    if blacklisted_jks:
+        logger.info(
+            f"    Blacklisted JKs:      {[jk['name'] for jk in blacklisted_jks]}"
+        )
+    if blacklisted_districts:
+        logger.info(f"    Blacklisted districts: {district_names}")
+    logger.info("=" * 60)
+
+
 def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     """
     Get all residential complexes (JKs) from the residential_complexes table, excluding blacklisted ones.
@@ -70,16 +98,7 @@ def get_all_jks_from_db(db_path: str = "flats.db") -> List[Dict]:
     db = OrthancDB(db_path)
     jks = db.get_all_jks_excluding_blacklisted_no_city_filter()
 
-    logger.info(
-        f"Found {len(jks)} JKs in residential_complexes table (excluding blacklisted)"
-    )
-
-    # Log blacklisted JKs for transparency
-    blacklisted_jks = db.get_blacklisted_jks()
-    if blacklisted_jks:
-        logger.info(
-            f"Excluded {len(blacklisted_jks)} blacklisted JKs: {[jk['name'] for jk in blacklisted_jks]}"
-        )
+    _log_scraping_summary(db, jks)
 
     return jks
 
@@ -101,10 +120,19 @@ def scrape_all_jk_rentals(
         logger.warning("No JKs found in database")
         return {}
 
+    throttle.reset()
     results = {}
     total_saved = 0
 
     for i, jk_info in enumerate(jks, 1):
+        if throttle.is_circuit_broken:
+            remaining = len(jks) - i + 1
+            logger.warning(
+                f"Circuit breaker: stopping early. "
+                f"Skipping {remaining} remaining JKs."
+            )
+            break
+
         jk_name = jk_info["residential_complex"]
         jk_city = jk_info.get("city", "almaty") or "almaty"
         progress_pct = (i / len(jks)) * 100
@@ -119,15 +147,17 @@ def scrape_all_jk_rentals(
 
             results[jk_name] = saved_count
             total_saved += saved_count
+            throttle.record_jk_result(saved_count)
 
-            logger.info(f"✅ {jk_name}: {saved_count} rental flats saved")
+            logger.info(f"  {jk_name}: {saved_count} rental flats saved")
 
             # Add delay between JKs to be respectful
             time.sleep(2)
 
         except Exception as e:
-            logger.error(f"❌ Error scraping {jk_name}: {e}")
+            logger.error(f"  Error scraping {jk_name}: {e}")
             results[jk_name] = 0
+            throttle.record_jk_result(0)
 
     logger.info(f"Completed JK rental scraping. Total saved: {total_saved}")
     return results
@@ -150,8 +180,9 @@ def scrape_all_jk_sales(
              city, jks_total, jks_successful, jks_failed, flats_scraped,
              rate_limited, http_errors, request_errors
     """
-    # Reset error counters before this run
+    # Reset error counters and throttle state before this run
     get_and_reset_error_counts()
+    throttle.reset()
     start_time = time.time()
     started_at = datetime.now().isoformat()
 
@@ -162,7 +193,8 @@ def scrape_all_jk_sales(
     else:
         logger.info("Starting scraping of all JK sales")
 
-    jks = get_all_jks_from_db(db_path)
+    db = OrthancDB(db_path)
+    jks = db.get_all_jks_excluding_blacklisted_no_city_filter()
     if not jks:
         logger.warning("No JKs found in database")
         finished_at = datetime.now().isoformat()
@@ -183,10 +215,10 @@ def scrape_all_jk_sales(
 
     if city:
         jks = [jk for jk in jks if jk.get("city") == city]
-        logger.info(f"Filtered to {len(jks)} JKs in {city}")
     elif exclude_city:
         jks = [jk for jk in jks if jk.get("city") != exclude_city]
-        logger.info(f"Filtered to {len(jks)} JKs (excluding {exclude_city})")
+
+    _log_scraping_summary(db, jks, city=city or exclude_city)
 
     jks = _prioritize_jks(jks)
 
@@ -194,7 +226,18 @@ def scrape_all_jk_sales(
     total_saved = 0
     jks_failed = 0
 
+    circuit_broken = False
     for i, jk_info in enumerate(jks, 1):
+        # Check circuit breaker before each JK
+        if throttle.is_circuit_broken:
+            remaining = len(jks) - i + 1
+            logger.warning(
+                f"Circuit breaker: stopping early. "
+                f"Skipping {remaining} remaining JKs."
+            )
+            circuit_broken = True
+            break
+
         jk_name = jk_info["residential_complex"]
         jk_city = jk_info.get("city", "almaty") or "almaty"
         progress_pct = (i / len(jks)) * 100
@@ -209,25 +252,28 @@ def scrape_all_jk_sales(
 
             results[jk_name] = saved_count
             total_saved += saved_count
+            throttle.record_jk_result(saved_count)
 
-            logger.info(f"✅ {jk_name}: {saved_count} sales flats saved")
+            logger.info(f"  {jk_name}: {saved_count} sales flats saved")
 
             # Add delay between JKs to be respectful
             time.sleep(2)
 
         except Exception as e:
-            logger.error(f"❌ Error scraping {jk_name}: {e}")
+            logger.error(f"  Error scraping {jk_name}: {e}")
             results[jk_name] = 0
             jks_failed += 1
+            throttle.record_jk_result(0)
 
     finished_at = datetime.now().isoformat()
     duration = time.time() - start_time
     jks_successful = len([r for r in results.values() if r > 0])
     error_counts = get_and_reset_error_counts()
 
-    logger.info(f"Completed JK sales scraping. Total saved: {total_saved}")
+    status_msg = "Circuit breaker stopped run early" if circuit_broken else "Completed"
+    logger.info(f"{status_msg}. Total saved: {total_saved}")
     logger.info(
-        f"Stats: {len(results)} JKs total, {jks_successful} successful, "
+        f"Stats: {len(results)} JKs processed, {jks_successful} successful, "
         f"{jks_failed} failed, {total_saved} flats, {duration:.1f}s"
     )
     if error_counts:
@@ -641,7 +687,9 @@ if __name__ == "__main__":
         help="Scraping mode",
     )
     parser.add_argument("--db-path", default="flats.db", help="Database file path")
-    parser.add_argument("--max-pages", type=int, default=10, help="Maximum pages per JK")
+    parser.add_argument(
+        "--max-pages", type=int, default=10, help="Maximum pages per JK"
+    )
     parser.add_argument(
         "--rentals", action="store_true", help="Include rentals (immediate mode)"
     )

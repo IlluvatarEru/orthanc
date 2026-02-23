@@ -87,6 +87,7 @@ class DatabaseSchema:
                 url TEXT NOT NULL,
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
+                city TEXT,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -110,6 +111,7 @@ class DatabaseSchema:
                 url TEXT NOT NULL,
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
+                city TEXT,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)

@@ -97,13 +97,14 @@ class JKAnalytics:
         self.db = OrthancDB(db_path)
 
     def analyse_jk_for_sales(
-        self, jk_name: str, sale_discount_percentage: float = 0.15
+        self, jk_name: str, sale_discount_percentage: float = 0.15, city: str = None
     ) -> Dict:
         """
         Analyze sales data for a specific residential complex (JK).
 
         :param jk_name: str, name of the residential complex
         :param sale_discount_percentage: float, discount percentage to identify opportunities (default: 15%)
+        :param city: str, city name in Cyrillic to filter sales by (optional)
         :return: Dict, comprehensive analysis including current market and historical data
         """
         logger.info(f"Starting analysis for JK: {jk_name}")
@@ -111,7 +112,7 @@ class JKAnalytics:
         try:
             # Get current market analysis
             current_analysis = self._analyze_current_market(
-                jk_name, sale_discount_percentage
+                jk_name, sale_discount_percentage, city=city
             )
 
             # Get historical analysis
@@ -130,19 +131,20 @@ class JKAnalytics:
             raise
 
     def _analyze_current_market(
-        self, jk_name: str, discount_percentage: float
+        self, jk_name: str, discount_percentage: float, city: str = None
     ) -> CurrentMarketAnalysis:
         """
         Analyze current market conditions for a JK.
 
         :param jk_name: str, name of the residential complex
         :param discount_percentage: float, discount percentage for opportunities
+        :param city: str, city name in Cyrillic to filter sales by (optional)
         :return: CurrentMarketAnalysis, current market analysis
         """
         logger.info(f"Analyzing current market for {jk_name}")
 
         # Get latest sales data (most recent query_date for each flat, excluding archived)
-        latest_sales = self.db.get_latest_sales_for_jk(jk_name)
+        latest_sales = self.db.get_latest_sales_for_jk(jk_name, city=city)
 
         if not latest_sales:
             logger.warning(f"No sales data found for JK: {jk_name}")
@@ -455,7 +457,10 @@ class JKAnalytics:
 
 
 def analyze_jk_for_sales(
-    jk_name: str, sale_discount_percentage: float = 0.15, db_path: str = "flats.db"
+    jk_name: str,
+    sale_discount_percentage: float = 0.15,
+    db_path: str = "flats.db",
+    city: str = None,
 ) -> Dict:
     """
     Convenience function to analyze JK sales data.
@@ -463,7 +468,8 @@ def analyze_jk_for_sales(
     :param jk_name: str, name of the residential complex
     :param sale_discount_percentage: float, discount percentage for opportunities
     :param db_path: str, path to database file
+    :param city: str, city name in Cyrillic to filter sales by (optional)
     :return: Dict, comprehensive analysis
     """
     analytics = JKAnalytics(db_path)
-    return analytics.analyse_jk_for_sales(jk_name, sale_discount_percentage)
+    return analytics.analyse_jk_for_sales(jk_name, sale_discount_percentage, city=city)

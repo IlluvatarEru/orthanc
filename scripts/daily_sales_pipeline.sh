@@ -1,25 +1,29 @@
 #!/bin/bash
 # Daily sales scraping pipeline (Almaty only).
 # Scrapes Almaty sales, then runs opportunity finder.
-# Runs as a single cron job at 10:00 CET daily.
+# Each run gets its own timestamped log file in logs/.
 
 set -e
 
 PYTHON=/root/orthanc/venv/bin/python
 cd /root/orthanc
 
-echo "=== $(date) === Starting daily sales pipeline (Almaty) ==="
+# Create per-run log file
+mkdir -p logs
+LOGFILE="logs/pipeline_$(date +%Y_%m_%d_%H%M%S).log"
+
+echo "=== $(date) === Starting daily sales pipeline (Almaty) ===" | tee "$LOGFILE"
 
 # Step 1: Scrape Almaty sales
-echo "--- Step 1: Scraping Almaty sales ---"
-$PYTHON -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales --city almaty --max-pages 10
+echo "--- Step 1: Scraping Almaty sales ---" | tee -a "$LOGFILE"
+$PYTHON -m scrapers.launch.launch_scraping_all_jks --mode immediate --sales --city almaty --max-pages 20 2>&1 | tee -a "$LOGFILE"
 
-echo "--- Almaty sales scraping complete ---"
+echo "--- Almaty sales scraping complete ---" | tee -a "$LOGFILE"
 
-# Step 2: Run opportunity finder for Almaty + Astana
-echo "--- Step 2: Opportunity finder (Almaty + Astana) ---"
-$PYTHON -m analytics.launch.launch_opportunity_finder --city almaty astana
+# Step 2: Run opportunity finder for Almaty
+echo "--- Step 2: Opportunity finder (Almaty) ---" | tee -a "$LOGFILE"
+$PYTHON -m analytics.launch.launch_opportunity_finder 2>&1 | tee -a "$LOGFILE"
 
-echo "--- Opportunity finder complete ---"
+echo "--- Opportunity finder complete ---" | tee -a "$LOGFILE"
 
-echo "=== $(date) === Daily sales pipeline complete ==="
+echo "=== $(date) === Daily sales pipeline complete ===" | tee -a "$LOGFILE"
