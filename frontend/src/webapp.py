@@ -314,6 +314,9 @@ def view_flat_details(flat_id):
             message=f"Flat {flat_id} was not found in the database. It may have been archived or removed from Krisha.kz.",
         ), 404
 
+    # Get market context (first seen, liquidity)
+    market_context = api_client.get_market_context(flat_id)
+
     # Get similar flats using API
     similar_result = api_client.get_similar_flats(flat_id, area_tolerance, 3)
     data_warning = None
@@ -405,6 +408,10 @@ def view_flat_details(flat_id):
         },
     )()
 
+    # Confidence score: based on number of similar sales in same JK/bucket
+    sample_count = len(similar_sales)
+    confidence_score = round(sample_count / (sample_count + 3) * 100) if sample_count > 0 else 0
+
     return render_template(
         "unified_flat_view.html",
         flat_data=flat_data,
@@ -417,6 +424,8 @@ def view_flat_details(flat_id):
         equivalent_annual_net_return=equivalent_annual_net_return,
         area_tolerance=area_tolerance,
         data_warning=data_warning,
+        market_context=market_context,
+        confidence_score=confidence_score,
     )
 
 

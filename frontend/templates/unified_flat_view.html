@@ -85,6 +85,14 @@
                                     <i class="fas fa-external-link-alt me-1"></i>View On Krisha
                                 </a>
                             </div>
+                            {% if market_context and market_context.first_seen %}
+                            <p class="mt-2 mb-0 text-muted" style="font-size: 0.85rem;">
+                                <i class="fas fa-clock me-1"></i>First seen on {{ market_context.first_seen }}
+                                {% if market_context.days_on_market is not none %}
+                                    ({{ market_context.days_on_market }} days on market)
+                                {% endif %}
+                            </p>
+                            {% endif %}
                         </div>
                         <div class="col-md-6">
                             <h6>Market Statistics for Similar Flats</h6>
@@ -132,12 +140,26 @@
                                 </div>
                             </div>
                             <div class="mt-3">
-                                <p class="text-muted">
+                                <p class="text-muted mb-1">
                                     <strong>Sample Size:</strong> {{ opportunity.market_stats.count }} similar properties
                                 </p>
+                                <p class="text-muted mb-0">
+                                    <strong>Confidence:</strong>
+                                    <span class="{% if confidence_score >= 70 %}text-success{% elif confidence_score >= 40 %}text-warning{% else %}text-danger{% endif %}">
+                                        {{ confidence_score }}%
+                                    </span>
+                                    <span style="font-size: 0.8rem;">(based on N={{ opportunity.market_stats.count }} comparables)</span>
+                                </p>
                             </div>
-                            {% else %}
-                            <p class="text-muted">Not enough similar flats for market statistics</p>
+                            {% endif %}
+                            {% if market_context and market_context.liquidity %}
+                            <div class="mt-2">
+                                <p class="text-muted mb-0" style="font-size: 0.85rem;">
+                                    <i class="fas fa-exchange-alt me-1"></i><strong>JK Liquidity:</strong>
+                                    {{ market_context.liquidity.turnover_pct }}% turnover
+                                    ({{ market_context.liquidity.removed }}/{{ market_context.liquidity.total }} flats sold between {{ market_context.liquidity.old_date }} and {{ market_context.liquidity.new_date }})
+                                </p>
+                            </div>
                             {% endif %}
                         </div>
                     </div>
@@ -271,7 +293,7 @@
     <!-- Similar Flats for Sale -->
     <div class="mb-4">
         <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('similar-sales')">
-            <i class="fas fa-chevron-down me-2" id="similar-sales-icon"></i>Similar Flats for Sale
+            <i class="fas fa-chevron-down me-2" id="similar-sales-icon"></i>Similar Flats for Sale ({{ similar_sales|length }})
         </h4>
         <div id="similar-sales-content" class="collapse show">
             {% if opportunity.bucket_flats and opportunity.bucket_flats|length > 0 %}

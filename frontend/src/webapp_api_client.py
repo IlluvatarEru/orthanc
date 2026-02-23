@@ -163,6 +163,20 @@ class WebappAPIClient:
                 "min_required": min_flats,
             }
 
+    def get_market_context(self, flat_id: str) -> Optional[Dict]:
+        """Get first_seen date, days_on_market, and JK liquidity for a flat."""
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/flats/{flat_id}/market-context",
+                timeout=DEFAULT_TIMEOUT,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data if data.get("success") else None
+        except requests.RequestException as e:
+            logger.error(f"API error getting market context for {flat_id}: {e}")
+            return None
+
     def get_database_stats(self) -> Dict:
         """Get database statistics."""
         try:
