@@ -2,6 +2,7 @@
 Flat management API endpoints.
 """
 
+from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Tuple
 import logging
@@ -133,6 +134,38 @@ async def get_similar_flats(
         raise
     except Exception as e:
         logger.exception(f"Error getting similar flats for {flat_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{flat_id}/market-context")
+async def get_market_context(flat_id: str):
+    """
+    Get market context for a flat: first seen date, days on market, and JK liquidity.
+    """
+    try:
+        db = OrthancDB()
+        flat_info = db.get_flat_info_by_id(flat_id)
+        if not flat_info:
+            raise HTTPException(status_code=404, detail=f"Flat {flat_id} not found")
+
+        first_seen = db.get_flat_first_seen(flat_id)
+        days_on_market = None
+        if first_seen:
+            first_seen_date = datetime.strptime(first_seen, "%Y-%m-%d").date()
+            days_on_market = (date.today() - first_seen_date).days
+
+        liquidity = db.get_jk_liquidity_score(flat_info.residential_complex)
+
+        return {
+            "success": True,
+            "first_seen": first_seen,
+            "days_on_market": days_on_market,
+            "liquidity": liquidity,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting market context for {flat_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

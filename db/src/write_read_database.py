@@ -2034,12 +2034,16 @@ class OrthancDB:
         jk_arg = f"%{residential_complex}%" if residential_complex else "%"
 
         query = """
-            SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
+            SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    construction_year, total_floors, parking, description
-            FROM rental_flats 
-            WHERE residential_complex LIKE ? 
+            FROM rental_flats
+            WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
-            ORDER BY flat_id, query_date DESC
+            AND query_date = (
+                SELECT MAX(r2.query_date) FROM rental_flats r2
+                WHERE r2.flat_id = rental_flats.flat_id
+            )
+            ORDER BY price ASC
         """
 
         cursor = self.conn.execute(query, (jk_arg, area_min, area_max))
@@ -2080,12 +2084,16 @@ class OrthancDB:
         jk_arg = f"%{residential_complex}%" if residential_complex else "%"
 
         query = """
-            SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
+            SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    construction_year, total_floors, parking, description
-            FROM sales_flats 
-            WHERE residential_complex LIKE ? 
+            FROM sales_flats
+            WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
-            ORDER BY flat_id, query_date DESC
+            AND query_date = (
+                SELECT MAX(s2.query_date) FROM sales_flats s2
+                WHERE s2.flat_id = sales_flats.flat_id
+            )
+            ORDER BY price ASC
         """
 
         cursor = self.conn.execute(query, (jk_arg, area_min, area_max))
@@ -2741,6 +2749,85 @@ class OrthancDB:
             "stable": stable,
             "total_old": total_old,
             "total_new": total_new,
+            "turnover_pct": round(turnover_pct, 1),
+            "old_date": old_date,
+            "new_date": new_date,
+        }
+
+    def get_flat_first_seen(self, flat_id: str) -> Optional[str]:
+        """
+        Get the earliest query_date for a flat (first time we saw it).
+
+        :param flat_id: str, flat ID to look up
+        :return: Optional[str], earliest query_date string or None
+        """
+        self.connect()
+
+        cursor = self.conn.execute(
+            "SELECT MIN(query_date) FROM sales_flats WHERE flat_id = ?", (flat_id,)
+        )
+        row = cursor.fetchone()
+        if row and row[0]:
+            self.disconnect()
+            return row[0]
+
+        cursor = self.conn.execute(
+            "SELECT MIN(query_date) FROM rental_flats WHERE flat_id = ?", (flat_id,)
+        )
+        row = cursor.fetchone()
+        self.disconnect()
+        return row[0] if row and row[0] else None
+
+    def get_jk_liquidity_score(self, residential_complex: str) -> Optional[Dict]:
+        """
+        Liquidity score for a JK: % of flats removed (sold) between last two scrape dates.
+        Higher turnover = higher liquidity.
+
+        :param residential_complex: str, JK name
+        :return: Optional[Dict] with removed, total, turnover_pct, old_date, new_date
+        """
+        self.connect()
+
+        cursor = self.conn.execute(
+            """SELECT DISTINCT query_date FROM sales_flats
+               WHERE residential_complex = ?
+               ORDER BY query_date DESC LIMIT 2""",
+            (residential_complex,),
+        )
+        dates = [row[0] for row in cursor.fetchall()]
+        if len(dates) < 2:
+            self.disconnect()
+            return None
+
+        new_date, old_date = dates[0], dates[1]
+
+        # Flats in old date
+        cursor = self.conn.execute(
+            """SELECT COUNT(DISTINCT flat_id) FROM sales_flats
+               WHERE residential_complex = ? AND query_date = ?""",
+            (residential_complex, old_date),
+        )
+        total_old = cursor.fetchone()[0]
+
+        # Removed (in old but not new)
+        cursor = self.conn.execute(
+            """SELECT COUNT(*) FROM (
+                SELECT DISTINCT flat_id FROM sales_flats
+                WHERE residential_complex = ? AND query_date = ?
+                EXCEPT
+                SELECT DISTINCT flat_id FROM sales_flats
+                WHERE residential_complex = ? AND query_date = ?
+            )""",
+            (residential_complex, old_date, residential_complex, new_date),
+        )
+        removed = cursor.fetchone()[0]
+
+        turnover_pct = (removed / total_old * 100) if total_old > 0 else 0
+
+        self.disconnect()
+        return {
+            "removed": removed,
+            "total": total_old,
             "turnover_pct": round(turnover_pct, 1),
             "old_date": old_date,
             "new_date": new_date,
