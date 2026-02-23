@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+
+{% block title %}Tech Status - Orthanc Capital{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h2 mb-1">Tech Status</h1>
+        <p class="text-muted mb-0">Pipeline run history and scraping health</p>
+    </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="row mb-4">
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="kpi-value" style="color: var(--accent-blue);">
+                    {% if kpis.last_run %}
+                        {{ "%.1f"|format(kpis.last_run.duration_seconds / 60) }}m
+                    {% else %}--{% endif %}
+                </div>
+                <div class="kpi-label">Last Run Duration</div>
+                {% if kpis.last_run %}
+                <small class="text-muted">{{ kpis.last_run.city or "All Cities" }}</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="kpi-value" style="color: var(--accent-green);">{{ kpis.total_runs }}</div>
+                <div class="kpi-label">Total Runs</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="kpi-value" style="color: var(--accent-orange);">{{ "%.1f"|format(kpis.avg_duration / 60) }}m</div>
+                <div class="kpi-label">Avg Duration</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card">
+            <div class="card-body text-center">
+                <div class="kpi-value" style="color: var(--accent-red);">{{ "{:,}".format(kpis.total_errors) }}</div>
+                <div class="kpi-label">Total Errors</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Latest Run Error Breakdown -->
+{% if kpis.last_run and kpis.last_run.error_breakdown %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Latest Run Error Breakdown</h5></div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-3">
+                    {% for error_type, count in error_breakdown.items()|sort(attribute='1', reverse=true) %}
+                    <div class="px-3 py-2 rounded" style="background: var(--dark-header);">
+                        <span class="fw-bold" style="color:
+                            {% if error_type == 'timeout' %}var(--accent-orange)
+                            {% elif error_type.startswith('http_4') %}var(--accent-red)
+                            {% elif error_type.startswith('http_5') %}#a55eea
+                            {% elif error_type == 'connection_error' %}var(--accent-orange)
+                            {% else %}var(--text-secondary){% endif %};">
+                            {{ count }}x</span>
+                        <span class="text-muted">
+                            {% if error_type == 'timeout' %}Timeout (Krisha dropping connections)
+                            {% elif error_type == 'http_429' %}Rate Limited (429)
+                            {% elif error_type == 'http_403' %}Forbidden (403)
+                            {% elif error_type == 'http_404' %}Not Found (404)
+                            {% elif error_type == 'http_500' %}Server Error (500)
+                            {% elif error_type == 'connection_error' %}Connection Error
+                            {% elif error_type == 'other_error' %}Other
+                            {% elif error_type.startswith('http_') %}HTTP {{ error_type[5:] }}
+                            {% else %}{{ error_type }}{% endif %}
+                        </span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Charts (2x2 grid) -->
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Duration per Run (min)</h5></div>
+            <div class="card-body">
+                <div class="chart-container"><canvas id="durationChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Flats Scraped per Run</h5></div>
+            <div class="card-body">
+                <div class="chart-container"><canvas id="flatsChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Errors per Run</h5></div>
+            <div class="card-body">
+                <div class="chart-container"><canvas id="errorsChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">JKs Failed per Run</h5></div>
+            <div class="card-body">
+                <div class="chart-container"><canvas id="jksFailedChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Runs Table -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header"><h5 class="mb-0">Recent Runs</h5></div>
+            <div class="card-body">
+                {% if runs %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Finished</th>
+                                <th>City</th>
+                                <th>Duration</th>
+                                <th>JKs</th>
+                                <th>OK</th>
+                                <th>Failed</th>
+                                <th>Flats</th>
+                                <th>Timeouts</th>
+                                <th>429s</th>
+                                <th>404s</th>
+                                <th>Conn Err</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for run in runs[:30] %}
+                            <tr>
+                                <td>{{ run.finished_at[:16].replace('T', ' ') }}</td>
+                                <td>{{ run.city or "All" }}</td>
+                                <td>{{ "%.1f"|format(run.duration_seconds / 60) }}m</td>
+                                <td>{{ run.jks_total }}</td>
+                                <td style="color: var(--accent-green);">{{ run.jks_successful }}</td>
+                                <td {% if run.jks_failed > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.jks_failed }}</td>
+                                <td>{{ "{:,}".format(run.flats_scraped) }}</td>
+                                <td {% if run.timeouts > 0 %}style="color: var(--accent-orange);"{% endif %}>{{ run.timeouts }}</td>
+                                <td {% if run.http_429 > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.http_429 }}</td>
+                                <td>{{ run.http_404 }}</td>
+                                <td {% if run.conn_errors > 0 %}style="color: var(--accent-orange);"{% endif %}>{{ run.conn_errors }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No pipeline runs recorded yet. Stats will appear after the next scheduled run.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if runs %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Prepare data (runs come most-recent-first, reverse for chronological X axis)
+    const labels = [{% for run in runs|reverse %}'{{ run.finished_at[:10] }} {{ (run.city or "All")[:3] }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+    const durations = [{% for run in runs|reverse %}{{ "%.1f"|format(run.duration_seconds / 60) }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const flatsScraped = [{% for run in runs|reverse %}{{ run.flats_scraped }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const timeouts = [{% for run in runs|reverse %}{{ run.timeouts }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const http429 = [{% for run in runs|reverse %}{{ run.http_429 }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const http404 = [{% for run in runs|reverse %}{{ run.http_404 }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const jksFailed = [{% for run in runs|reverse %}{{ run.jks_failed }}{% if not loop.last %}, {% endif %}{% endfor %}];
+
+    const gridColor = 'rgba(255,255,255,0.1)';
+    const tickColor = '#b0b0b0';
+
+    // 1. Duration Chart (line, green)
+    new Chart(document.getElementById('durationChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Duration (min)',
+                data: durations,
+                borderColor: '#00d4aa',
+                backgroundColor: 'rgba(0, 212, 170, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: gridColor }, ticks: { color: tickColor, maxRotation: 45, maxTicksLimit: 15 } },
+                y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor } }
+            }
+        }
+    });
+
+    // 2. Flats Scraped Chart (bar, blue)
+    new Chart(document.getElementById('flatsChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Flats Scraped',
+                data: flatsScraped,
+                backgroundColor: 'rgba(79, 158, 255, 0.7)',
+                borderColor: '#4f9eff',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: gridColor }, ticks: { color: tickColor, maxRotation: 45, maxTicksLimit: 15 } },
+                y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor } }
+            }
+        }
+    });
+
+    // 3. Errors Chart (stacked bar)
+    new Chart(document.getElementById('errorsChart').getContext('2d'), {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Timeouts',
+                    data: timeouts,
+                    backgroundColor: 'rgba(255, 165, 2, 0.7)',
+                    borderColor: '#ffa502',
+                    borderWidth: 1
+                },
+                {
+                    label: '429 Rate Limited',
+                    data: http429,
+                    backgroundColor: 'rgba(255, 71, 87, 0.7)',
+                    borderColor: '#ff4757',
+                    borderWidth: 1
+                },
+                {
+                    label: '404 Not Found',
+                    data: http404,
+                    backgroundColor: 'rgba(165, 94, 234, 0.7)',
+                    borderColor: '#a55eea',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: '#b0b0b0' } } },
+            scales: {
+                x: { stacked: true, grid: { color: gridColor }, ticks: { color: tickColor, maxRotation: 45, maxTicksLimit: 15 } },
+                y: { stacked: true, beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor } }
+            }
+        }
+    });
+
+    // 4. JKs Failed Chart (line, red)
+    new Chart(document.getElementById('jksFailedChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'JKs Failed',
+                data: jksFailed,
+                borderColor: '#ff4757',
+                backgroundColor: 'rgba(255, 71, 87, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: gridColor }, ticks: { color: tickColor, maxRotation: 45, maxTicksLimit: 15 } },
+                y: { beginAtZero: true, grid: { color: gridColor }, ticks: { color: tickColor } }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

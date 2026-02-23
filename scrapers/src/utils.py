@@ -10,9 +10,249 @@ import re
 import logging
 import time
 import functools
-from typing import Optional, List
+import threading
+import os
+from typing import Dict, Optional, List
 from bs4 import BeautifulSoup
 from common.src.flat_type import FlatType
+
+# --- Shared HTTP session and rate limiter ---
+_session: Optional[requests.Session] = None
+_session_lock = threading.Lock()
+_rate_lock = threading.Lock()
+_last_request_time = 0.0
+
+# --- Thread-safe request error counters ---
+_error_counts_lock = threading.Lock()
+_error_counts: Dict[str, int] = {}
+
+
+def get_and_reset_error_counts() -> dict:
+    """Return current error counts and reset them to zero. Thread-safe."""
+    with _error_counts_lock:
+        counts = dict(_error_counts)
+        _error_counts.clear()
+    return counts
+
+
+def _increment_error(key: str) -> None:
+    with _error_counts_lock:
+        _error_counts[key] = _error_counts.get(key, 0) + 1
+
+
+def _load_scraping_config() -> dict:
+    """Load scraping configuration from config.toml."""
+    try:
+        import toml
+
+        config_path = os.path.join(
+            os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
+        )
+        config = toml.load(config_path)
+        return config.get("scraping", {})
+    except Exception:
+        return {}
+
+
+def get_scraping_config() -> dict:
+    """
+    Get scraping configuration with defaults.
+
+    :return: dict with keys: concurrent_workers, delay_between_flat_requests,
+             delay_between_requests, retry_attempts, max_pages_per_query
+    """
+    config = _load_scraping_config()
+    return {
+        "concurrent_workers": config.get("concurrent_workers", 3),
+        "delay_between_flat_requests": config.get("delay_between_flat_requests", 0.3),
+        "delay_between_requests": config.get("delay_between_requests", 2.0),
+        "retry_attempts": config.get("retry_attempts", 3),
+        "max_pages_per_query": config.get("max_pages_per_query", 10),
+        "throttle_error_threshold": config.get("throttle_error_threshold", 0.30),
+        "throttle_recover_threshold": config.get("throttle_recover_threshold", 0.05),
+        "throttle_max_delay": config.get("throttle_max_delay", 5.0),
+        "throttle_cooldown_seconds": config.get("throttle_cooldown_seconds", 30),
+        "throttle_window_seconds": config.get("throttle_window_seconds", 30),
+        "priority_jks": config.get("priority_jks", []),
+    }
+
+
+def get_session() -> requests.Session:
+    """
+    Get or create a shared requests.Session for TCP connection reuse.
+    Thread-safe via double-checked locking.
+
+    :return: requests.Session
+    """
+    global _session
+    if _session is None:
+        with _session_lock:
+            if _session is None:
+                _session = requests.Session()
+                _session.headers.update(
+                    {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) "
+                        "Chrome/123.0.0.0 Safari/537.36",
+                        "Accept-Encoding": "gzip, deflate",
+                        "Connection": "keep-alive",
+                    }
+                )
+    return _session
+
+
+class ScrapingCircuitBreaker(Exception):
+    """Raised when too many consecutive failures indicate Krisha is blocking us."""
+
+    pass
+
+
+class AdaptiveThrottle:
+    """
+    Monitors recent request error rates and dynamically adjusts delay and
+    worker count.  Escalates (slower, fewer workers) when errors spike,
+    recovers (faster, more workers) when stable.
+
+    Also tracks consecutive JK-level failures. If N JKs in a row produce
+    zero results (all requests failed), the circuit breaker trips and the
+    run should be stopped early.
+    """
+
+    CONSECUTIVE_FAILURE_LIMIT = 10
+
+    def __init__(self):
+        cfg = get_scraping_config()
+        self.base_delay = cfg["delay_between_flat_requests"]
+        self.base_workers = cfg["concurrent_workers"]
+        self.delay = self.base_delay
+        self.max_workers = self.base_workers
+
+        self._error_threshold = cfg["throttle_error_threshold"]
+        self._recover_threshold = cfg["throttle_recover_threshold"]
+        self._max_delay = cfg["throttle_max_delay"]
+        self._cooldown_duration = cfg["throttle_cooldown_seconds"]
+        self._window_size = cfg["throttle_window_seconds"]
+
+        self._lock = threading.Lock()
+        self._recent_errors = 0
+        self._recent_requests = 0
+        self._window_start = time.time()
+        self._cooldown_until = 0.0
+
+        # Circuit breaker: consecutive JK failures
+        self._consecutive_jk_failures = 0
+        self._circuit_broken = False
+
+    def _reset_window(self):
+        """Reset the rolling window counters."""
+        self._recent_errors = 0
+        self._recent_requests = 0
+        self._window_start = time.time()
+
+    def _maybe_rotate_window(self):
+        """Rotate window if expired, evaluate and adjust."""
+        now = time.time()
+        if now - self._window_start < self._window_size:
+            return
+        if self._recent_requests < 5:
+            self._reset_window()
+            return
+
+        error_rate = self._recent_errors / self._recent_requests
+
+        if error_rate > self._error_threshold:
+            old_delay = self.delay
+            old_workers = self.max_workers
+            self.delay = min(self.delay * 2, self._max_delay)
+            self.max_workers = max(self.max_workers // 2, 1)
+            self._cooldown_until = now + self._cooldown_duration
+            logging.warning(
+                f"Throttle escalating: error rate {error_rate:.0%} "
+                f"({self._recent_errors}/{self._recent_requests} requests). "
+                f"Delay: {old_delay:.1f}s -> {self.delay:.1f}s, "
+                f"workers: {old_workers} -> {self.max_workers}, "
+                f"cooldown {self._cooldown_duration}s"
+            )
+        elif error_rate < self._recover_threshold:
+            old_delay = self.delay
+            old_workers = self.max_workers
+            new_delay = max(self.delay / 2, self.base_delay)
+            new_workers = min(self.max_workers + 1, self.base_workers)
+            if new_delay != old_delay or new_workers != old_workers:
+                self.delay = new_delay
+                self.max_workers = new_workers
+                logging.info(
+                    f"Throttle recovering: error rate {error_rate:.0%} "
+                    f"({self._recent_errors}/{self._recent_requests} requests). "
+                    f"Delay: {old_delay:.1f}s -> {self.delay:.1f}s, "
+                    f"workers: {old_workers} -> {self.max_workers}"
+                )
+
+        self._reset_window()
+
+    def record_success(self):
+        """Record a successful request."""
+        with self._lock:
+            self._recent_requests += 1
+            self._maybe_rotate_window()
+
+    def record_error(self):
+        """Record a failed request and check if we need to escalate."""
+        with self._lock:
+            self._recent_requests += 1
+            self._recent_errors += 1
+            self._maybe_rotate_window()
+
+    def wait_if_cooldown(self):
+        """Sleep until cooldown expires, if active."""
+        remaining = self._cooldown_until - time.time()
+        if remaining > 0:
+            logging.info(f"Throttle cooldown: waiting {remaining:.0f}s")
+            time.sleep(remaining)
+
+    def record_jk_result(self, saved_count: int) -> None:
+        """
+        Record whether a JK scrape produced results.
+        If N consecutive JKs fail (0 results), trip the circuit breaker.
+
+        :param saved_count: int, number of flats saved for this JK (0 = failure)
+        """
+        with self._lock:
+            if saved_count > 0:
+                self._consecutive_jk_failures = 0
+            else:
+                self._consecutive_jk_failures += 1
+                if (
+                    self._consecutive_jk_failures >= self.CONSECUTIVE_FAILURE_LIMIT
+                    and not self._circuit_broken
+                ):
+                    self._circuit_broken = True
+                    logging.error(
+                        f"Circuit breaker tripped: {self._consecutive_jk_failures} "
+                        f"consecutive JKs returned 0 results. "
+                        f"Krisha is likely blocking us."
+                    )
+
+    @property
+    def is_circuit_broken(self) -> bool:
+        """Check if the circuit breaker has tripped."""
+        return self._circuit_broken
+
+    def reset(self) -> None:
+        """Reset the throttle state for a new run."""
+        with self._lock:
+            self.delay = self.base_delay
+            self.max_workers = self.base_workers
+            self._recent_errors = 0
+            self._recent_requests = 0
+            self._window_start = time.time()
+            self._cooldown_until = 0.0
+            self._consecutive_jk_failures = 0
+            self._circuit_broken = False
+
+
+# Module-level singleton
+throttle = AdaptiveThrottle()
 
 
 def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
@@ -34,7 +274,10 @@ def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
                     return func(*args, **kwargs)
                 except requests.exceptions.HTTPError as e:
                     last_exception = e
-                    if e.response is not None and e.response.status_code == 429:
+                    throttle.record_error()
+                    status = e.response.status_code if e.response is not None else 0
+                    _increment_error(f"http_{status}")
+                    if status == 429:
                         delay = 60
                         logging.warning(
                             f"Rate limited (429) in {func.__name__}, "
@@ -49,8 +292,36 @@ def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
                     else:
                         break
                     time.sleep(delay)
+                except requests.exceptions.ConnectTimeout as e:
+                    last_exception = e
+                    throttle.record_error()
+                    _increment_error("timeout")
+                    if attempt < max_retries:
+                        delay = base_delay * (2**attempt)
+                        logging.warning(
+                            f"Request error in {func.__name__}: {e}, "
+                            f"retrying in {delay:.0f}s ({attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(delay)
+                    else:
+                        break
+                except requests.exceptions.ConnectionError as e:
+                    last_exception = e
+                    throttle.record_error()
+                    _increment_error("connection_error")
+                    if attempt < max_retries:
+                        delay = base_delay * (2**attempt)
+                        logging.warning(
+                            f"Request error in {func.__name__}: {e}, "
+                            f"retrying in {delay:.0f}s ({attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(delay)
+                    else:
+                        break
                 except requests.RequestException as e:
                     last_exception = e
+                    throttle.record_error()
+                    _increment_error("other_error")
                     if attempt < max_retries:
                         delay = base_delay * (2**attempt)
                         logging.warning(
@@ -74,6 +345,9 @@ def retry_on_failure(max_retries: int = 3, base_delay: float = 2.0):
 def fetch_url(url: str, headers: dict = None, timeout: int = 15) -> requests.Response:
     """
     Fetch a URL with automatic retry on transient failures.
+    Uses a shared Session for TCP connection reuse and a thread-safe rate
+    limiter to enforce minimum delay between requests.
+    Delay is dynamically adjusted by the adaptive throttle.
 
     :param url: str, URL to fetch
     :param headers: dict, optional HTTP headers
@@ -81,8 +355,24 @@ def fetch_url(url: str, headers: dict = None, timeout: int = 15) -> requests.Res
     :return: requests.Response object
     :raises: requests.RequestException after all retries exhausted
     """
-    response = requests.get(url, headers=headers, timeout=timeout)
+    global _last_request_time
+
+    # Wait if throttle is in cooldown (Krisha was blocking us)
+    throttle.wait_if_cooldown()
+
+    # Thread-safe rate limiting with adaptive delay
+    min_interval = throttle.delay
+    with _rate_lock:
+        now = time.time()
+        elapsed = now - _last_request_time
+        if elapsed < min_interval:
+            time.sleep(min_interval - elapsed)
+        _last_request_time = time.time()
+
+    session = get_session()
+    response = session.get(url, headers=headers, timeout=timeout)
     response.raise_for_status()
+    throttle.record_success()
     return response
 
 
@@ -221,7 +511,7 @@ def extract_area(soup: BeautifulSoup) -> Optional[float]:
                 area_match = re.search(r"(\d+(?:\.\d+)?)", area_text)
                 if area_match:
                     area_value = float(area_match.group(1))
-                    if 10 <= area_value <= 500:  # Reasonable area range
+                    if 10 <= area_value <= 2000:  # Reasonable area range
                         return area_value
 
         # If selectors don't work, try to find area in the page text
@@ -243,7 +533,7 @@ def extract_area(soup: BeautifulSoup) -> Optional[float]:
                 # Get the first reasonable area
                 for match in matches:
                     area_value = float(match)
-                    if 10 <= area_value <= 500:  # Reasonable area range
+                    if 10 <= area_value <= 2000:  # Reasonable area range
                         logging.info(f"Found area in text: {area_value}")
                         return area_value
 
@@ -383,12 +673,9 @@ def determine_flat_type(area: float) -> str:
 def determine_flat_type_from_text(
     title: str, description: str, area: Optional[float]
 ) -> str:
-    """Derive flat type preferring title, then description, then area fallback."""
+    """Derive flat type preferring room count, then studio keyword, then area fallback."""
     combined = f"{title}\n{description}".lower()
-    # Studio keywords
-    if re.search(r"студи\w+", combined):
-        return "Studio"
-    # N-room patterns
+    # N-room patterns (check first -- most reliable signal)
     m = re.search(r"(\d+)\s*[-–]?\s*комнатн", combined)
     if m:
         try:
@@ -402,6 +689,12 @@ def determine_flat_type_from_text(
             return "3BR+"
         except Exception:
             pass
+    # Studio keywords -- but not "кухня-студия" / "кухней-студией" which describes
+    # the kitchen layout, not the flat type
+    if re.search(r"студи\w+", combined) and not re.search(
+        r"кухн\w*[- ]студи", combined
+    ):
+        return "Studio"
     # Fallback to area-based determination
     if area is not None:
         return determine_flat_type(area)

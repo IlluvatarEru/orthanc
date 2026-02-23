@@ -129,6 +129,7 @@ class OrthancDB:
         url: str,
         query_date: str,
         flat_type: str = None,
+        city: str = None,
     ) -> bool:
         """
         Insert sales flat information into database.
@@ -137,6 +138,7 @@ class OrthancDB:
         :param url: str, original URL of the flat
         :param query_date: str, date when the query was made (YYYY-MM-DD)
         :param flat_type: str, type of flat ('Studio', '1BR', '2BR', '3BR+') - optional, uses flat_info.flat_type if not provided
+        :param city: str, city name in Cyrillic (e.g. "Алматы")
         :return: bool, True if successful
         """
         self.connect()
@@ -149,8 +151,8 @@ class OrthancDB:
                 """
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                    construction_year, parking, description, url, query_date, archived
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    construction_year, parking, description, url, query_date, archived, city
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -166,6 +168,7 @@ class OrthancDB:
                     url,
                     query_date,
                     1 if flat_info.archived else 0,
+                    city,
                 ),
             )
 
@@ -1766,23 +1769,31 @@ class OrthancDB:
         self.disconnect()
         return latest_rentals
 
-    def get_latest_sales_for_jk(self, jk_name: str) -> List[dict]:
+    def get_latest_sales_for_jk(self, jk_name: str, city: str = None) -> List[dict]:
         """
         Get latest sales data for a residential complex (most recent query_date for each flat_id).
 
         :param jk_name: str, name of the residential complex
+        :param city: str, city name in Cyrillic to filter by (optional)
         :return: List[dict], list of latest sales data with all fields
         """
         self.connect()
 
-        query = """
+        params = [jk_name]
+        city_filter = ""
+        if city:
+            city_filter = "AND sf.city = ?"
+            params.append(city)
+
+        query = f"""
             SELECT sf.*,
                    ROW_NUMBER() OVER (PARTITION BY sf.flat_id ORDER BY sf.query_date DESC) as rn
             FROM sales_flats sf
             WHERE sf.residential_complex = ? AND (sf.archived = 0 OR sf.archived IS NULL)
+            {city_filter}
         """
 
-        cursor = self.conn.execute(query, (jk_name,))
+        cursor = self.conn.execute(query, params)
         latest_sales = [dict(row) for row in cursor.fetchall() if row["rn"] == 1]
 
         self.disconnect()
@@ -2182,6 +2193,156 @@ class OrthancDB:
 
         return inserted_count
 
+    def insert_pipeline_run(self, stats: Dict) -> bool:
+        """
+        Insert a pipeline run stats row.
+
+        :param stats: dict with keys: started_at, finished_at, duration_seconds,
+                      city, jks_total, jks_successful, jks_failed, flats_scraped,
+                      error_breakdown (dict of error_type -> count)
+        :return: bool, True if successful
+        """
+        self.connect()
+        try:
+            # Compute legacy aggregate columns from breakdown
+            error_breakdown = stats.get("error_breakdown", {})
+            rate_limited = error_breakdown.get("http_429", 0)
+            http_errors = sum(
+                v for k, v in error_breakdown.items() if k.startswith("http_")
+            )
+            request_errors = sum(
+                v
+                for k, v in error_breakdown.items()
+                if k in ("timeout", "connection_error", "other_error")
+            )
+
+            import json
+
+            self.conn.execute(
+                """
+                INSERT INTO pipeline_runs (
+                    started_at, finished_at, duration_seconds, city,
+                    jks_total, jks_successful, jks_failed, flats_scraped,
+                    rate_limited, http_errors, request_errors, error_breakdown
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    stats["started_at"],
+                    stats["finished_at"],
+                    stats["duration_seconds"],
+                    stats.get("city"),
+                    stats["jks_total"],
+                    stats["jks_successful"],
+                    stats["jks_failed"],
+                    stats["flats_scraped"],
+                    rate_limited,
+                    http_errors,
+                    request_errors,
+                    json.dumps(error_breakdown) if error_breakdown else None,
+                ),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error inserting pipeline run: {e}")
+            return False
+        finally:
+            self.disconnect()
+
+    def get_latest_pipeline_run(self) -> Optional[Dict]:
+        """
+        Get the most recent pipeline run stats.
+
+        :return: Optional[Dict], latest run stats or None
+        """
+        self.connect()
+        try:
+            self.conn.row_factory = sqlite3.Row
+            cursor = self.conn.execute(
+                """
+                SELECT started_at, finished_at, duration_seconds, city,
+                       jks_total, jks_successful, jks_failed, flats_scraped,
+                       rate_limited, http_errors, request_errors, error_breakdown
+                FROM pipeline_runs
+                ORDER BY finished_at DESC
+                LIMIT 1
+                """
+            )
+            row = cursor.fetchone()
+            return dict(row) if row else None
+        except Exception as e:
+            logging.error(f"Error fetching latest pipeline run: {e}")
+            return None
+        finally:
+            self.disconnect()
+
+    def get_pipeline_runs_history(self, limit: int = 90) -> Dict:
+        """
+        Get pipeline run history for the tech status dashboard.
+
+        :param limit: int, max number of runs to return (most recent first)
+        :return: dict with keys 'runs' (list of dicts) and 'kpis' (aggregated stats)
+        """
+        self.connect()
+        try:
+            self.conn.row_factory = sqlite3.Row
+            cursor = self.conn.execute(
+                """
+                SELECT started_at, finished_at, duration_seconds, city,
+                       jks_total, jks_successful, jks_failed, flats_scraped,
+                       rate_limited, http_errors, request_errors, error_breakdown
+                FROM pipeline_runs
+                ORDER BY finished_at DESC
+                LIMIT ?
+                """,
+                (limit,),
+            )
+            rows = [dict(row) for row in cursor.fetchall()]
+
+            if not rows:
+                return {
+                    "runs": [],
+                    "kpis": {
+                        "total_runs": 0,
+                        "avg_duration": 0,
+                        "total_flats_scraped": 0,
+                        "total_errors": 0,
+                        "last_run": None,
+                    },
+                }
+
+            total_runs = len(rows)
+            total_errors = sum(
+                r["rate_limited"] + r["http_errors"] + r["request_errors"] for r in rows
+            )
+            avg_duration = sum(r["duration_seconds"] for r in rows) / total_runs
+            total_flats = sum(r["flats_scraped"] for r in rows)
+
+            return {
+                "runs": rows,
+                "kpis": {
+                    "total_runs": total_runs,
+                    "avg_duration": round(avg_duration, 1),
+                    "total_flats_scraped": total_flats,
+                    "total_errors": total_errors,
+                    "last_run": rows[0],
+                },
+            }
+        except Exception as e:
+            logging.error(f"Error fetching pipeline runs history: {e}")
+            return {
+                "runs": [],
+                "kpis": {
+                    "total_runs": 0,
+                    "avg_duration": 0,
+                    "total_flats_scraped": 0,
+                    "total_errors": 0,
+                    "last_run": None,
+                },
+            }
+        finally:
+            self.disconnect()
+
     def get_latest_opportunity_analysis_run_timestamp(self) -> Optional[str]:
         """
         Get the latest run timestamp from opportunity analysis.
@@ -2278,19 +2439,28 @@ class OrthancDB:
             conditions.append("oa.price <= ?")
             params.append(max_price)
 
-        # Exclude ignored opportunities, blacklisted JKs, and blacklisted districts
+        # Exclude ignored opportunities and blacklisted JKs
         conditions.append(
             "oa.flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)"
         )
         conditions.append(
             "oa.residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
         )
+
+        # Exclude JKs in blacklisted districts
         conditions.append(
-            "NOT EXISTS (SELECT 1 FROM blacklisted_districts bd WHERE bd.city = rc.city AND bd.district = rc.district)"
+            """NOT EXISTS (
+                SELECT 1 FROM residential_complexes rc2
+                JOIN blacklisted_districts bd ON bd.city = rc2.city AND bd.district = rc2.district
+                WHERE rc2.name = oa.residential_complex
+            )"""
         )
 
+        # City filter: require at least one matching RC in the target city
         if city is not None:
-            conditions.append("rc.city = ?")
+            conditions.append(
+                "EXISTS (SELECT 1 FROM residential_complexes rc3 WHERE rc3.name = oa.residential_complex AND rc3.city = ?)"
+            )
             params.append(city)
 
         if flat_types is not None:
@@ -2304,7 +2474,6 @@ class OrthancDB:
 
         query = f"""
             SELECT oa.* FROM opportunity_analysis oa
-            LEFT JOIN residential_complexes rc ON oa.residential_complex = rc.name
             WHERE oa.run_timestamp = (
                 SELECT MAX(run_timestamp) FROM opportunity_analysis
             )

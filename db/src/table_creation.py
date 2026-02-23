@@ -87,6 +87,7 @@ class DatabaseSchema:
                 url TEXT NOT NULL,
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
+                city TEXT,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -110,6 +111,7 @@ class DatabaseSchema:
                 url TEXT NOT NULL,
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
+                city TEXT,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -185,6 +187,26 @@ class DatabaseSchema:
                 query_date DATE,
                 url TEXT NOT NULL,
                 description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create pipeline runs stats table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS pipeline_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at TIMESTAMP NOT NULL,
+                finished_at TIMESTAMP NOT NULL,
+                duration_seconds REAL NOT NULL,
+                city TEXT,
+                jks_total INTEGER NOT NULL,
+                jks_successful INTEGER NOT NULL,
+                jks_failed INTEGER NOT NULL,
+                flats_scraped INTEGER NOT NULL,
+                rate_limited INTEGER NOT NULL DEFAULT 0,
+                http_errors INTEGER NOT NULL DEFAULT 0,
+                request_errors INTEGER NOT NULL DEFAULT 0,
+                error_breakdown TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -352,6 +374,11 @@ class DatabaseSchema:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_blacklisted_name ON blacklisted_jks(name)"
+        )
+
+        # Pipeline runs indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_pipeline_runs_finished ON pipeline_runs(finished_at)"
         )
 
         # Opportunity analysis indexes
