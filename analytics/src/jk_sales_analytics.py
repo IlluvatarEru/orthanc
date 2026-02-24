@@ -285,24 +285,31 @@ class JKAnalytics:
         :param discount_percentage: float, discount percentage threshold
         :return: Dict[str, List[FlatOpportunity]], opportunities grouped by area bucket
         """
-        # Group flats by area similarity (within 20% of each other)
-        area_buckets = self._group_flats_by_area_similarity(sales_data)
-
         opportunities_by_type = {}
 
         for sale in sales_data:
             flat_type = sale["flat_type"]
             area = sale["area"]
 
-            # Find the area bucket for this flat
-            area_bucket = self._find_area_bucket(area, area_buckets)
+            # Find comparables within +/-20% of this flat's area (fixed window, no drift)
+            area_min = area * 0.80
+            area_max = area * 1.20
+            area_bucket = [
+                f for f in sales_data
+                if area_min <= f["area"] <= area_max
+            ]
 
             if (
                 area_bucket and len(area_bucket) > 1
             ):  # Need at least 2 flats for meaningful comparison
                 # Calculate median price for this area bucket
                 area_prices = [flat["price"] for flat in area_bucket]
-                area_median = sorted(area_prices)[len(area_prices) // 2]
+                area_prices_sorted = sorted(area_prices)
+                n = len(area_prices_sorted)
+                if n % 2 == 0:
+                    area_median = (area_prices_sorted[n // 2 - 1] + area_prices_sorted[n // 2]) / 2
+                else:
+                    area_median = area_prices_sorted[n // 2]
 
                 # Check if this flat is a good opportunity
                 discount_vs_median = ((area_median - sale["price"]) / area_median) * 100
@@ -326,7 +333,6 @@ class JKAnalytics:
                     )
 
                     # Create StatsForFlatType object with area bucket stats
-                    area_prices_sorted = sorted(area_prices)
                     stats_for_flat_type = StatsForFlatType(
                         date=sale["query_date"],
                         flat_type=f"Area {area:.0f}m²",  # Use area range as "flat type"

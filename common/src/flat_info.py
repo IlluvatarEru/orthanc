@@ -35,3 +35,4 @@ class FlatInfo:
     archived: bool = False
     scraped_at: Optional[str] = None
     city: Optional[str] = None
+    district: Optional[str] = None

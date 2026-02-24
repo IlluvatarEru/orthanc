@@ -71,7 +71,9 @@
                             </h5>
                             <p class="mb-1"><strong>Area:</strong> {{ flat_data.area }} m²</p>
                             <p class="mb-1"><strong>Type:</strong> {{ flat_data.flat_type }}</p>
-                            <p class="mb-1"><strong>Floor:</strong> {{ flat_data.floor }}/{{ flat_data.total_floors }}</p>
+                            {% if flat_data.floor %}
+                            <p class="mb-1"><strong>Floor:</strong> {{ flat_data.floor }}{% if flat_data.total_floors %}/{{ flat_data.total_floors }}{% endif %}</p>
+                            {% endif %}
                             {% if flat_data.construction_year %}
                             <p class="mb-1"><strong>Year:</strong> {{ flat_data.construction_year }}</p>
                             {% endif %}

@@ -2039,6 +2039,7 @@ class OrthancDB:
             FROM rental_flats
             WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
+            AND (archived = 0 OR archived IS NULL)
             AND query_date = (
                 SELECT MAX(r2.query_date) FROM rental_flats r2
                 WHERE r2.flat_id = rental_flats.flat_id
@@ -2089,6 +2090,7 @@ class OrthancDB:
             FROM sales_flats
             WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
+            AND (archived = 0 OR archived IS NULL)
             AND query_date = (
                 SELECT MAX(s2.query_date) FROM sales_flats s2
                 WHERE s2.flat_id = sales_flats.flat_id
@@ -2464,10 +2466,11 @@ class OrthancDB:
             )"""
         )
 
-        # City filter: require at least one matching RC in the target city
+        # City filter: use per-flat city from sales_flats (handles JK names shared across cities)
         if city is not None:
             conditions.append(
-                "EXISTS (SELECT 1 FROM residential_complexes rc3 WHERE rc3.name = oa.residential_complex AND rc3.city = ?)"
+                """EXISTS (SELECT 1 FROM sales_flats sf
+                    WHERE sf.flat_id = oa.flat_id AND sf.city = ?)"""
             )
             params.append(city)
 
@@ -3270,6 +3273,29 @@ class OrthancDB:
             return False
         finally:
             self.disconnect()
+
+    def get_residential_complex_by_name(self, name: str) -> Optional[Dict]:
+        """
+        Get a residential complex by name.
+
+        :param name: str, JK name
+        :return: Optional[Dict] with complex_id, name, city, district
+        """
+        self.connect()
+        cursor = self.conn.execute(
+            "SELECT complex_id, name, city, district FROM residential_complexes WHERE name = ? LIMIT 1",
+            (name,),
+        )
+        row = cursor.fetchone()
+        self.disconnect()
+        if row:
+            return {
+                "complex_id": row[0],
+                "name": row[1],
+                "city": row[2],
+                "district": row[3],
+            }
+        return None
 
     def update_residential_complex_district(
         self, complex_id: str, district: str

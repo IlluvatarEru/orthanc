@@ -193,6 +193,13 @@ def scrape_sales_flat_from_analytics_page(
         # City from API response (e.g. "Астана", "Алматы")
         api_city = advert.get("city")
 
+        # District from fullAddress (e.g. "Алматы, Медеуский р-н, Омарова 35/1")
+        api_district = None
+        full_address = advert.get("fullAddress", "")
+        district_match = re.search(r"(\S+\s+р-н)", full_address)
+        if district_match:
+            api_district = district_match.group(1)
+
         flat_info = FlatInfo(
             flat_id=str(krisha_id),
             price=int(price),
@@ -207,6 +214,7 @@ def scrape_sales_flat_from_analytics_page(
             is_rental=False,  # Sales flat
             archived=is_archived,
             city=api_city,
+            district=api_district,
         )
 
         return flat_info
@@ -456,7 +464,8 @@ def scrape_and_save_jk_sales(
     # Get scraped flat IDs
     scraped_flat_ids = {flat_info.flat_id for flat_info in flats}
 
-    # Save scraped flats
+    # Save scraped flats and collect district info for JK backfill
+    flat_districts = []
     for flat_info in flats:
         # Prefer city from API response (per-flat), fall back to JK-level city
         flat_city = flat_info.city or city
@@ -474,6 +483,23 @@ def scrape_and_save_jk_sales(
             logging.info(f"Saved sales flat: {flat_info.flat_id}{archived_status}")
         else:
             logging.error(f"Failed to save sales flat: {flat_info.flat_id}")
+
+        if flat_info.district:
+            flat_districts.append(flat_info.district)
+
+    # Backfill JK district if currently NULL (use most common district from flats)
+    if flat_districts:
+        jk_info = db.get_residential_complex_by_name(jk_name)
+        if jk_info and not jk_info.get("district"):
+            from collections import Counter
+
+            most_common_district = Counter(flat_districts).most_common(1)[0][0]
+            db.update_residential_complex_district(
+                jk_info["complex_id"], most_common_district
+            )
+            logging.info(
+                f"Backfilled district for {jk_name}: {most_common_district}"
+            )
 
     # Check existing non-archived flats that weren't in the scraped results.
     # Skip if the scrape returned 0 flats -- Krisha may be blocking us,
