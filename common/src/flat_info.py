@@ -36,3 +36,5 @@ class FlatInfo:
     scraped_at: Optional[str] = None
     city: Optional[str] = None
     district: Optional[str] = None
+    published_at: Optional[str] = None
+    created_at: Optional[str] = None

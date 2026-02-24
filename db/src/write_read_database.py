@@ -151,8 +151,9 @@ class OrthancDB:
                 """
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                    construction_year, parking, description, url, query_date, archived, city
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    construction_year, parking, description, url, query_date, archived, city,
+                    published_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -169,6 +170,8 @@ class OrthancDB:
                     query_date,
                     1 if flat_info.archived else 0,
                     city,
+                    getattr(flat_info, "published_at", None),
+                    getattr(flat_info, "created_at", None),
                 ),
             )
 
@@ -261,7 +264,9 @@ class OrthancDB:
             UPDATE sales_flats SET
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
-                description = ?, url = ?, archived = ?, updated_at = CURRENT_TIMESTAMP
+                description = ?, url = ?, archived = ?,
+                published_at = ?, created_at = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
         """,
             (
@@ -276,6 +281,8 @@ class OrthancDB:
                 flat_info.description,
                 url,
                 1 if flat_info.archived else 0,
+                getattr(flat_info, "published_at", None),
+                getattr(flat_info, "created_at", None),
                 flat_info.flat_id,
                 query_date,
             ),
@@ -1983,7 +1990,8 @@ class OrthancDB:
         cursor = self.conn.execute(
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
-                   total_floors, construction_year, parking, description, url, query_date, archived, scraped_at
+                   total_floors, construction_year, parking, description, url, query_date,
+                   archived, scraped_at, published_at, created_at
             FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2008,6 +2016,8 @@ class OrthancDB:
                 is_rental=False,
                 archived=bool(row[12] if len(row) > 12 else 0),
                 scraped_at=row[13] if len(row) > 13 else None,
+                published_at=row[14] if len(row) > 14 else None,
+                created_at=row[15] if len(row) > 15 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2782,27 +2792,49 @@ class OrthancDB:
         return row[0] if row and row[0] else None
 
     def get_jk_liquidity_score(self, residential_complex: str) -> Optional[Dict]:
+        """Deprecated: use get_jk_turnover() instead."""
+        return self.get_jk_turnover(residential_complex, days=30)
+
+    def get_jk_turnover(
+        self, residential_complex: str, days: int = 30
+    ) -> Optional[Dict]:
         """
-        Liquidity score for a JK: % of flats removed (sold) between last two scrape dates.
-        Higher turnover = higher liquidity.
+        Turnover for a JK: % of flats that disappeared (sold) over a given window.
+
+        Compares the scrape date closest to `days` ago against the latest scrape date.
+        Flats present in the old date but absent in the latest are counted as sold.
 
         :param residential_complex: str, JK name
+        :param days: int, lookback window in days
         :return: Optional[Dict] with removed, total, turnover_pct, old_date, new_date
         """
         self.connect()
 
+        # Find the latest scrape date for this JK
         cursor = self.conn.execute(
-            """SELECT DISTINCT query_date FROM sales_flats
-               WHERE residential_complex = ?
-               ORDER BY query_date DESC LIMIT 2""",
+            """SELECT MAX(query_date) FROM sales_flats
+               WHERE residential_complex = ?""",
             (residential_complex,),
         )
-        dates = [row[0] for row in cursor.fetchall()]
-        if len(dates) < 2:
+        row = cursor.fetchone()
+        if not row or not row[0]:
             self.disconnect()
             return None
+        new_date = row[0]
 
-        new_date, old_date = dates[0], dates[1]
+        # Find the scrape date closest to `days` ago (but at least 1 day before new_date)
+        cursor = self.conn.execute(
+            """SELECT DISTINCT query_date FROM sales_flats
+               WHERE residential_complex = ? AND query_date < ?
+               ORDER BY ABS(JULIANDAY(?) - JULIANDAY(query_date) - ?) ASC
+               LIMIT 1""",
+            (residential_complex, new_date, new_date, days),
+        )
+        row = cursor.fetchone()
+        if not row:
+            self.disconnect()
+            return None
+        old_date = row[0]
 
         # Flats in old date
         cursor = self.conn.execute(
@@ -2812,7 +2844,11 @@ class OrthancDB:
         )
         total_old = cursor.fetchone()[0]
 
-        # Removed (in old but not new)
+        if total_old == 0:
+            self.disconnect()
+            return None
+
+        # Removed (in old but not in latest)
         cursor = self.conn.execute(
             """SELECT COUNT(*) FROM (
                 SELECT DISTINCT flat_id FROM sales_flats
@@ -2825,7 +2861,7 @@ class OrthancDB:
         )
         removed = cursor.fetchone()[0]
 
-        turnover_pct = (removed / total_old * 100) if total_old > 0 else 0
+        turnover_pct = removed / total_old * 100
 
         self.disconnect()
         return {

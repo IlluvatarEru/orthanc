@@ -35,10 +35,12 @@ async def search_flats(
         db.connect()
 
         # Build query based on filters
+        # List columns explicitly since sales_flats has extra columns
+        common_cols = "id, flat_id, price, area, flat_type, residential_complex, floor, total_floors, construction_year, parking, description, url, query_date, archived, scraped_at, updated_at, city"
         query = "SELECT * FROM ("
-        query += "SELECT *, 'rental' as table_type FROM rental_flats "
+        query += f"SELECT {common_cols}, 'rental' as table_type FROM rental_flats "
         query += "UNION ALL "
-        query += "SELECT *, 'sale' as table_type FROM sales_flats"
+        query += f"SELECT {common_cols}, 'sale' as table_type FROM sales_flats"
         query += ") AS combined_flats WHERE 1=1"
 
         params = []
@@ -94,21 +96,21 @@ async def search_flats(
 
             # Check total count
             cursor = db.conn.execute(
-                "SELECT COUNT(*) FROM (SELECT * FROM rental_flats UNION ALL SELECT * FROM sales_flats)"
+                "SELECT COUNT(*) FROM (SELECT flat_id FROM rental_flats UNION ALL SELECT flat_id FROM sales_flats)"
             )
             total_count = cursor.fetchone()[0]
             logger.info(f"Total flats in database: {total_count}")
 
             # Check residential complexes
             cursor = db.conn.execute(
-                "SELECT DISTINCT residential_complex FROM (SELECT * FROM rental_flats UNION ALL SELECT * FROM sales_flats) WHERE residential_complex IS NOT NULL LIMIT 10"
+                "SELECT DISTINCT residential_complex FROM (SELECT residential_complex FROM rental_flats UNION ALL SELECT residential_complex FROM sales_flats) WHERE residential_complex IS NOT NULL LIMIT 10"
             )
             complexes = [row[0] for row in cursor.fetchall()]
             logger.info(f"Sample residential complexes: {complexes}")
 
             # Check flat types
             cursor = db.conn.execute(
-                "SELECT DISTINCT flat_type FROM (SELECT * FROM rental_flats UNION ALL SELECT * FROM sales_flats) WHERE flat_type IS NOT NULL"
+                "SELECT DISTINCT flat_type FROM (SELECT flat_type FROM rental_flats UNION ALL SELECT flat_type FROM sales_flats) WHERE flat_type IS NOT NULL"
             )
             types = [row[0] for row in cursor.fetchall()]
             logger.info(f"Available flat types: {types}")
