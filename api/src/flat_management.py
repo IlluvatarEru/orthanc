@@ -42,6 +42,8 @@ async def get_flat_details(flat_id: str):
             "is_rental": flat_info.is_rental,
             "url": getattr(flat_info, "url", f"https://krisha.kz/a/show/{flat_id}"),
             "scraped_at": flat_info.scraped_at,
+            "published_at": getattr(flat_info, "published_at", None),
+            "created_at": getattr(flat_info, "created_at", None),
         }
 
         return {"success": True, "flat": flat_dict}
@@ -154,13 +156,17 @@ async def get_market_context(flat_id: str):
             first_seen_date = datetime.strptime(first_seen, "%Y-%m-%d").date()
             days_on_market = (date.today() - first_seen_date).days
 
-        liquidity = db.get_jk_liquidity_score(flat_info.residential_complex)
+        turnover = {}
+        for label, days in [("1m", 30), ("3m", 90), ("6m", 180)]:
+            result = db.get_jk_turnover(flat_info.residential_complex, days=days)
+            if result:
+                turnover[label] = result
 
         return {
             "success": True,
             "first_seen": first_seen,
             "days_on_market": days_on_market,
-            "liquidity": liquidity,
+            "turnover": turnover,
         }
     except HTTPException:
         raise

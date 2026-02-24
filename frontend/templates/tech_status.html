@@ -2,6 +2,15 @@
 
 {% block title %}Tech Status - Orthanc Capital{% endblock %}
 
+{% macro fmt_duration(seconds) -%}
+{%- set mins = (seconds / 60)|int -%}
+{%- if mins >= 60 -%}
+    {{ (mins // 60) }}h{{ "%02d"|format(mins % 60) }}min
+{%- else -%}
+    {{ mins }}min
+{%- endif -%}
+{%- endmacro %}
+
 {% block content %}
 <!-- Header -->
 <div class="row mb-4">
@@ -11,6 +20,44 @@
     </div>
 </div>
 
+<!-- Live Progress Banner -->
+{% if pipeline_progress %}
+<meta http-equiv="refresh" content="30">
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card" style="border: 1px solid var(--accent-green);">
+            <div class="card-body py-3">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div>
+                        <span class="fw-bold" style="color: var(--accent-green);">Pipeline Running</span>
+                        <span class="text-muted ms-2">{{ pipeline_progress.city or "All Cities" }}</span>
+                        {% if pipeline_progress.current_jk_name %}
+                        <span class="text-muted ms-2">-- {{ pipeline_progress.current_jk_name }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-end">
+                        {% if pipeline_progress.jks_total %}
+                        <span class="me-3">{{ pipeline_progress.jk_current }}/{{ pipeline_progress.jks_total }} JKs</span>
+                        <span class="me-3">{{ "{:,}".format(pipeline_progress.flats_scraped or 0) }} flats</span>
+                        {% endif %}
+                        <span>{{ fmt_duration(pipeline_progress.elapsed_seconds) }} elapsed</span>
+                    </div>
+                </div>
+                {% if pipeline_progress.pct is not none %}
+                <div class="progress" style="height: 8px; background: var(--dark-header);">
+                    <div class="progress-bar" role="progressbar"
+                         style="width: {{ pipeline_progress.pct }}%; background-color: var(--accent-green);"
+                         aria-valuenow="{{ pipeline_progress.pct }}" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+                <small class="text-muted">{{ pipeline_progress.pct }}% complete</small>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 <!-- KPI Cards -->
 <div class="row mb-4">
     <div class="col-md-3 col-sm-6 mb-3">
@@ -18,7 +65,7 @@
             <div class="card-body text-center">
                 <div class="kpi-value" style="color: var(--accent-blue);">
                     {% if kpis.last_run %}
-                        {{ "%.1f"|format(kpis.last_run.duration_seconds / 60) }}m
+                        {{ fmt_duration(kpis.last_run.duration_seconds) }}
                     {% else %}--{% endif %}
                 </div>
                 <div class="kpi-label">Last Run Duration</div>
@@ -39,7 +86,7 @@
     <div class="col-md-3 col-sm-6 mb-3">
         <div class="card">
             <div class="card-body text-center">
-                <div class="kpi-value" style="color: var(--accent-orange);">{{ "%.1f"|format(kpis.avg_duration / 60) }}m</div>
+                <div class="kpi-value" style="color: var(--accent-orange);">{{ fmt_duration(kpis.avg_duration) }}</div>
                 <div class="kpi-label">Avg Duration</div>
             </div>
         </div>
@@ -156,7 +203,7 @@
                             <tr>
                                 <td>{{ run.finished_at[:16].replace('T', ' ') }}</td>
                                 <td>{{ run.city or "All" }}</td>
-                                <td>{{ "%.1f"|format(run.duration_seconds / 60) }}m</td>
+                                <td>{{ fmt_duration(run.duration_seconds) }}</td>
                                 <td>{{ run.jks_total }}</td>
                                 <td style="color: var(--accent-green);">{{ run.jks_successful }}</td>
                                 <td {% if run.jks_failed > 0 %}style="color: var(--accent-red);"{% endif %}>{{ run.jks_failed }}</td>

@@ -410,7 +410,9 @@ def view_flat_details(flat_id):
 
     # Confidence score: based on number of similar sales in same JK/bucket
     sample_count = len(similar_sales)
-    confidence_score = round(sample_count / (sample_count + 3) * 100) if sample_count > 0 else 0
+    confidence_score = (
+        round(sample_count / (sample_count + 3) * 100) if sample_count > 0 else 0
+    )
 
     return render_template(
         "unified_flat_view.html",
@@ -621,11 +623,28 @@ def tech_status():
         run["http_404"] = eb.get("http_404", 0)
         run["conn_errors"] = eb.get("connection_error", 0)
 
+    # Read live pipeline progress file
+    pipeline_progress = None
+    progress_file = os.path.join(
+        os.path.dirname(__file__), "..", "..", "logs", "pipeline_progress.json"
+    )
+    try:
+        with open(progress_file) as f:
+            progress_data = json.load(f)
+        if progress_data.get("status") == "running":
+            started = datetime.fromisoformat(progress_data["started_at"])
+            elapsed_sec = (datetime.now() - started).total_seconds()
+            progress_data["elapsed_seconds"] = int(elapsed_sec)
+            pipeline_progress = progress_data
+    except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError):
+        pass
+
     return render_template(
         "tech_status.html",
         runs=pipeline_data["runs"],
         kpis=pipeline_data["kpis"],
         error_breakdown=error_breakdown,
+        pipeline_progress=pipeline_progress,
     )
 
 

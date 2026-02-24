@@ -7,6 +7,8 @@ from the database, both for rentals and sales, with daily scheduling options.
 python -m scrapers.launch.launch_scraping_all_jks
 """
 
+import json
+import os
 import sys
 import time
 from datetime import datetime, timedelta
@@ -25,6 +27,21 @@ from scrapers.src.residential_complex_scraper import (
 from scrapers.src.utils import get_and_reset_error_counts, get_scraping_config, throttle
 
 logger = setup_logging(__name__, log_file="jk_scraping.log")
+
+PROGRESS_FILE = os.path.join(
+    os.path.dirname(__file__), "..", "..", "logs", "pipeline_progress.json"
+)
+
+
+def _write_progress(data: dict):
+    """Write pipeline progress to JSON file (atomic write, never crashes the pipeline)."""
+    try:
+        tmp = PROGRESS_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, PROGRESS_FILE)
+    except Exception:
+        pass
 
 
 def _prioritize_jks(jks: List[Dict]) -> List[Dict]:
@@ -128,8 +145,7 @@ def scrape_all_jk_rentals(
         if throttle.is_circuit_broken:
             remaining = len(jks) - i + 1
             logger.warning(
-                f"Circuit breaker: stopping early. "
-                f"Skipping {remaining} remaining JKs."
+                f"Circuit breaker: stopping early. Skipping {remaining} remaining JKs."
             )
             break
 
@@ -185,6 +201,7 @@ def scrape_all_jk_sales(
     throttle.reset()
     start_time = time.time()
     started_at = datetime.now().isoformat()
+    _write_progress({"status": "running", "started_at": started_at, "city": city})
 
     if city:
         logger.info(f"Starting scraping of JK sales for city: {city}")
@@ -226,44 +243,59 @@ def scrape_all_jk_sales(
     total_saved = 0
     jks_failed = 0
 
-    circuit_broken = False
-    for i, jk_info in enumerate(jks, 1):
-        # Check circuit breaker before each JK
-        if throttle.is_circuit_broken:
-            remaining = len(jks) - i + 1
-            logger.warning(
-                f"Circuit breaker: stopping early. "
-                f"Skipping {remaining} remaining JKs."
+    try:
+        circuit_broken = False
+        for i, jk_info in enumerate(jks, 1):
+            # Check circuit breaker before each JK
+            if throttle.is_circuit_broken:
+                remaining = len(jks) - i + 1
+                logger.warning(
+                    f"Circuit breaker: stopping early. "
+                    f"Skipping {remaining} remaining JKs."
+                )
+                circuit_broken = True
+                break
+
+            jk_name = jk_info["residential_complex"]
+            jk_city = jk_info.get("city", "almaty") or "almaty"
+            progress_pct = (i / len(jks)) * 100
+            logger.info(
+                f"[{i}/{len(jks)}] ({progress_pct:.1f}%) Scraping sales for: {jk_name}"
             )
-            circuit_broken = True
-            break
-
-        jk_name = jk_info["residential_complex"]
-        jk_city = jk_info.get("city", "almaty") or "almaty"
-        progress_pct = (i / len(jks)) * 100
-        logger.info(
-            f"[{i}/{len(jks)}] ({progress_pct:.1f}%) Scraping sales for: {jk_name}"
-        )
-
-        try:
-            saved_count = scrape_and_save_jk_sales(
-                jk_name=jk_name, max_pages=max_pages, db_path=db_path, city=jk_city
+            _write_progress(
+                {
+                    "status": "running",
+                    "started_at": started_at,
+                    "city": city,
+                    "jk_current": i,
+                    "jks_total": len(jks),
+                    "current_jk_name": jk_name,
+                    "flats_scraped": total_saved,
+                    "pct": round(progress_pct, 1),
+                }
             )
 
-            results[jk_name] = saved_count
-            total_saved += saved_count
-            throttle.record_jk_result(saved_count)
+            try:
+                saved_count = scrape_and_save_jk_sales(
+                    jk_name=jk_name, max_pages=max_pages, db_path=db_path, city=jk_city
+                )
 
-            logger.info(f"  {jk_name}: {saved_count} sales flats saved")
+                results[jk_name] = saved_count
+                total_saved += saved_count
+                throttle.record_jk_result(saved_count)
 
-            # Add delay between JKs to be respectful
-            time.sleep(2)
+                logger.info(f"  {jk_name}: {saved_count} sales flats saved")
 
-        except Exception as e:
-            logger.error(f"  Error scraping {jk_name}: {e}")
-            results[jk_name] = 0
-            jks_failed += 1
-            throttle.record_jk_result(0)
+                # Add delay between JKs to be respectful
+                time.sleep(2)
+
+            except Exception as e:
+                logger.error(f"  Error scraping {jk_name}: {e}")
+                results[jk_name] = 0
+                jks_failed += 1
+                throttle.record_jk_result(0)
+    finally:
+        _write_progress({"status": "idle"})
 
     finished_at = datetime.now().isoformat()
     duration = time.time() - start_time

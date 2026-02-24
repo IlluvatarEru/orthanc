@@ -112,6 +112,8 @@ class DatabaseSchema:
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
                 city TEXT,
+                published_at DATE,
+                created_at DATE,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)

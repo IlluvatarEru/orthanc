@@ -200,6 +200,10 @@ def scrape_sales_flat_from_analytics_page(
         if district_match:
             api_district = district_match.group(1)
 
+        # Publication dates from API
+        api_published_at = advert.get("addedAt")
+        api_created_at = advert.get("createdAt")
+
         flat_info = FlatInfo(
             flat_id=str(krisha_id),
             price=int(price),
@@ -215,6 +219,8 @@ def scrape_sales_flat_from_analytics_page(
             archived=is_archived,
             city=api_city,
             district=api_district,
+            published_at=api_published_at,
+            created_at=api_created_at,
         )
 
         return flat_info
