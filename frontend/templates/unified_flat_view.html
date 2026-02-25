@@ -47,7 +47,15 @@
 {% block content %}
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
-        <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
+        <div>
+            <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
+            {% if developer_info %}
+            <p class="text-muted mb-0 mt-1" style="font-size: 0.9rem;">
+                Developer: {{ developer_info.name }}
+                <span class="badge ms-1" style="background: {% if developer_info.category == 'good' %}var(--accent-green){% elif developer_info.category == 'bad' %}var(--accent-red){% else %}#6c757d{% endif %}; font-size: 0.75rem;">{{ developer_info.category }}</span>
+            </p>
+            {% endif %}
+        </div>
         <div class="d-flex gap-2 align-items-center flex-wrap">
             <button class="btn btn-sm btn-outline-warning toggle-favorite"
                     data-flat-id="{{ flat_data.flat_id }}"
@@ -198,7 +206,7 @@
                             </div>
                             <div class="mt-3">
                                 <p class="text-muted mb-1">
-                                    <strong>Sample Size:</strong><span class="ms-1 hint-tip" data-tip="Number of active sales listings in the same JK with area within +/-20% of this flat. Used to compute the median price and discount.">?</span> {{ opportunity.market_stats.count }} similar properties
+                                    <strong>Sample Size:</strong><span class="ms-1 hint-tip" data-tip="Number of active sales listings in the same JK with area within +/-10% of this flat. Used to compute the median price and discount.">?</span> {{ opportunity.market_stats.count }} similar properties
                                 </p>
                                 <p class="text-muted mb-0">
                                     <strong>Confidence:</strong><span class="ms-1 hint-tip" data-tip="Score from 0-100% based on how many similar flats are available for comparison. Formula: N/(N+3) where N is the number of similar sales. Higher = more reliable estimate.">?</span>
