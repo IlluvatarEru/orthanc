@@ -173,9 +173,7 @@ class TestSalesScraping:
         """Test that a known Almaty flat is classified as Алматы."""
         flat_info = scrape_sales_flat_from_analytics_page(TEST_SALES_KRISHA_ID_1)
         if flat_info is None:
-            pytest.skip(
-                f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha"
-            )
+            pytest.skip(f"Flat {TEST_SALES_KRISHA_ID_1} no longer available on Krisha")
 
         assert flat_info.city == "Алматы", (
             f"Flat {TEST_SALES_KRISHA_ID_1} (Meridian) should be Алматы, got {flat_info.city}"
