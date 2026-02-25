@@ -291,13 +291,10 @@ class JKAnalytics:
             flat_type = sale["flat_type"]
             area = sale["area"]
 
-            # Find comparables within +/-20% of this flat's area (fixed window, no drift)
-            area_min = area * 0.80
-            area_max = area * 1.20
-            area_bucket = [
-                f for f in sales_data
-                if area_min <= f["area"] <= area_max
-            ]
+            # Find comparables within +/-10% of this flat's area (fixed window, no drift)
+            area_min = area * 0.90
+            area_max = area * 1.10
+            area_bucket = [f for f in sales_data if area_min <= f["area"] <= area_max]
 
             if (
                 area_bucket and len(area_bucket) > 1
@@ -307,7 +304,9 @@ class JKAnalytics:
                 area_prices_sorted = sorted(area_prices)
                 n = len(area_prices_sorted)
                 if n % 2 == 0:
-                    area_median = (area_prices_sorted[n // 2 - 1] + area_prices_sorted[n // 2]) / 2
+                    area_median = (
+                        area_prices_sorted[n // 2 - 1] + area_prices_sorted[n // 2]
+                    ) / 2
                 else:
                     area_median = area_prices_sorted[n // 2]
 

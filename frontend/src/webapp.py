@@ -279,6 +279,11 @@ def analyze_jk(
     flat_type_buckets = sales_analysis.current_market.flat_type_buckets
     opportunities_by_flat_type = sales_analysis.current_market.opportunities
 
+    # Developer info for this JK
+    developer_info = None
+    with OrthancDB() as db:
+        developer_info = db.get_developer_for_jk(residential_complex_name)
+
     return render_template(
         "unified_jk_view.html",
         complex_info=complex_info,
@@ -296,14 +301,15 @@ def analyze_jk(
         opportunities_by_flat_type=opportunities_by_flat_type,
         area_tolerance=area_tolerance,
         discount_percentage=discount_percentage,
+        developer_info=developer_info,
     )
 
 
 @app.route("/flat/<flat_id>")
 def view_flat_details(flat_id):
     """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
-    # Get analysis parameters (20% matches the opportunity finder's area bucket logic)
-    area_tolerance = float(request.args.get("area_tolerance", 20.0))
+    # Get analysis parameters (10% matches the opportunity finder's area bucket logic)
+    area_tolerance = float(request.args.get("area_tolerance", 10.0))
 
     # Get flat information using API
     flat_data = api_client.get_flat_info(flat_id)
@@ -414,6 +420,12 @@ def view_flat_details(flat_id):
         round(sample_count / (sample_count + 3) * 100) if sample_count > 0 else 0
     )
 
+    # Developer info for this JK
+    developer_info = None
+    if flat_data.get("residential_complex"):
+        with OrthancDB() as db:
+            developer_info = db.get_developer_for_jk(flat_data["residential_complex"])
+
     return render_template(
         "unified_flat_view.html",
         flat_data=flat_data,
@@ -428,6 +440,7 @@ def view_flat_details(flat_id):
         data_warning=data_warning,
         market_context=market_context,
         confidence_score=confidence_score,
+        developer_info=developer_info,
     )
 
 

@@ -17,6 +17,12 @@
                                 {% if complex_info.district %}, {{ complex_info.district }}{% endif %}
                             </p>
                         {% endif %}
+                        {% if developer_info %}
+                        <p class="mb-0 text-muted">
+                            <i class="fas fa-hard-hat me-1"></i>{{ developer_info.name }}
+                            <span class="badge ms-1" style="background: {% if developer_info.category == 'good' %}var(--accent-green){% elif developer_info.category == 'bad' %}var(--accent-red){% else %}#6c757d{% endif %}; font-size: 0.75rem;">{{ developer_info.category }}</span>
+                        </p>
+                        {% endif %}
                         <p class="mb-0 text-muted">
                             Date: {{ analysis.query_date }} | Area limit: ≤{{ analysis.area_max }} m²
                         </p>

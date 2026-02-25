@@ -55,6 +55,17 @@ class DatabaseSchema:
                 name TEXT NOT NULL,
                 city TEXT,
                 district TEXT,
+                developer TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create real estate developers table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS real_estate_developers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                category TEXT NOT NULL DEFAULT 'indifferent',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -376,6 +387,14 @@ class DatabaseSchema:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_blacklisted_name ON blacklisted_jks(name)"
+        )
+
+        # Real estate developers indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_developers_name ON real_estate_developers(name)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rc_developer ON residential_complexes(developer)"
         )
 
         # Pipeline runs indexes

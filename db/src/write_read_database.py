@@ -531,6 +531,79 @@ class OrthancDB:
         self.disconnect()
         return result
 
+    # Real estate developers operations
+    def insert_developer(self, name: str, category: str = "indifferent") -> bool:
+        """Insert a real estate developer (ignore if already exists)."""
+        self.connect()
+        self.conn.execute(
+            "INSERT OR IGNORE INTO real_estate_developers (name, category) VALUES (?, ?)",
+            (name, category),
+        )
+        self.conn.commit()
+        self.disconnect()
+        return True
+
+    def get_developer(self, name: str) -> Optional[dict]:
+        """Get developer info by name."""
+        self.connect()
+        cursor = self.conn.execute(
+            "SELECT name, category FROM real_estate_developers WHERE name = ?",
+            (name,),
+        )
+        row = cursor.fetchone()
+        result = dict(row) if row else None
+        self.disconnect()
+        return result
+
+    def get_all_developers(self) -> List[dict]:
+        """Get all real estate developers."""
+        self.connect()
+        cursor = self.conn.execute(
+            "SELECT name, category FROM real_estate_developers ORDER BY name"
+        )
+        result = [dict(row) for row in cursor.fetchall()]
+        self.disconnect()
+        return result
+
+    def update_developer_category(self, name: str, category: str) -> bool:
+        """Update developer category (good/bad/indifferent)."""
+        self.connect()
+        self.conn.execute(
+            "UPDATE real_estate_developers SET category = ? WHERE name = ?",
+            (category, name),
+        )
+        self.conn.commit()
+        self.disconnect()
+        return True
+
+    def update_residential_complex_developer(
+        self, jk_name: str, developer_name: str
+    ) -> bool:
+        """Set the developer for a residential complex."""
+        self.connect()
+        self.conn.execute(
+            "UPDATE residential_complexes SET developer = ? WHERE name = ?",
+            (developer_name, jk_name),
+        )
+        self.conn.commit()
+        self.disconnect()
+        return True
+
+    def get_developer_for_jk(self, residential_complex: str) -> Optional[dict]:
+        """Get developer info for a JK (join residential_complexes + real_estate_developers)."""
+        self.connect()
+        cursor = self.conn.execute(
+            """SELECT d.name, d.category
+               FROM residential_complexes rc
+               JOIN real_estate_developers d ON rc.developer = d.name
+               WHERE rc.name = ?""",
+            (residential_complex,),
+        )
+        row = cursor.fetchone()
+        result = dict(row) if row else None
+        self.disconnect()
+        return result
+
     def get_flats_for_residential_complex(
         self, residential_complex: str, sales_or_rentals: str = "both"
     ) -> List[FlatInfo]:
