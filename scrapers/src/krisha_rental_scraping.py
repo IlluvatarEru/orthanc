@@ -315,7 +315,7 @@ def scrape_jk_rentals(
     # Search for the complex to get its ID
     from scrapers.src.residential_complex_scraper import search_complex_by_name
 
-    complex_info = search_complex_by_name(jk_name)
+    complex_info = search_complex_by_name(jk_name, city=city)
 
     if not complex_info or not complex_info.get("complex_id"):
         logging.error(f"Could not find complex ID for: {jk_name}")

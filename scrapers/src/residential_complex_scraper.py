@@ -549,23 +549,73 @@ def scrape_districts_for_city(city: str = "Алматы", db_path: str = "flats.
     return updated
 
 
-def search_complex_by_name(name: str, db_path: str = "flats.db") -> Optional[Dict]:
+CITY_SLUG_TO_CYRILLIC = {
+    "almaty": "алматы",
+    "astana": "астане",
+    "shymkent": "шымкенте",
+    "karaganda": "караганде",
+    "aktau": "актау",
+    "atyrau": "атырау",
+    "aktobe": "актобе",
+    "kostanay": "костанае",
+    "kokshetau": "кокшетау",
+    "ust-kamenogorsk": "усть-каменогорске",
+}
+
+
+def search_complex_by_name(
+    name: str, db_path: str = "flats.db", city: str = None
+) -> Optional[Dict]:
     """
     Search for a residential complex by name.
 
+    Matching priority:
+    1. Exact name match (case-insensitive), filtered by city if provided
+    2. Substring match, filtered by city if provided
+    3. Exact name match without city filter
+    4. Substring match without city filter
+
     :param name: str, complex name to search for
     :param db_path: str, database file path
+    :param city: str, city slug (e.g. "almaty") to prefer matches in that city
     :return: Optional[Dict], complex information if found
     """
     db = OrthancDB(db_path)
     complexes = db.get_all_residential_complexes()
 
-    # Case-insensitive search
     name_lower = name.lower()
 
-    for complex_data in complexes:
-        if name_lower in complex_data["name"].lower():
-            return complex_data
+    # Resolve city slug to Cyrillic for matching against DB
+    city_cyrillic = None
+    if city:
+        city_cyrillic = CITY_SLUG_TO_CYRILLIC.get(city.lower())
+
+    def _city_matches(complex_data):
+        if not city_cyrillic:
+            return True
+        db_city = (complex_data.get("city") or "").lower()
+        return city_cyrillic in db_city
+
+    # 1. Exact name match + city match
+    for c in complexes:
+        if c["name"].lower() == name_lower and _city_matches(c):
+            return c
+
+    # 2. Substring match + city match (only if city is set)
+    if city_cyrillic:
+        for c in complexes:
+            if name_lower in c["name"].lower() and _city_matches(c):
+                return c
+
+    # 3. Exact name match, any city
+    for c in complexes:
+        if c["name"].lower() == name_lower:
+            return c
+
+    # 4. Substring match, any city (original fallback)
+    for c in complexes:
+        if name_lower in c["name"].lower():
+            return c
 
     return None
 
@@ -790,3 +840,60 @@ def update_complex_database(db_path: str = "flats.db") -> int:
     saved_count = process_and_save_complexes(cleaned_complexes, db_path)
 
     return saved_count
+
+
+def fetch_developer_for_jk(
+    jk_name: str, city: str = "almaty", db_path: str = "flats.db"
+) -> Optional[str]:
+    """
+    Fetch the developer (zastroyshik) for a JK from its Krisha.kz complex page.
+
+    The Krisha complex page title follows the pattern:
+        'ЖК {Name} {City}: ... | {Developer} - Крыша'
+    We extract the developer name from between '|' and '- Крыша'.
+
+    The URL slug is derived from the JK name: lowercased, spaces/special chars removed.
+    If that fails, we try the complex search page as fallback.
+
+    :param jk_name: str, name of the residential complex
+    :param city: str, city slug for URL (e.g. 'almaty', 'astana')
+    :param db_path: str, path to database
+    :return: Optional[str], developer name or None if not found
+    """
+    import re
+    from bs4 import BeautifulSoup
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/111.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+    }
+
+    # Build URL slug from JK name: lowercase, remove spaces and special chars
+    slug = re.sub(r"[^a-zA-Z0-9а-яА-ЯёЁ]", "", jk_name).lower()
+
+    url = f"https://krisha.kz/complex/show/{city}/{slug}/"
+    logging.info(f"Fetching developer for '{jk_name}' from {url}")
+
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        if response.status_code != 200:
+            logging.warning(f"Failed to fetch {url}: HTTP {response.status_code}")
+            return None
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        title = soup.title.string if soup.title else ""
+
+        # Extract developer from title: '... | {Developer} - Крыша'
+        match = re.search(r"\|\s*(.+?)\s*-\s*Крыша", title)
+        if match:
+            developer = match.group(1).strip()
+            logging.info(f"Found developer for '{jk_name}': {developer}")
+            return developer
+
+        logging.warning(f"Could not extract developer from title: {title}")
+        return None
+
+    except Exception as e:
+        logging.error(f"Error fetching developer for '{jk_name}': {e}")
+        return None
