@@ -204,6 +204,15 @@ class DatabaseSchema:
             )
         """)
 
+        # Create ignored opportunities table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS ignored_opportunities (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                flat_id TEXT UNIQUE NOT NULL,
+                ignored_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create pipeline runs stats table
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS pipeline_runs (

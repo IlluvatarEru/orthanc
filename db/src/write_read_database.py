@@ -2027,7 +2027,8 @@ class OrthancDB:
         cursor = self.conn.execute(
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
-                   total_floors, construction_year, parking, description, url, query_date, archived, scraped_at
+                   total_floors, construction_year, parking, description, url, query_date,
+                   archived, scraped_at, city
             FROM rental_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2052,6 +2053,7 @@ class OrthancDB:
                 is_rental=True,
                 archived=bool(row[12] if len(row) > 12 else 0),
                 scraped_at=row[13] if len(row) > 13 else None,
+                city=row[14] if len(row) > 14 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2064,7 +2066,7 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, published_at, created_at
+                   archived, scraped_at, published_at, created_at, city
             FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2091,6 +2093,7 @@ class OrthancDB:
                 scraped_at=row[13] if len(row) > 13 else None,
                 published_at=row[14] if len(row) > 14 else None,
                 created_at=row[15] if len(row) > 15 else None,
+                city=row[16] if len(row) > 16 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2102,7 +2105,11 @@ class OrthancDB:
         return None
 
     def get_similar_rentals_by_area_and_complex(
-        self, residential_complex: Optional[str], area_min: float, area_max: float
+        self,
+        residential_complex: Optional[str],
+        area_min: float,
+        area_max: float,
+        city: Optional[str] = None,
     ) -> List[FlatInfo]:
         """
         Get similar rental flats by residential complex and area range.
@@ -2110,19 +2117,27 @@ class OrthancDB:
         :param residential_complex: Optional[str], residential complex name (can be None or use LIKE pattern)
         :param area_min: float, minimum area
         :param area_max: float, maximum area
+        :param city: Optional[str], city to filter by (e.g. "Алматы")
         :return: List[FlatInfo], list of similar rental flats
         """
         self.connect()
 
         jk_arg = f"%{residential_complex}%" if residential_complex else "%"
+        params = [jk_arg, area_min, area_max]
 
-        query = """
+        city_filter = ""
+        if city:
+            city_filter = "AND city = ?"
+            params.append(city)
+
+        query = f"""
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    construction_year, total_floors, parking, description
             FROM rental_flats
             WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
             AND (archived = 0 OR archived IS NULL)
+            {city_filter}
             AND query_date = (
                 SELECT MAX(r2.query_date) FROM rental_flats r2
                 WHERE r2.flat_id = rental_flats.flat_id
@@ -2130,7 +2145,7 @@ class OrthancDB:
             ORDER BY price ASC
         """
 
-        cursor = self.conn.execute(query, (jk_arg, area_min, area_max))
+        cursor = self.conn.execute(query, params)
 
         similar_rentals = []
         for row in cursor.fetchall():
@@ -2153,7 +2168,11 @@ class OrthancDB:
         return similar_rentals
 
     def get_similar_sales_by_area_and_complex(
-        self, residential_complex: Optional[str], area_min: float, area_max: float
+        self,
+        residential_complex: Optional[str],
+        area_min: float,
+        area_max: float,
+        city: Optional[str] = None,
     ) -> List[FlatInfo]:
         """
         Get similar sales flats by residential complex and area range.
@@ -2161,19 +2180,27 @@ class OrthancDB:
         :param residential_complex: Optional[str], residential complex name (can be None or use LIKE pattern)
         :param area_min: float, minimum area
         :param area_max: float, maximum area
+        :param city: Optional[str], city to filter by (e.g. "Алматы")
         :return: List[FlatInfo], list of similar sales flats
         """
         self.connect()
 
         jk_arg = f"%{residential_complex}%" if residential_complex else "%"
+        params = [jk_arg, area_min, area_max]
 
-        query = """
+        city_filter = ""
+        if city:
+            city_filter = "AND city = ?"
+            params.append(city)
+
+        query = f"""
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    construction_year, total_floors, parking, description
             FROM sales_flats
             WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
             AND (archived = 0 OR archived IS NULL)
+            {city_filter}
             AND query_date = (
                 SELECT MAX(s2.query_date) FROM sales_flats s2
                 WHERE s2.flat_id = sales_flats.flat_id
@@ -2181,7 +2208,7 @@ class OrthancDB:
             ORDER BY price ASC
         """
 
-        cursor = self.conn.execute(query, (jk_arg, area_min, area_max))
+        cursor = self.conn.execute(query, params)
 
         similar_sales = []
         for row in cursor.fetchall():

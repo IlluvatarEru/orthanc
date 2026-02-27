@@ -523,3 +523,146 @@ class TestDatabaseOperations:
         )
         db.conn.commit()
         db.disconnect()
+
+    def test_similar_flats_city_filter(self, db):
+        """Test that similar flats are filtered by city to avoid cross-city matches.
+
+        Regression test: searching for 'Riviera' in Almaty should not return
+        flats from Riviera complexes in other cities (Aktau, Astana, etc.).
+        """
+        query_date = datetime.now().strftime("%Y-%m-%d")
+
+        # Insert Riviera flat in Almaty
+        almaty_flat = FlatInfo(
+            flat_id="riviera_almaty_1",
+            price=25000000,
+            area=60.0,
+            flat_type="2BR",
+            residential_complex="Riviera",
+            floor=3,
+            total_floors=10,
+            construction_year=2021,
+            parking="Да",
+            description="Riviera Almaty flat",
+            is_rental=False,
+        )
+        db.insert_sales_flat(
+            almaty_flat,
+            "https://krisha.kz/a/show/riviera_almaty_1",
+            query_date,
+            "2BR",
+            city="Алматы",
+        )
+
+        # Insert Riviera flat in Aktau (different city, same JK name pattern)
+        aktau_flat = FlatInfo(
+            flat_id="riviera_aktau_1",
+            price=15000000,
+            area=55.0,
+            flat_type="2BR",
+            residential_complex="Aktau Riviera",
+            floor=5,
+            total_floors=9,
+            construction_year=2020,
+            parking="Нет",
+            description="Riviera Aktau flat",
+            is_rental=False,
+        )
+        db.insert_sales_flat(
+            aktau_flat,
+            "https://krisha.kz/a/show/riviera_aktau_1",
+            query_date,
+            "2BR",
+            city="Актау",
+        )
+
+        # Without city filter: both should be returned (LIKE '%Riviera%' matches both)
+        all_similar = db.get_similar_sales_by_area_and_complex("Riviera", 50.0, 70.0)
+        flat_ids_all = {f.flat_id for f in all_similar}
+        assert "riviera_almaty_1" in flat_ids_all
+        assert "riviera_aktau_1" in flat_ids_all
+
+        # With city filter: only Almaty flat should be returned
+        almaty_similar = db.get_similar_sales_by_area_and_complex(
+            "Riviera", 50.0, 70.0, city="Алматы"
+        )
+        flat_ids_almaty = {f.flat_id for f in almaty_similar}
+        assert "riviera_almaty_1" in flat_ids_almaty
+        assert "riviera_aktau_1" not in flat_ids_almaty
+
+        # Same test for rentals (insert_rental_flat doesn't have city param,
+        # so insert then update city directly)
+        almaty_rental = FlatInfo(
+            flat_id="riviera_almaty_r1",
+            price=200000,
+            area=60.0,
+            flat_type="2BR",
+            residential_complex="Riviera",
+            floor=3,
+            total_floors=10,
+            construction_year=2021,
+            parking="Да",
+            description="Riviera Almaty rental",
+            is_rental=True,
+        )
+        db.insert_rental_flat(
+            almaty_rental,
+            "https://krisha.kz/a/show/riviera_almaty_r1",
+            query_date,
+            "2BR",
+        )
+
+        aktau_rental = FlatInfo(
+            flat_id="riviera_aktau_r1",
+            price=150000,
+            area=55.0,
+            flat_type="2BR",
+            residential_complex="Aktau Riviera",
+            floor=5,
+            total_floors=9,
+            construction_year=2020,
+            parking="Нет",
+            description="Riviera Aktau rental",
+            is_rental=True,
+        )
+        db.insert_rental_flat(
+            aktau_rental,
+            "https://krisha.kz/a/show/riviera_aktau_r1",
+            query_date,
+            "2BR",
+        )
+
+        # Set city directly since insert_rental_flat doesn't support city param
+        db.connect()
+        db.conn.execute(
+            "UPDATE rental_flats SET city = ? WHERE flat_id = ?",
+            ("Алматы", "riviera_almaty_r1"),
+        )
+        db.conn.execute(
+            "UPDATE rental_flats SET city = ? WHERE flat_id = ?",
+            ("Актау", "riviera_aktau_r1"),
+        )
+        db.conn.commit()
+        db.disconnect()
+
+        almaty_rentals = db.get_similar_rentals_by_area_and_complex(
+            "Riviera", 50.0, 70.0, city="Алматы"
+        )
+        rental_ids = {f.flat_id for f in almaty_rentals}
+        assert "riviera_almaty_r1" in rental_ids
+        assert "riviera_aktau_r1" not in rental_ids
+
+        # Clean up
+        db.connect()
+        for fid in [
+            "riviera_almaty_1",
+            "riviera_aktau_1",
+        ]:
+            db.conn.execute("DELETE FROM sales_flats WHERE flat_id = ?", (fid,))
+        for fid in [
+            "riviera_almaty_r1",
+            "riviera_aktau_r1",
+        ]:
+            db.conn.execute("DELETE FROM rental_flats WHERE flat_id = ?", (fid,))
+        db.conn.commit()
+        db.disconnect()

@@ -798,7 +798,7 @@ def toggle_currency():
     return response
 
 
-@app.route("/api/ignore_opportunity", methods=["POST"])
+@app.route("/action/ignore_opportunity", methods=["POST"])
 def ignore_opportunity():
     """Add a flat to the ignored opportunities list."""
     flat_id = request.json.get("flat_id")

@@ -462,7 +462,7 @@
 {% block extra_js %}
 <script>
 function ignoreOpportunity(flatId) {
-    fetch('/api/ignore_opportunity', {
+    fetch('/action/ignore_opportunity', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({flat_id: flatId})
@@ -470,9 +470,10 @@ function ignoreOpportunity(flatId) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('opp-row-' + flatId).remove();
+            window.location.reload();
         }
-    });
+    })
+    .catch(err => console.error('Ignore failed:', err));
 }
 
 function loadDistricts() {
@@ -532,7 +533,7 @@ function toggleDistrict(city, district, blacklisted) {
 document.addEventListener('DOMContentLoaded', function() { loadDistricts(); });
 
 function ignoreOpportunityMobile(flatId) {
-    fetch('/api/ignore_opportunity', {
+    fetch('/action/ignore_opportunity', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({flat_id: flatId})
@@ -540,9 +541,10 @@ function ignoreOpportunityMobile(flatId) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('opp-card-' + flatId).remove();
+            window.location.reload();
         }
-    });
+    })
+    .catch(err => console.error('Ignore failed:', err));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
