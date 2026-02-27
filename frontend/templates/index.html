@@ -200,8 +200,8 @@
                         <thead>
                             <tr>
                                 <th>JK</th>
-                                <th>Old Avg</th>
-                                <th>New Avg</th>
+                                <th>Old /m2</th>
+                                <th>New /m2</th>
                                 <th>Change</th>
                             </tr>
                         </thead>
@@ -209,8 +209,8 @@
                             {% for r in price_movers.risers %}
                             <tr>
                                 <td><a href="/analyze_jk/{{ r.residential_complex|urlencode }}">{{ r.residential_complex }}</a></td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(r.old_price / 1000000) }}M{% endif %}</td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(r.new_price / 1000000) }}M{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.old_price) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.new_price) }}{% endif %}</td>
                                 <td><span class="text-success">+{{ "%.1f"|format(r.pct_change) }}%</span></td>
                             </tr>
                             {% endfor %}
@@ -241,8 +241,8 @@
                         <thead>
                             <tr>
                                 <th>JK</th>
-                                <th>Old Avg</th>
-                                <th>New Avg</th>
+                                <th>Old /m2</th>
+                                <th>New /m2</th>
                                 <th>Change</th>
                             </tr>
                         </thead>
@@ -250,8 +250,8 @@
                             {% for f in price_movers.fallers %}
                             <tr>
                                 <td><a href="/analyze_jk/{{ f.residential_complex|urlencode }}">{{ f.residential_complex }}</a></td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(f.old_price / 1000000) }}M{% endif %}</td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(f.new_price / 1000000) }}M{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.old_price) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.new_price) }}{% endif %}</td>
                                 <td><span class="text-danger">{{ "%.1f"|format(f.pct_change) }}%</span></td>
                             </tr>
                             {% endfor %}
