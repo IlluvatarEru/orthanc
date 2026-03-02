@@ -201,7 +201,7 @@
                         <tbody>
                             {% for run in runs[:30] %}
                             <tr>
-                                <td>{{ run.finished_at[:16].replace('T', ' ') }}</td>
+                                <td>{{ run.finished_at|to_cet }}</td>
                                 <td>{{ run.city or "All" }}</td>
                                 <td>{{ fmt_duration(run.duration_seconds) }}</td>
                                 <td>{{ run.jks_total }}</td>
@@ -231,7 +231,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     // Prepare data (runs come most-recent-first, reverse for chronological X axis)
-    const labels = [{% for run in runs|reverse %}'{{ run.finished_at[:10] }} {{ (run.city or "All")[:3] }}'{% if not loop.last %}, {% endif %}{% endfor %}];
+    const labels = [{% for run in runs|reverse %}'{{ (run.finished_at|to_cet)[:10] }} {{ (run.city or "All")[:3] }}'{% if not loop.last %}, {% endif %}{% endfor %}];
     const durations = [{% for run in runs|reverse %}{{ "%.1f"|format(run.duration_seconds / 60) }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const flatsScraped = [{% for run in runs|reverse %}{{ run.flats_scraped }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const timeouts = [{% for run in runs|reverse %}{{ run.timeouts }}{% if not loop.last %}, {% endif %}{% endfor %}];

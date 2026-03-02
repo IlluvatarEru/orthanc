@@ -5,7 +5,7 @@ Clean, simple Flask webapp that fails fast and never silently catches errors.
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import unquote
 
 from flask import Flask, render_template, request, jsonify, redirect, url_for
@@ -48,6 +48,38 @@ def inject_currency_preference():
             "or visit /api/exchange_rates to fetch rates manually."
         )
     return dict(show_eur=show_eur, eur_rate=eur_rate)
+
+
+def _shift_to_cet(timestamp_str, src_offset_hours):
+    """Shift a timestamp string to CET (UTC+1).
+
+    :param timestamp_str: timestamp in ISO or space-separated format
+    :param src_offset_hours: source timezone offset from UTC (e.g. -5 for EST, 0 for UTC)
+    :return: formatted string 'YYYY-MM-DD HH:MM CET'
+    """
+    if not timestamp_str:
+        return timestamp_str
+    try:
+        clean = str(timestamp_str).replace("T", " ")
+        dt = datetime.strptime(clean[:16], "%Y-%m-%d %H:%M")
+        cet_offset = 1  # CET = UTC+1
+        shift = cet_offset - src_offset_hours
+        dt_cet = dt + timedelta(hours=shift)
+        return dt_cet.strftime("%Y-%m-%d %H:%M") + " CET"
+    except (ValueError, TypeError):
+        return timestamp_str
+
+
+@app.template_filter("to_cet")
+def to_cet_filter(timestamp_str):
+    """Convert an EST (datetime.now()) timestamp to CET."""
+    return _shift_to_cet(timestamp_str, src_offset_hours=-5)
+
+
+@app.template_filter("utc_to_cet")
+def utc_to_cet_filter(timestamp_str):
+    """Convert a UTC (CURRENT_TIMESTAMP) timestamp to CET."""
+    return _shift_to_cet(timestamp_str, src_offset_hours=0)
 
 
 # Initialize API client
