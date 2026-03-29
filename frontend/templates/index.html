@@ -53,6 +53,11 @@
                             <option value="30" {% if max_age_days == 30 %}selected{% endif %}>1mo</option>
                             <option value="365" {% if max_age_days == 365 %}selected{% endif %}>All</option>
                         </select>
+                        <select name="seller_type" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
+                            <option value="owner" {% if seller_type == 'owner' %}selected{% endif %}>Owner</option>
+                            <option value="agent" {% if seller_type == 'agent' %}selected{% endif %}>Agent</option>
+                            <option value="all" {% if seller_type == 'all' %}selected{% endif %}>All</option>
+                        </select>
                         <select name="limit" class="form-select form-select-sm" style="width: auto; min-width: 0;" onchange="this.form.submit()">
                             <option value="25" {% if limit == 25 %}selected{% endif %}>25</option>
                             <option value="50" {% if limit == 50 %}selected{% endif %}>50</option>

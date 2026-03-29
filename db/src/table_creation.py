@@ -99,6 +99,8 @@ class DatabaseSchema:
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
                 city TEXT,
+                seller_type TEXT,
+                seller_name TEXT,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -123,6 +125,8 @@ class DatabaseSchema:
                 query_date DATE NOT NULL,
                 archived INTEGER DEFAULT 0,
                 city TEXT,
+                seller_type TEXT,
+                seller_name TEXT,
                 published_at DATE,
                 created_at DATE,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -428,12 +432,42 @@ class DatabaseSchema:
         self.conn.commit()
         self.disconnect()
 
+    def migrate_add_seller_type(self):
+        """
+        Add seller_type column to existing rental_flats and sales_flats tables.
+        Safe to run multiple times (ignores if column already exists).
+        """
+        self.connect()
+        for table in ("rental_flats", "sales_flats"):
+            try:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN seller_type TEXT")
+            except Exception:
+                pass  # Column already exists
+        self.conn.commit()
+        self.disconnect()
+
+    def migrate_add_seller_name(self):
+        """
+        Add seller_name column to existing rental_flats and sales_flats tables.
+        Safe to run multiple times (ignores if column already exists).
+        """
+        self.connect()
+        for table in ("rental_flats", "sales_flats"):
+            try:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN seller_name TEXT")
+            except Exception:
+                pass  # Column already exists
+        self.conn.commit()
+        self.disconnect()
+
     def initialize_database(self):
         """
         Initialize the complete database schema with tables and indexes.
         """
         self.create_tables()
         self.create_indexes()
+        self.migrate_add_seller_type()
+        self.migrate_add_seller_name()
 
     def drop_tables(self):
         """

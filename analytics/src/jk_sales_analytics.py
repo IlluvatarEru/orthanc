@@ -352,6 +352,8 @@ class JKAnalytics:
                         description=sale.get("description", ""),
                         is_rental=False,  # This is sales data
                         published_at=sale.get("published_at"),
+                        seller_type=sale.get("seller_type"),
+                        seller_name=sale.get("seller_name"),
                     )
 
                     # Create StatsForFlatType object with area bucket stats
@@ -381,6 +383,8 @@ class JKAnalytics:
                             parking=bucket_flat.get("parking"),
                             description=bucket_flat.get("description", ""),
                             is_rental=False,  # This is sales data
+                            seller_type=bucket_flat.get("seller_type"),
+                            seller_name=bucket_flat.get("seller_name"),
                         )
                         bucket_flat_infos.append(bucket_flat_info)
 

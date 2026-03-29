@@ -38,3 +38,5 @@ class FlatInfo:
     district: Optional[str] = None
     published_at: Optional[str] = None
     created_at: Optional[str] = None
+    seller_type: Optional[str] = None
+    seller_name: Optional[str] = None

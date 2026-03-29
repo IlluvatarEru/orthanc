@@ -92,6 +92,8 @@ async def get_jk_sales_analysis(
                     parking=opp.flat_info.parking,
                     description=opp.flat_info.description,
                     is_rental=opp.flat_info.is_rental,
+                    seller_type=opp.flat_info.seller_type,
+                    seller_name=opp.flat_info.seller_name,
                     discount_percentage_vs_median=opp.discount_percentage_vs_median,
                     market_stats={
                         "residential_complex": opp.stats_for_flat_type.residential_complex,
@@ -199,6 +201,8 @@ async def get_jk_sales_opportunities(
                         "construction_year": opp.flat_info.construction_year,
                         "parking": opp.flat_info.parking,
                         "description": opp.flat_info.description,
+                        "seller_type": opp.flat_info.seller_type,
+                        "seller_name": opp.flat_info.seller_name,
                         "discount_percentage_vs_median": opp.discount_percentage_vs_median,
                         "market_stats": {
                             "residential_complex": opp.stats_for_flat_type.residential_complex,

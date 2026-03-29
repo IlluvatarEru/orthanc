@@ -90,8 +90,9 @@ class OrthancDB:
                 """
                 INSERT INTO rental_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
-                    construction_year, parking, description, url, query_date, archived
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    construction_year, parking, description, url, query_date, archived,
+                    seller_type, seller_name
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -107,6 +108,8 @@ class OrthancDB:
                     url,
                     query_date,
                     1 if flat_info.archived else 0,
+                    flat_info.seller_type,
+                    flat_info.seller_name,
                 ),
             )
 
@@ -152,8 +155,8 @@ class OrthancDB:
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
                     construction_year, parking, description, url, query_date, archived, city,
-                    published_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    seller_type, seller_name, published_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -170,6 +173,8 @@ class OrthancDB:
                     query_date,
                     1 if flat_info.archived else 0,
                     city,
+                    flat_info.seller_type,
+                    flat_info.seller_name,
                     getattr(flat_info, "published_at", None),
                     getattr(flat_info, "created_at", None),
                 ),
@@ -214,7 +219,8 @@ class OrthancDB:
             UPDATE rental_flats SET
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
-                description = ?, url = ?, archived = ?, updated_at = CURRENT_TIMESTAMP
+                description = ?, url = ?, archived = ?, seller_type = ?, seller_name = ?,
+                updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
         """,
             (
@@ -229,6 +235,8 @@ class OrthancDB:
                 flat_info.description,
                 url,
                 1 if flat_info.archived else 0,
+                flat_info.seller_type,
+                flat_info.seller_name,
                 flat_info.flat_id,
                 query_date,
             ),
@@ -264,7 +272,7 @@ class OrthancDB:
             UPDATE sales_flats SET
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
-                description = ?, url = ?, archived = ?,
+                description = ?, url = ?, archived = ?, seller_type = ?, seller_name = ?,
                 published_at = ?, created_at = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
@@ -281,6 +289,8 @@ class OrthancDB:
                 flat_info.description,
                 url,
                 1 if flat_info.archived else 0,
+                flat_info.seller_type,
+                flat_info.seller_name,
                 getattr(flat_info, "published_at", None),
                 getattr(flat_info, "created_at", None),
                 flat_info.flat_id,
@@ -327,6 +337,8 @@ class OrthancDB:
                 description=row["description"] or "",
                 is_rental=True,
                 archived=bool(row["archived"]),
+                seller_type=row["seller_type"],
+                seller_name=row["seller_name"],
             )
             result.append(flat)
 
@@ -367,6 +379,8 @@ class OrthancDB:
                 description=row["description"] or "",
                 is_rental=False,
                 archived=bool(row["archived"]),
+                seller_type=row["seller_type"],
+                seller_name=row["seller_name"],
             )
             result.append(flat)
 
@@ -620,10 +634,10 @@ class OrthancDB:
         if sales_or_rentals in ["rental", "both"]:
             cursor = self.conn.execute(
                 """
-                SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
-                       total_floors, construction_year, parking, description, url, 
-                       query_date, scraped_at, archived
-                FROM rental_flats 
+                SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor,
+                       total_floors, construction_year, parking, description, url,
+                       query_date, scraped_at, archived, seller_type, seller_name
+                FROM rental_flats
                 WHERE residential_complex LIKE ? AND (archived = 0 OR archived IS NULL)
                 ORDER BY flat_id, query_date DESC
             """,
@@ -649,6 +663,8 @@ class OrthancDB:
                         archived=bool(row[13])
                         if len(row) > 13 and row[13] is not None
                         else False,
+                        seller_type=row[14] if len(row) > 14 else None,
+                        seller_name=row[15] if len(row) > 15 else None,
                     )
 
             flats.extend(list(rental_data.values()))
@@ -658,7 +674,7 @@ class OrthancDB:
                 """
                 SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor,
                        total_floors, construction_year, parking, description, url,
-                       query_date, scraped_at, archived, published_at
+                       query_date, scraped_at, archived, seller_type, seller_name, published_at
                 FROM sales_flats
                 WHERE residential_complex LIKE ? AND (archived = 0 OR archived IS NULL)
                 ORDER BY flat_id, query_date DESC
@@ -685,7 +701,9 @@ class OrthancDB:
                         archived=bool(row[13])
                         if len(row) > 13 and row[13] is not None
                         else False,
-                        published_at=row[14] if len(row) > 14 else None,
+                        seller_type=row[14] if len(row) > 14 else None,
+                        seller_name=row[15] if len(row) > 15 else None,
+                        published_at=row[16] if len(row) > 16 else None,
                     )
 
             flats.extend(list(sales_data.values()))
@@ -914,8 +932,9 @@ class OrthancDB:
             cursor = self.conn.execute(
                 """
                 SELECT flat_id, price, area, residential_complex, floor, total_floors,
-                       construction_year, parking, description, url, query_date, archived
-                FROM sales_flats 
+                       construction_year, parking, description, url, query_date, archived,
+                       seller_type, seller_name
+                FROM sales_flats
                 WHERE flat_id = ?
             """,
                 (flat_id,),
@@ -925,8 +944,9 @@ class OrthancDB:
             cursor = self.conn.execute(
                 """
                 SELECT flat_id, price, area, residential_complex, floor, total_floors,
-                       construction_year, parking, description, url, query_date, archived
-                FROM rental_flats 
+                       construction_year, parking, description, url, query_date, archived,
+                       seller_type, seller_name
+                FROM rental_flats
                 WHERE flat_id = ?
             """,
                 (flat_id,),
@@ -939,6 +959,8 @@ class OrthancDB:
 
         # Extract archived status from database (default to False if NULL)
         archived_status = bool(flat_data[11]) if flat_data[11] is not None else False
+        seller_type = flat_data[12] if len(flat_data) > 12 else None
+        seller_name = flat_data[13] if len(flat_data) > 13 else None
 
         # Insert into correct table
         if correct_type == "rental":
@@ -955,6 +977,8 @@ class OrthancDB:
                     description=flat_data[8],
                     is_rental=True,
                     archived=archived_status,
+                    seller_type=seller_type,
+                    seller_name=seller_name,
                 ),
                 flat_data[9],  # url
                 flat_data[10],  # query_date
@@ -978,6 +1002,8 @@ class OrthancDB:
                     description=flat_data[8],
                     is_rental=False,
                     archived=archived_status,
+                    seller_type=seller_type,
+                    seller_name=seller_name,
                 ),
                 flat_data[9],  # url
                 flat_data[10],  # query_date
@@ -2029,7 +2055,7 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, city
+                   archived, scraped_at, city, seller_type, seller_name
             FROM rental_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2055,6 +2081,8 @@ class OrthancDB:
                 archived=bool(row[12] if len(row) > 12 else 0),
                 scraped_at=row[13] if len(row) > 13 else None,
                 city=row[14] if len(row) > 14 else None,
+                seller_type=row[15] if len(row) > 15 else None,
+                seller_name=row[16] if len(row) > 16 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2067,7 +2095,7 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, published_at, created_at, city
+                   archived, scraped_at, published_at, created_at, city, seller_type, seller_name
             FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2095,6 +2123,8 @@ class OrthancDB:
                 published_at=row[14] if len(row) > 14 else None,
                 created_at=row[15] if len(row) > 15 else None,
                 city=row[16] if len(row) > 16 else None,
+                seller_type=row[17] if len(row) > 17 else None,
+                seller_name=row[18] if len(row) > 18 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2133,7 +2163,7 @@ class OrthancDB:
 
         query = f"""
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
-                   construction_year, total_floors, parking, description
+                   construction_year, total_floors, parking, description, seller_type, seller_name
             FROM rental_flats
             WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
@@ -2162,6 +2192,8 @@ class OrthancDB:
                 parking=row[8] if row[8] else False,
                 description=row[9] if row[9] else "",
                 is_rental=True,
+                seller_type=row[10] if row[10] else None,
+                seller_name=row[11] if row[11] else None,
             )
             similar_rentals.append(rental_flat)
 
@@ -2196,7 +2228,7 @@ class OrthancDB:
 
         query = f"""
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
-                   construction_year, total_floors, parking, description
+                   construction_year, total_floors, parking, description, seller_type, seller_name
             FROM sales_flats
             WHERE residential_complex LIKE ?
             AND area BETWEEN ? AND ?
@@ -2225,6 +2257,8 @@ class OrthancDB:
                 parking=row[8] if row[8] else False,
                 description=row[9] if row[9] else "",
                 is_rental=False,
+                seller_type=row[10] if row[10] else None,
+                seller_name=row[11] if row[11] else None,
             )
             similar_sales.append(sales_flat)
 
@@ -2535,6 +2569,7 @@ class OrthancDB:
         max_age_days: int = None,
         city: str = None,
         flat_types: List[str] = None,
+        seller_type: str = None,
     ) -> List[Dict]:
         """
         Get top N opportunities from the latest analysis run.
@@ -2544,6 +2579,7 @@ class OrthancDB:
         :param max_age_days: int, only include opportunities from runs within this many days (optional)
         :param city: str, city name in Cyrillic (e.g. "Алматы") to filter by (optional)
         :param flat_types: List[str], flat types to include (e.g. ["1BR", "2BR"]) (optional, None = all)
+        :param seller_type: str, filter by seller type ('owner', 'agent') (optional, None = all)
         :return: List[Dict], list of top opportunities
         """
         self.connect()
@@ -2590,16 +2626,21 @@ class OrthancDB:
             conditions.append(f"oa.flat_type IN ({placeholders})")
             params.extend(flat_types)
 
+        if seller_type is not None:
+            conditions.append("sf_latest.seller_type = ?")
+            params.append(seller_type)
+
         where_clause = ""
         if conditions:
             where_clause = "AND " + " AND ".join(conditions)
 
         query = f"""
             SELECT oa.*,
-                   sf_latest.price AS current_price
+                   sf_latest.price AS current_price,
+                   sf_latest.seller_type AS seller_type
             FROM opportunity_analysis oa
             LEFT JOIN (
-                SELECT flat_id, price
+                SELECT flat_id, price, seller_type
                 FROM sales_flats
                 WHERE (flat_id, query_date) IN (
                     SELECT flat_id, MAX(query_date)

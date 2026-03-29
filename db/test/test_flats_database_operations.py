@@ -49,6 +49,8 @@ class TestDatabaseOperations:
             parking="Подземная парковка",
             description="Красивая 1-комнатная квартира в новом доме",
             is_rental=True,
+            seller_type="owner",
+            seller_name="Test Owner",
         )
 
     @pytest.fixture
@@ -66,6 +68,8 @@ class TestDatabaseOperations:
             parking="Открытая парковка",
             description="Просторная 2-комнатная квартира с балконом",
             is_rental=False,
+            seller_type="agent",
+            seller_name="Agent Name, company ABC",
         )
 
     def test_rental_flat_crud_operations(self, db, sample_rental_flat):
@@ -106,6 +110,7 @@ class TestDatabaseOperations:
         assert inserted_flat.construction_year == sample_rental_flat.construction_year
         assert inserted_flat.parking == sample_rental_flat.parking
         assert inserted_flat.description == sample_rental_flat.description
+        assert inserted_flat.seller_type == "owner"
 
         # 3. UPDATE - Test updating the flat
         updated_flat = FlatInfo(
@@ -120,6 +125,7 @@ class TestDatabaseOperations:
             parking=sample_rental_flat.parking,
             description="Updated description for rental flat",
             is_rental=True,
+            seller_type="agent",
         )
 
         update_success = db.update_rental_flat(
@@ -139,6 +145,9 @@ class TestDatabaseOperations:
         assert updated_flat_data.price == 160000, "Price not updated correctly"
         assert updated_flat_data.description == "Updated description for rental flat", (
             "Description not updated correctly"
+        )
+        assert updated_flat_data.seller_type == "agent", (
+            "Seller type not updated correctly"
         )
 
         # 4. DELETE - Test deleting the flat
@@ -195,6 +204,7 @@ class TestDatabaseOperations:
         assert inserted_flat.construction_year == sample_sales_flat.construction_year
         assert inserted_flat.parking == sample_sales_flat.parking
         assert inserted_flat.description == sample_sales_flat.description
+        assert inserted_flat.seller_type == "agent"
 
         # 3. UPDATE - Test updating the flat
         updated_flat = FlatInfo(
@@ -209,6 +219,7 @@ class TestDatabaseOperations:
             parking=sample_sales_flat.parking,
             description="Updated description for sales flat",
             is_rental=False,
+            seller_type="owner",
         )
 
         update_success = db.update_sales_flat(
@@ -228,6 +239,9 @@ class TestDatabaseOperations:
         assert updated_flat_data.price == 26000000, "Price not updated correctly"
         assert updated_flat_data.description == "Updated description for sales flat", (
             "Description not updated correctly"
+        )
+        assert updated_flat_data.seller_type == "owner", (
+            "Seller type not updated correctly"
         )
 
         # 4. DELETE - Test deleting the flat
