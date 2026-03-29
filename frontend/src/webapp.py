@@ -120,6 +120,10 @@ def index():
     }
     flat_types = flat_type_map.get(flat_type_param, ["Studio", "1BR", "2BR"])
 
+    # Seller type filter: owner, agent, or all (None)
+    seller_type_param = request.args.get("seller_type", "owner")
+    seller_type_filter = None if seller_type_param == "all" else seller_type_param
+
     with OrthancDB() as db:
         top_opportunities = db.get_top_opportunities(
             limit=limit,
@@ -127,6 +131,7 @@ def index():
             max_age_days=max_age_days,
             city=city,
             flat_types=flat_types,
+            seller_type=seller_type_filter,
         )
         price_movers = db.get_price_movers(city=city, limit=5)
         rental_yields = db.get_best_rental_yields(city=city, limit=10)
@@ -149,6 +154,7 @@ def index():
         limit=limit,
         city=city_param,
         flat_type=flat_type_param,
+        seller_type=seller_type_param,
         price_movers=price_movers,
         rental_yields=rental_yields,
         market_velocity=market_velocity,

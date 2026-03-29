@@ -721,6 +721,105 @@ def normalize_flat_type_enum(value: str) -> str:
         return FlatType.ONE_BEDROOM.value
 
 
+def extract_seller_type_from_api(advert: dict) -> Optional[str]:
+    """
+    Extract seller type from Krisha analytics API advert object.
+
+    :param advert: dict, the 'advert' object from aPriceAnalysis response
+    :return: Optional[str], one of 'owner', 'agent', 'builder', 'complex', or None
+    """
+    owner_data = advert.get("owner", {})
+    if not owner_data:
+        return None
+
+    if owner_data.get("isOwner"):
+        return "owner"
+    if owner_data.get("isBuilder"):
+        return "builder"
+    if owner_data.get("isComplex"):
+        return "complex"
+    if owner_data.get("isPro"):
+        return "agent"
+
+    # Fallback: check label
+    label_name = owner_data.get("label", {}).get("name", "")
+    if label_name:
+        if "owner" in label_name.lower() or "собственник" in label_name.lower():
+            return "owner"
+        if "specialist" in label_name.lower():
+            return "agent"
+
+    return None
+
+
+def extract_seller_name_from_api(advert: dict) -> Optional[str]:
+    """
+    Extract seller name from Krisha analytics API advert object.
+
+    :param advert: dict, the 'advert' object from aPriceAnalysis response
+    :return: Optional[str], seller name/company or None
+    """
+    owner_data = advert.get("owner", {})
+    if not owner_data:
+        return None
+
+    title = owner_data.get("title", "")
+    if not title:
+        return None
+
+    return title.strip()
+
+
+def extract_seller_type_from_html(soup: BeautifulSoup) -> Optional[str]:
+    """
+    Extract seller type from a Krisha.kz listing HTML page.
+
+    :param soup: BeautifulSoup, parsed HTML content
+    :return: Optional[str], one of 'owner', 'agent', 'builder', 'complex', or None
+    """
+    try:
+        # Look for the owner info section
+        owner_selectors = [
+            ".offer__advert-owner",
+            ".offer__author-label",
+            ".owners__label",
+        ]
+
+        for selector in owner_selectors:
+            elem = soup.select_one(selector)
+            if elem:
+                text = elem.get_text(strip=True).lower()
+                if any(
+                    kw in text
+                    for kw in ["хозяин", "собственник", "владелец", "частное лицо"]
+                ):
+                    return "owner"
+                if any(
+                    kw in text
+                    for kw in [
+                        "специалист",
+                        "риелтор",
+                        "риэлтор",
+                        "агент",
+                        "агентство",
+                        "посредник",
+                        "компания",
+                    ]
+                ):
+                    return "agent"
+                if "застройщик" in text:
+                    return "builder"
+
+        # Broader fallback: search page text for owner labels
+        page_text = soup.get_text().lower()
+        if "хозяин недвижимости" in page_text:
+            return "owner"
+
+        return None
+    except Exception:
+        return None
+
+
 def extract_jk_from_description(description: str) -> Optional[str]:
     """Try to extract residential complex (JK) name from description text."""
     if not description:
