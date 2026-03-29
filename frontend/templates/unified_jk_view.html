@@ -134,6 +134,18 @@
                                         {% endif %}
                                     </p>
                                 </div>
+                                {% if sales_analysis and sales_analysis.current_market.global_stats.avg_price_per_m2 %}
+                                <div class="col-6">
+                                    <h6 class="text-muted">Avg Price / m²</h6>
+                                    <p class="text-white h5">
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format(sales_analysis.current_market.global_stats.avg_price_per_m2 / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "{:,}".format(sales_analysis.current_market.global_stats.avg_price_per_m2|int) }}
+                                        {% endif %}
+                                    </p>
+                                </div>
+                                {% endif %}
                             </div>
                         {% else %}
                             <p class="text-muted">No sales data available</p>
@@ -259,8 +271,20 @@
                                             {% endif %}
                                         </p>
                                     </div>
+                                    {% if bucket_stats.avg_price_per_m2 %}
+                                    <div class="col-6 col-md-3">
+                                        <h6 class="text-muted">Avg Price / m²</h6>
+                                        <p class="text-white h5">
+                                            {% if show_eur %}
+                                                €{{ "{:,.0f}".format(bucket_stats.avg_price_per_m2 / eur_rate) }}
+                                            {% else %}
+                                                ₸{{ "{:,}".format(bucket_stats.avg_price_per_m2|int) }}
+                                            {% endif %}
+                                        </p>
+                                    </div>
+                                    {% endif %}
                                 </div>
-                                
+
                                 <!-- Opportunities -->
                                 {% if opportunities_by_flat_type[flat_type] %}
                                 <div class="mt-3">
@@ -277,7 +301,8 @@
                                                         <strong>Return:</strong> <span class="text-success">{{ "{:.2f}".format(return_pct) }}%</span><br>
                                                         <strong>Area:</strong> {{ opp.area }} m²<br>
                                                         <strong>Floor:</strong> {{ opp.floor }}/{{ opp.total_floors }}<br>
-                                                        <strong>Year:</strong> {{ opp.construction_year or 'N/A' }}
+                                                        <strong>Year:</strong> {{ opp.construction_year or 'N/A' }}<br>
+                                                        <strong>On market:</strong> {% if opp.days_on_market is not none %}{{ opp.days_on_market }}d{% else %}N/A{% endif %}
                                                     </p>
                                                     <div class="mt-2">
                                         <a href="{{ url_for('view_flat_details', flat_id=opp.flat_id) }}"
@@ -791,6 +816,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                                         {% if flat.floor %}<br><i class="fas fa-building me-1"></i>Floor {{ flat.floor }}{% endif %}
                                         {% if flat.construction_year %}<br><i class="fas fa-calendar me-1"></i>{{ flat.construction_year }}{% endif %}
                                         {% if flat.parking %}<br><i class="fas fa-car me-1"></i>{{ flat.parking }}{% endif %}
+                                        <br><i class="fas fa-clock me-1"></i>{% if flat.days_on_market is not none %}{{ flat.days_on_market }}d on market{% else %}N/A{% endif %}
                                     </small>
                                 </p>
                                 <p class="card-text small">{{ flat.description[:100] }}{% if flat.description|length > 100 %}...{% endif %}</p>

@@ -28,6 +28,7 @@ class PriceStats:
     min: float
     max: float
     count: int
+    avg_price_per_m2: float = 0
 
 
 @dataclass
@@ -150,7 +151,7 @@ class JKAnalytics:
             logger.warning(f"No sales data found for JK: {jk_name}")
             return CurrentMarketAnalysis(
                 jk_name=jk_name,
-                global_stats=PriceStats(0, 0, 0, 0, 0),
+                global_stats=PriceStats(0, 0, 0, 0, 0, 0),
                 flat_type_buckets={},
                 opportunities={},
                 analysis_date=datetime.now().strftime("%Y-%m-%d"),
@@ -159,6 +160,16 @@ class JKAnalytics:
         # Calculate global statistics
         prices = [sale["price"] for sale in latest_sales]
         global_stats = self._calculate_price_stats(prices)
+        # Calculate global avg price per m2
+        prices_per_m2 = [
+            sale["price"] / sale["area"]
+            for sale in latest_sales
+            if sale.get("area") and sale["area"] > 0
+        ]
+        if prices_per_m2:
+            global_stats.avg_price_per_m2 = round(
+                sum(prices_per_m2) / len(prices_per_m2), 0
+            )
 
         # Calculate statistics by flat type
         flat_type_buckets = {}
@@ -168,7 +179,18 @@ class JKAnalytics:
             ]
             if type_sales:
                 type_prices = [sale["price"] for sale in type_sales]
-                flat_type_buckets[flat_type] = self._calculate_price_stats(type_prices)
+                bucket_stats = self._calculate_price_stats(type_prices)
+                # Calculate avg price per m2 for this flat type
+                type_prices_per_m2 = [
+                    sale["price"] / sale["area"]
+                    for sale in type_sales
+                    if sale.get("area") and sale["area"] > 0
+                ]
+                if type_prices_per_m2:
+                    bucket_stats.avg_price_per_m2 = round(
+                        sum(type_prices_per_m2) / len(type_prices_per_m2), 0
+                    )
+                flat_type_buckets[flat_type] = bucket_stats
 
         # Find opportunities (flats selling below market average by discount_percentage)
         opportunities = self._find_opportunities(
@@ -248,7 +270,7 @@ class JKAnalytics:
         :return: PriceStats, calculated statistics
         """
         if not prices:
-            return PriceStats(0, 0, 0, 0, 0)
+            return PriceStats(0, 0, 0, 0, 0, 0)
 
         prices_sorted = sorted(prices)
         n = len(prices_sorted)
@@ -329,6 +351,7 @@ class JKAnalytics:
                         parking=sale.get("parking"),
                         description=sale.get("description", ""),
                         is_rental=False,  # This is sales data
+                        published_at=sale.get("published_at"),
                     )
 
                     # Create StatsForFlatType object with area bucket stats

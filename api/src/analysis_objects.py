@@ -16,6 +16,7 @@ class GlobalStats:
     min: float
     max: float
     count: int
+    avg_price_per_m2: float = 0
 
 
 @dataclass
@@ -38,6 +39,7 @@ class FlatTypeStats:
     min: float
     max: float
     count: int
+    avg_price_per_m2: float = 0
 
 
 @dataclass
@@ -71,6 +73,7 @@ class Opportunity:
     market_stats: Optional[Dict] = None
     query_date: Optional[str] = None
     bucket_flats: Optional[List["FlatInfo"]] = None  # All flats in the same area bucket
+    days_on_market: Optional[int] = None
 
 
 @dataclass

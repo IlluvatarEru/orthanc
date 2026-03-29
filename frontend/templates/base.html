@@ -41,7 +41,7 @@
         body {
             background-color: var(--dark-bg);
             color: var(--text-primary);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             margin: 0;
             padding: 0;
         }
@@ -57,7 +57,7 @@
             color: var(--text-primary) !important;
             font-weight: 300;
             font-size: 1.8rem;
-            font-family: 'Georgia', 'Times New Roman', serif;
+            font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
             text-decoration: none;
         }
         
@@ -240,6 +240,11 @@
 
         .kpi-card:hover {
             transform: translateY(-2px);
+        }
+
+        .price, .price-kzt, .kpi-value, .stat-value {
+            font-variant-numeric: tabular-nums;
+            font-feature-settings: "tnum";
         }
 
         .kpi-value {

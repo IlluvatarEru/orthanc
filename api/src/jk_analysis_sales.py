@@ -2,6 +2,7 @@
 JK (Residential Complex) sales analysis endpoints.
 """
 
+from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query
 import logging
 
@@ -65,34 +66,47 @@ async def get_jk_sales_analysis(
     opportunities_by_type = analysis["current_market"].opportunities
     opportunity_objects = {}
 
+    today = date.today()
     for flat_type, opportunities in opportunities_by_type.items():
-        opportunity_objects[flat_type] = [
-            Opportunity(
-                flat_id=opp.flat_info.flat_id,
-                price=opp.flat_info.price,
-                area=opp.flat_info.area,
-                flat_type=opp.flat_info.flat_type,
-                floor=opp.flat_info.floor,
-                total_floors=opp.flat_info.total_floors,
-                residential_complex=opp.flat_info.residential_complex,
-                construction_year=opp.flat_info.construction_year,
-                parking=opp.flat_info.parking,
-                description=opp.flat_info.description,
-                is_rental=opp.flat_info.is_rental,
-                discount_percentage_vs_median=opp.discount_percentage_vs_median,
-                market_stats={
-                    "residential_complex": opp.stats_for_flat_type.residential_complex,
-                    "mean_price": opp.stats_for_flat_type.mean_price,
-                    "median_price": opp.stats_for_flat_type.median_price,
-                    "min_price": opp.stats_for_flat_type.min_price,
-                    "max_price": opp.stats_for_flat_type.max_price,
-                    "count": opp.stats_for_flat_type.count,
-                },
-                query_date=opp.query_date,
-                bucket_flats=opp.bucket_flats,  # Include bucket flats for comparison
+        opp_list = []
+        for opp in opportunities:
+            # Calculate days on market from published_at
+            days_on_market = None
+            published_at = getattr(opp.flat_info, "published_at", None)
+            if published_at:
+                try:
+                    pub_date = datetime.strptime(published_at, "%Y-%m-%d").date()
+                    days_on_market = (today - pub_date).days
+                except (ValueError, TypeError):
+                    pass
+            opp_list.append(
+                Opportunity(
+                    flat_id=opp.flat_info.flat_id,
+                    price=opp.flat_info.price,
+                    area=opp.flat_info.area,
+                    flat_type=opp.flat_info.flat_type,
+                    floor=opp.flat_info.floor,
+                    total_floors=opp.flat_info.total_floors,
+                    residential_complex=opp.flat_info.residential_complex,
+                    construction_year=opp.flat_info.construction_year,
+                    parking=opp.flat_info.parking,
+                    description=opp.flat_info.description,
+                    is_rental=opp.flat_info.is_rental,
+                    discount_percentage_vs_median=opp.discount_percentage_vs_median,
+                    market_stats={
+                        "residential_complex": opp.stats_for_flat_type.residential_complex,
+                        "mean_price": opp.stats_for_flat_type.mean_price,
+                        "median_price": opp.stats_for_flat_type.median_price,
+                        "min_price": opp.stats_for_flat_type.min_price,
+                        "max_price": opp.stats_for_flat_type.max_price,
+                        "count": opp.stats_for_flat_type.count,
+                    },
+                    query_date=opp.query_date,
+                    bucket_flats=opp.bucket_flats,
+                    days_on_market=days_on_market,
+                )
             )
-            for opp in opportunities
-        ]
+        opportunity_objects[flat_type] = opp_list
 
     # Create global stats object
     global_stats = GlobalStats(
@@ -101,6 +115,7 @@ async def get_jk_sales_analysis(
         min=analysis["current_market"].global_stats.min,
         max=analysis["current_market"].global_stats.max,
         count=analysis["current_market"].global_stats.count,
+        avg_price_per_m2=analysis["current_market"].global_stats.avg_price_per_m2,
     )
 
     # Create flat type buckets objects
@@ -111,6 +126,7 @@ async def get_jk_sales_analysis(
             min=stats.min,
             max=stats.max,
             count=stats.count,
+            avg_price_per_m2=stats.avg_price_per_m2,
         )
         for flat_type, stats in analysis["current_market"].flat_type_buckets.items()
     }

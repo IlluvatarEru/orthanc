@@ -656,10 +656,10 @@ class OrthancDB:
         if sales_or_rentals in ["sales", "both"]:
             cursor = self.conn.execute(
                 """
-                SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor, 
-                       total_floors, construction_year, parking, description, url, 
-                       query_date, scraped_at, archived
-                FROM sales_flats 
+                SELECT DISTINCT flat_id, price, area, flat_type, residential_complex, floor,
+                       total_floors, construction_year, parking, description, url,
+                       query_date, scraped_at, archived, published_at
+                FROM sales_flats
                 WHERE residential_complex LIKE ? AND (archived = 0 OR archived IS NULL)
                 ORDER BY flat_id, query_date DESC
             """,
@@ -685,6 +685,7 @@ class OrthancDB:
                         archived=bool(row[13])
                         if len(row) > 13 and row[13] is not None
                         else False,
+                        published_at=row[14] if len(row) > 14 else None,
                     )
 
             flats.extend(list(sales_data.values()))
@@ -2594,7 +2595,18 @@ class OrthancDB:
             where_clause = "AND " + " AND ".join(conditions)
 
         query = f"""
-            SELECT oa.* FROM opportunity_analysis oa
+            SELECT oa.*,
+                   sf_latest.price AS current_price
+            FROM opportunity_analysis oa
+            LEFT JOIN (
+                SELECT flat_id, price
+                FROM sales_flats
+                WHERE (flat_id, query_date) IN (
+                    SELECT flat_id, MAX(query_date)
+                    FROM sales_flats
+                    GROUP BY flat_id
+                )
+            ) sf_latest ON sf_latest.flat_id = oa.flat_id
             WHERE oa.run_timestamp = (
                 SELECT MAX(run_timestamp) FROM opportunity_analysis
             )
@@ -2607,6 +2619,11 @@ class OrthancDB:
         cursor = self.conn.execute(query, params)
 
         result = [dict(row) for row in cursor.fetchall()]
+        # Use current price from sales_flats when available
+        for row in result:
+            if row.get("current_price") is not None:
+                row["price"] = row["current_price"]
+            row.pop("current_price", None)
         # Re-rank after filtering so numbers are always 1..N
         for i, row in enumerate(result, 1):
             row["rank"] = i

@@ -99,8 +99,8 @@ def index():
     stats = stats_result["stats"]
 
     # Get filter parameters from query string (with defaults)
-    max_price = request.args.get("max_price", 80000000, type=int)
-    max_age_days = request.args.get("max_age_days", 7, type=int)
+    max_price = request.args.get("max_price", 50000000, type=int)
+    max_age_days = request.args.get("max_age_days", 3, type=int)
     limit = request.args.get("limit", 300, type=int)
 
     # City filter: almaty -> Алматы, astana -> Астане, all -> None
@@ -310,6 +310,18 @@ def analyze_jk(
     # Extract flat type buckets and opportunities from sales analysis
     flat_type_buckets = sales_analysis.current_market.flat_type_buckets
     opportunities_by_flat_type = sales_analysis.current_market.opportunities
+
+    # Compute days on market for sales flats
+    today = datetime.now().date()
+    for flat in sales_flats:
+        if flat.published_at:
+            try:
+                pub_date = datetime.strptime(flat.published_at, "%Y-%m-%d").date()
+                flat.days_on_market = (today - pub_date).days
+            except (ValueError, TypeError):
+                flat.days_on_market = None
+        else:
+            flat.days_on_market = None
 
     # Developer info for this JK
     developer_info = None
