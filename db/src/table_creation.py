@@ -101,6 +101,7 @@ class DatabaseSchema:
                 city TEXT,
                 seller_type TEXT,
                 seller_name TEXT,
+                condition TEXT,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -127,6 +128,7 @@ class DatabaseSchema:
                 city TEXT,
                 seller_type TEXT,
                 seller_name TEXT,
+                condition TEXT,
                 published_at DATE,
                 created_at DATE,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -204,6 +206,7 @@ class DatabaseSchema:
                 query_date DATE,
                 url TEXT NOT NULL,
                 description TEXT,
+                condition TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -460,6 +463,20 @@ class DatabaseSchema:
         self.conn.commit()
         self.disconnect()
 
+    def migrate_add_condition(self):
+        """
+        Add condition column to rental_flats, sales_flats, and opportunity_analysis tables.
+        Safe to run multiple times (ignores if column already exists).
+        """
+        self.connect()
+        for table in ("rental_flats", "sales_flats", "opportunity_analysis"):
+            try:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN condition TEXT")
+            except Exception:
+                pass  # Column already exists
+        self.conn.commit()
+        self.disconnect()
+
     def initialize_database(self):
         """
         Initialize the complete database schema with tables and indexes.
@@ -468,6 +485,7 @@ class DatabaseSchema:
         self.create_indexes()
         self.migrate_add_seller_type()
         self.migrate_add_seller_name()
+        self.migrate_add_condition()
 
     def drop_tables(self):
         """

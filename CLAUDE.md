@@ -289,6 +289,7 @@ db = OrthancDB("flats.db")
 - Set `PYTHONPATH` to project root when needed
 
 ### Error Handling
+- **Never use silent try/except** that swallows exceptions and returns defaults (e.g. `except Exception: return {}`). Let errors propagate so misconfigurations and bugs are visible immediately.
 - Comprehensive error handling in scrapers (network issues common)
 - Logging at appropriate levels (INFO, WARNING, ERROR)
 - Graceful degradation when possible
