@@ -40,3 +40,4 @@ class FlatInfo:
     created_at: Optional[str] = None
     seller_type: Optional[str] = None
     seller_name: Optional[str] = None
+    condition: Optional[str] = None

@@ -701,6 +701,42 @@ def determine_flat_type_from_text(
     return "1BR"
 
 
+# --- Condition keywords ---
+_NEEDS_REMONT_KEYWORDS = [
+    "черновая",
+    "под штукатурку",
+    "без ремонта",
+    "требует ремонта",
+]
+_RENOVATED_KEYWORDS = [
+    "чистовая",
+    "хорошее",
+    "евроремонт",
+    "евро ремонт",
+    "под ключ",
+    "свежий ремонт",
+]
+
+
+def extract_condition_from_description(description: str) -> str:
+    """
+    Parse listing description to determine flat condition.
+
+    :param description: str, listing description text
+    :return: str, one of 'needs_remont', 'renovated', 'unknown'
+    """
+    if not description:
+        return "unknown"
+    text = description.lower()
+    for keyword in _NEEDS_REMONT_KEYWORDS:
+        if keyword in text:
+            return "needs_remont"
+    for keyword in _RENOVATED_KEYWORDS:
+        if keyword in text:
+            return "renovated"
+    return "unknown"
+
+
 def normalize_flat_type_enum(value: str) -> str:
     """Return canonical FlatType string value from free-text value."""
     v = (value or "").strip()

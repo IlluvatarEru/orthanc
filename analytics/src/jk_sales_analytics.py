@@ -6,9 +6,12 @@ including current market analysis and historical trends.
 """
 
 import logging
+import os
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
+
+import toml
 
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FLAT_TYPE_VALUES
@@ -17,6 +20,15 @@ from db.src.write_read_database import OrthancDB
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def _load_remont_cost_per_sqm() -> Dict[str, int]:
+    """Load remont cost per sqm by city from config."""
+    config_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
+    )
+    config = toml.load(config_path)
+    return config.get("analysis", {}).get("remont_cost_per_sqm", {})
 
 
 @dataclass
@@ -194,7 +206,7 @@ class JKAnalytics:
 
         # Find opportunities (flats selling below market average by discount_percentage)
         opportunities = self._find_opportunities(
-            latest_sales, flat_type_buckets, discount_percentage, jk_name
+            latest_sales, flat_type_buckets, discount_percentage, jk_name, city=city
         )
 
         return CurrentMarketAnalysis(
@@ -298,16 +310,32 @@ class JKAnalytics:
         flat_type_buckets: Dict[str, PriceStats],
         discount_percentage: float,
         jk_name: str,
+        city: str = None,
     ) -> Dict[str, List[FlatOpportunity]]:
         """
         Find good opportunity flats based on area similarity (within 20%) instead of flat type.
 
+        Applies a remont cost penalty for needs_remont flats: the effective price used
+        for median comparison is increased by area * remont_cost_per_sqm, reducing
+        the apparent discount and suppressing false positives.
+
         :param sales_data: List[Dict], current sales data
         :param flat_type_buckets: Dict[str, PriceStats], price statistics by flat type (not used in new logic)
         :param discount_percentage: float, discount percentage threshold
+        :param jk_name: str, residential complex name
+        :param city: str, city slug for remont cost lookup (optional)
         :return: Dict[str, List[FlatOpportunity]], opportunities grouped by area bucket
         """
         opportunities_by_type = {}
+
+        # Load remont penalty config
+        remont_costs = _load_remont_cost_per_sqm()
+        # Normalize city to slug (DB stores Cyrillic, config uses slugs)
+        city_slug = (city or "almaty").lower()
+        # Map common Cyrillic city names to slugs
+        city_slug_map = {"алматы": "almaty", "астана": "astana", "шымкент": "shymkent"}
+        city_slug = city_slug_map.get(city_slug, city_slug)
+        remont_cost = remont_costs.get(city_slug, 0)
 
         for sale in sales_data:
             flat_type = sale["flat_type"]
@@ -332,8 +360,16 @@ class JKAnalytics:
                 else:
                     area_median = area_prices_sorted[n // 2]
 
-                # Check if this flat is a good opportunity
-                discount_vs_median = ((area_median - sale["price"]) / area_median) * 100
+                # Apply remont penalty for needs_remont flats
+                condition = sale.get("condition", "unknown")
+                effective_price = sale["price"]
+                if condition == "needs_remont" and remont_cost > 0:
+                    effective_price = sale["price"] + area * remont_cost
+
+                # Check if this flat is a good opportunity (use effective price)
+                discount_vs_median = (
+                    (area_median - effective_price) / area_median
+                ) * 100
 
                 if (
                     discount_vs_median >= discount_percentage * 100
@@ -354,6 +390,7 @@ class JKAnalytics:
                         published_at=sale.get("published_at"),
                         seller_type=sale.get("seller_type"),
                         seller_name=sale.get("seller_name"),
+                        condition=condition,
                     )
 
                     # Create StatsForFlatType object with area bucket stats
@@ -385,6 +422,7 @@ class JKAnalytics:
                             is_rental=False,  # This is sales data
                             seller_type=bucket_flat.get("seller_type"),
                             seller_name=bucket_flat.get("seller_name"),
+                            condition=bucket_flat.get("condition", "unknown"),
                         )
                         bucket_flat_infos.append(bucket_flat_info)
 

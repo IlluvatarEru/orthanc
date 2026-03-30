@@ -103,3 +103,7 @@ default_area_tolerance = 10.0  # Default area tolerance percentage for finding s
 # Review queue configuration
 [review]
 ignore_exclusion_days = 30  # Days to exclude ignored flats from opportunity results
+# Remont (renovation) cost adjustment per city (KZT per sqm)
+# Applied to needs_remont flats before median comparison in opportunity scoring
+[analysis.remont_cost_per_sqm]
+almaty = 100_000

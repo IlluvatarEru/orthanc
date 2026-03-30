@@ -91,8 +91,8 @@ class OrthancDB:
                 INSERT INTO rental_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
                     construction_year, parking, description, url, query_date, archived,
-                    seller_type, seller_name
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    seller_type, seller_name, condition
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -110,6 +110,7 @@ class OrthancDB:
                     1 if flat_info.archived else 0,
                     flat_info.seller_type,
                     flat_info.seller_name,
+                    getattr(flat_info, "condition", None),
                 ),
             )
 
@@ -155,8 +156,8 @@ class OrthancDB:
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
                     construction_year, parking, description, url, query_date, archived, city,
-                    seller_type, seller_name, published_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    seller_type, seller_name, condition, published_at, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -175,6 +176,7 @@ class OrthancDB:
                     city,
                     flat_info.seller_type,
                     flat_info.seller_name,
+                    getattr(flat_info, "condition", None),
                     getattr(flat_info, "published_at", None),
                     getattr(flat_info, "created_at", None),
                 ),
@@ -220,6 +222,7 @@ class OrthancDB:
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
                 description = ?, url = ?, archived = ?, seller_type = ?, seller_name = ?,
+                condition = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
         """,
@@ -237,6 +240,7 @@ class OrthancDB:
                 1 if flat_info.archived else 0,
                 flat_info.seller_type,
                 flat_info.seller_name,
+                getattr(flat_info, "condition", None),
                 flat_info.flat_id,
                 query_date,
             ),
@@ -273,7 +277,7 @@ class OrthancDB:
                 price = ?, area = ?, flat_type = ?, residential_complex = ?, floor = ?,
                 total_floors = ?, construction_year = ?, parking = ?,
                 description = ?, url = ?, archived = ?, seller_type = ?, seller_name = ?,
-                published_at = ?, created_at = ?,
+                condition = ?, published_at = ?, created_at = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE flat_id = ? AND query_date = ?
         """,
@@ -291,6 +295,7 @@ class OrthancDB:
                 1 if flat_info.archived else 0,
                 flat_info.seller_type,
                 flat_info.seller_name,
+                getattr(flat_info, "condition", None),
                 getattr(flat_info, "published_at", None),
                 getattr(flat_info, "created_at", None),
                 flat_info.flat_id,
@@ -2055,7 +2060,7 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, city, seller_type, seller_name
+                   archived, scraped_at, city, seller_type, seller_name, condition
             FROM rental_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2083,6 +2088,7 @@ class OrthancDB:
                 city=row[14] if len(row) > 14 else None,
                 seller_type=row[15] if len(row) > 15 else None,
                 seller_name=row[16] if len(row) > 16 else None,
+                condition=row[17] if len(row) > 17 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2095,7 +2101,8 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, published_at, created_at, city, seller_type, seller_name
+                   archived, scraped_at, published_at, created_at, city, seller_type,
+                   seller_name, condition
             FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2125,6 +2132,7 @@ class OrthancDB:
                 city=row[16] if len(row) > 16 else None,
                 seller_type=row[17] if len(row) > 17 else None,
                 seller_name=row[18] if len(row) > 18 else None,
+                condition=row[19] if len(row) > 19 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2305,8 +2313,9 @@ class OrthancDB:
                         run_timestamp, rank, flat_id, residential_complex, price, area,
                         flat_type, floor, total_floors, construction_year, parking,
                         discount_percentage_vs_median, median_price, mean_price,
-                        min_price, max_price, sample_size, query_date, url, description
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        min_price, max_price, sample_size, query_date, url, description,
+                        condition
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                     (
                         run_timestamp,
@@ -2331,6 +2340,7 @@ class OrthancDB:
                         opp.get("query_date"),
                         opp.get("url"),
                         opp.get("description") if opp.get("description") else None,
+                        opp.get("condition"),
                     ),
                 )
                 inserted_count += 1
@@ -2347,6 +2357,38 @@ class OrthancDB:
             self.disconnect()
 
         return inserted_count
+
+    def backfill_condition(self, extract_fn) -> int:
+        """
+        Backfill the condition column for existing rows where it is NULL.
+
+        :param extract_fn: callable, function(description) -> condition string
+        :return: int, number of rows updated
+        """
+        self.connect()
+        updated = 0
+        try:
+            for table in ("sales_flats", "rental_flats"):
+                cursor = self.conn.execute(
+                    f"SELECT id, description FROM {table} WHERE condition IS NULL"
+                )
+                rows = cursor.fetchall()
+                for row in rows:
+                    condition = extract_fn(row["description"] or "")
+                    self.conn.execute(
+                        f"UPDATE {table} SET condition = ? WHERE id = ?",
+                        (condition, row["id"]),
+                    )
+                    updated += 1
+            self.conn.commit()
+            logging.info(f"Backfilled condition for {updated} rows")
+        except Exception as e:
+            logging.error(f"Error backfilling condition: {e}")
+            self.conn.rollback()
+            raise
+        finally:
+            self.disconnect()
+        return updated
 
     def insert_pipeline_run(self, stats: Dict) -> bool:
         """
