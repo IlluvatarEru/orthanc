@@ -24,14 +24,11 @@ logger = logging.getLogger(__name__)
 
 def _load_remont_cost_per_sqm() -> Dict[str, int]:
     """Load remont cost per sqm by city from config."""
-    try:
-        config_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
-        )
-        config = toml.load(config_path)
-        return config.get("analysis", {}).get("remont_cost_per_sqm", {})
-    except Exception:
-        return {}
+    config_path = os.path.join(
+        os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
+    )
+    config = toml.load(config_path)
+    return config.get("analysis", {}).get("remont_cost_per_sqm", {})
 
 
 @dataclass
