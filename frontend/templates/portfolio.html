@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio - Orthanc Capital{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="h2 mb-1">Portfolio</h1>
+        <p class="text-muted mb-0">Completed deals from the deals spreadsheet</p>
+    </div>
+</div>
+
+<!-- Summary KPIs -->
+<div class="row mb-4">
+    <div class="col-6 col-md-3 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-value text-primary">{{ summary.completed_count }}</div>
+            <div class="kpi-label">Completed Deals</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-value text-warning">
+                {% if show_eur %}
+                    €{{ "{:,.0f}".format(summary.total_invested_kzt / eur_rate) }}
+                {% else %}
+                    ₸{{ "%.1f"|format(summary.total_invested_kzt / 1000000) }}M
+                {% endif %}
+            </div>
+            <div class="kpi-label">Total Invested</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-value {% if summary.total_profit_kzt >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if show_eur %}
+                    €{{ "{:,.0f}".format(summary.total_profit_eur) }}
+                {% else %}
+                    ₸{{ "%.1f"|format(summary.total_profit_kzt / 1000000) }}M
+                {% endif %}
+            </div>
+            <div class="kpi-label">Total Profit</div>
+        </div>
+    </div>
+    <div class="col-6 col-md-3 mb-3">
+        <div class="kpi-card">
+            <div class="kpi-value {% if summary.total_invested_kzt > 0 and summary.total_profit_kzt >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {% if summary.total_invested_kzt > 0 %}
+                    {{ "%.1f"|format(summary.total_profit_kzt / summary.total_invested_kzt * 100) }}%
+                {% else %}
+                    -
+                {% endif %}
+            </div>
+            <div class="kpi-label">Overall Return</div>
+        </div>
+    </div>
+</div>
+
+<!-- Completed Deals Table -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Completed Deals</h5>
+            </div>
+            <div class="card-body">
+                {% if completed %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Project</th>
+                                <th>Investment Date</th>
+                                <th>Days Held</th>
+                                <th>Cost</th>
+                                <th>Resale</th>
+                                <th>Net Profit</th>
+                                <th>Return</th>
+                                <th>Annual Return</th>
+                                <th>Multiple</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for deal in completed %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>
+                                    {% if deal.flat_id %}
+                                        <a href="/flat/{{ deal.flat_id }}">{{ deal.project }}</a>
+                                    {% else %}
+                                        {{ deal.project }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ deal.investment_date or '-' }}</td>
+                                <td>{{ deal.days_held if deal.days_held is not none else '-' }}</td>
+                                <td>
+                                    {% if deal.total_cost %}
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format(deal.total_cost / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "%.1f"|format(deal.total_cost / 1000000) }}M
+                                        {% endif %}
+                                    {% else %}-{% endif %}
+                                </td>
+                                <td>
+                                    {% if deal.resale_price %}
+                                        {% if show_eur %}
+                                            €{{ "{:,.0f}".format(deal.resale_price / eur_rate) }}
+                                        {% else %}
+                                            ₸{{ "%.1f"|format(deal.resale_price / 1000000) }}M
+                                        {% endif %}
+                                    {% else %}-{% endif %}
+                                </td>
+                                <td>
+                                    {% if deal.net_profit_kzt is not none %}
+                                        <span class="{% if deal.net_profit_kzt >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if show_eur %}
+                                                €{{ "{:,.0f}".format((deal.net_profit_eur or 0)) }}
+                                            {% else %}
+                                                ₸{{ "%.1f"|format(deal.net_profit_kzt / 1000000) }}M
+                                            {% endif %}
+                                        </span>
+                                    {% else %}-{% endif %}
+                                </td>
+                                <td>
+                                    {% if deal.net_return_eur is not none %}
+                                        <span class="{% if deal.net_return_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {{ "%.1f"|format(deal.net_return_eur * 100) }}%
+                                        </span>
+                                    {% else %}-{% endif %}
+                                </td>
+                                <td>
+                                    {% if deal.equivalent_annual_return_eur is not none %}
+                                        <span class="{% if deal.equivalent_annual_return_eur >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {{ "%.1f"|format(deal.equivalent_annual_return_eur * 100) }}%
+                                        </span>
+                                    {% else %}-{% endif %}
+                                </td>
+                                <td>{{ "%.2f"|format(deal.multiple) if deal.multiple else '-' }}x</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No completed deals found in the spreadsheet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

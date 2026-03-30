@@ -667,6 +667,34 @@ def calculate_investment_analysis(
     }
 
 
+@app.route("/portfolio")
+def portfolio():
+    """Portfolio page showing completed deals from the deals spreadsheet."""
+    from api.src.deals_sheet import DealsSheetClient
+
+    client = DealsSheetClient()
+    all_deals = client.read_all_deals()
+
+    completed = [d for d in all_deals if d["completed"]]
+
+    total_invested = sum(d["total_cost"] or 0 for d in completed)
+    total_profit_kzt = sum(d["net_profit_kzt"] or 0 for d in completed)
+    total_profit_eur = sum(d["net_profit_eur"] or 0 for d in completed)
+
+    summary = {
+        "completed_count": len(completed),
+        "total_invested_kzt": total_invested,
+        "total_profit_kzt": total_profit_kzt,
+        "total_profit_eur": total_profit_eur,
+    }
+
+    return render_template(
+        "portfolio.html",
+        completed=completed,
+        summary=summary,
+    )
+
+
 @app.route("/tech-status")
 def tech_status():
     """Tech status dashboard showing pipeline run history."""

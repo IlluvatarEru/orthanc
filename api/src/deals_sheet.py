@@ -315,3 +315,125 @@ class DealsSheetClient:
         if col is not None:
             return self.sheet_url
         return None
+
+    def read_all_deals(self) -> list[dict]:
+        """Read all deal columns from the spreadsheet.
+
+        Returns a list of dicts, one per deal column that has a Flat ID.
+        Each dict maps label names to their evaluated values.
+        """
+        label_map = self._get_label_row_map()
+        total = self._total_rows
+        if not label_map or total == 0:
+            return []
+
+        # Reverse map: row_number -> label
+        row_to_label: dict[int, str] = {v: k for k, v in label_map.items()}
+
+        # Read the full data block: columns C onward, rows 1..total
+        tab = self._get_tab_title()
+        range_str = f"'{tab}'!C1:ZZ{total}"
+        result = (
+            self._sheets.values()
+            .get(
+                spreadsheetId=self._spreadsheet_id,
+                range=range_str,
+                valueRenderOption="FORMATTED_VALUE",
+            )
+            .execute()
+        )
+        all_rows = result.get("values", [])
+        if not all_rows:
+            return []
+
+        # Transpose: rows -> columns
+        # all_rows[row_idx] is a list of values across columns
+        max_cols = max(len(row) for row in all_rows)
+
+        deals: list[dict] = []
+        for col_idx in range(max_cols):
+            col_data: dict[str, str] = {}
+            for row_idx in range(len(all_rows)):
+                row_num = row_idx + 1  # 1-based
+                label = row_to_label.get(row_num)
+                if label and col_idx < len(all_rows[row_idx]):
+                    value = all_rows[row_idx][col_idx]
+                    if value is not None and str(value).strip():
+                        col_data[label] = str(value).strip()
+
+            # Skip empty columns (no Flat ID)
+            if not col_data.get("Flat ID"):
+                continue
+
+            deal = self._parse_deal(col_data)
+            deals.append(deal)
+
+        return deals
+
+    @staticmethod
+    def _parse_deal(col_data: dict[str, str]) -> dict:
+        """Parse raw string values from a sheet column into a typed deal dict."""
+
+        def _parse_number(val: str) -> Optional[float]:
+            if not val:
+                return None
+            # Remove currency symbols, commas, spaces, % signs
+            cleaned = val.replace(",", "").replace(" ", "").replace("%", "")
+            try:
+                return float(cleaned)
+            except (ValueError, TypeError):
+                return None
+
+        def _parse_date(val: str) -> Optional[str]:
+            """Parse DD/MM/YYYY to ISO YYYY-MM-DD."""
+            if not val:
+                return None
+            from datetime import datetime as dt
+
+            for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y"):
+                try:
+                    return dt.strptime(val, fmt).strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
+            return None
+
+        completed_raw = col_data.get("Completed", "FALSE").upper()
+        completed = completed_raw in ("TRUE", "1", "YES")
+
+        investment_date_iso = _parse_date(col_data.get("Investment Date", ""))
+        resale_date_iso = _parse_date(col_data.get("Resale Date", ""))
+
+        # Compute days_held
+        days_held = None
+        if investment_date_iso:
+            from datetime import date as d
+
+            inv = d.fromisoformat(investment_date_iso)
+            if completed and resale_date_iso:
+                end = d.fromisoformat(resale_date_iso)
+            else:
+                end = d.today()
+            days_held = (end - inv).days
+
+        return {
+            "project": col_data.get("Project", ""),
+            "flat_id": col_data.get("Flat ID", ""),
+            "investment_date": investment_date_iso,
+            "flat_price": _parse_number(col_data.get("Flat Price", "")),
+            "total_cost": _parse_number(col_data.get("Total Cost", "")),
+            "total_cost_eur": _parse_number(col_data.get("Total Cost (EUR)", "")),
+            "resale_date": resale_date_iso,
+            "rent_received": _parse_number(col_data.get("Rent Received", "")),
+            "resale_price": _parse_number(col_data.get("Resale Price", "")),
+            "net_profit_kzt": _parse_number(col_data.get("Net Profit KZT", "")),
+            "net_profit_eur": _parse_number(col_data.get("Net Profit EUR", "")),
+            "net_return_kzt": _parse_number(col_data.get("Net Return KZT", "")),
+            "net_return_eur": _parse_number(col_data.get("Net Return EUR", "")),
+            "equivalent_annual_return_eur": _parse_number(
+                col_data.get("Equivalent Annual Return EUR", "")
+            ),
+            "multiple": _parse_number(col_data.get("Multiple", "")),
+            "number_of_weeks": _parse_number(col_data.get("Number of weeks", "")),
+            "completed": completed,
+            "days_held": days_held,
+        }
