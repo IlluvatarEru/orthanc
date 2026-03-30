@@ -98,4 +98,8 @@ fair_deal_discount = 1.0         # Fair deal if price is within 5% of median
 
 # Analysis configuration
 [analysis]
-default_area_tolerance = 10.0  # Default area tolerance percentage for finding similar flats 
+default_area_tolerance = 10.0  # Default area tolerance percentage for finding similar flats
+
+# Review queue configuration
+[review]
+ignore_exclusion_days = 30  # Days to exclude ignored flats from opportunity results

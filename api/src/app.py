@@ -14,6 +14,7 @@ from api.src.residential_complex_management import (
 )
 from api.src.flat_management import router as flat_management_router
 from api.src.database_stats import router as database_stats_router
+from api.src.review import router as review_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -52,6 +53,7 @@ app.include_router(
 app.include_router(
     database_stats_router, prefix="/api/database", tags=["database-stats"]
 )
+app.include_router(review_router, prefix="/api/review", tags=["review"])
 
 
 @app.get("/")

@@ -96,8 +96,9 @@
                                 <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset">{% if show_eur %}€{{ "{:,.0f}".format(opp.median_price / eur_rate) }}{% else %}₸{{ "%.1f"|format(opp.median_price / 1000000) }}M{% endif %}</a></td>
                                 <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset"><span class="text-success">{% if show_eur %}+€{{ "{:,.0f}".format((opp.median_price - opp.price) / eur_rate) }}{% else %}+₸{{ "%.1f"|format((opp.median_price - opp.price) / 1000000) }}M{% endif %}</span></a></td>
                                 <td><a href="/flat/{{ opp.flat_id }}" class="text-decoration-none text-reset"><span class="text-success">+{{ "%.0f"|format((opp.median_price - opp.price) / opp.price * 100) }}%</span></a></td>
-                                <td>
-                                    <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); ignoreOpportunity('{{ opp.flat_id }}')">ignore</a>
+                                <td class="text-nowrap">
+                                    <a href="#" class="text-success me-2" style="font-size: 0.75rem;" onclick="event.preventDefault(); considerOpportunity('{{ opp.flat_id }}')">consider</a>
+                                    <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); showIgnoreModal('{{ opp.flat_id }}')">ignore</a>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -128,7 +129,8 @@
                             </div>
                         </a>
                         <div class="text-end mt-1">
-                            <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); ignoreOpportunityMobile('{{ opp.flat_id }}')">ignore</a>
+                            <a href="#" class="text-success me-2" style="font-size: 0.75rem;" onclick="event.preventDefault(); considerOpportunity('{{ opp.flat_id }}')">consider</a>
+                            <a href="#" class="text-muted" style="font-size: 0.75rem;" onclick="event.preventDefault(); showIgnoreModal('{{ opp.flat_id }}')">ignore</a>
                         </div>
                     </div>
                     {% endfor %}
@@ -462,19 +464,66 @@
         </div>
     </div>
 </div>
+<!-- Ignore Reason Modal -->
+<div class="modal fade" id="ignoreModal" tabindex="-1" aria-labelledby="ignoreModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content bg-dark text-white">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="ignoreModalLabel">Ignore Opportunity</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="ignoreModalFlatId">
+        <div class="mb-3">
+          <label for="ignoreReason" class="form-label">Reason</label>
+          <textarea class="form-control bg-dark text-white border-secondary" id="ignoreReason" rows="3" placeholder="e.g. first floor, no remont"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-danger" onclick="confirmIgnore()">Ignore</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-function ignoreOpportunity(flatId) {
-    fetch('/action/ignore_opportunity', {
+function considerOpportunity(flatId) {
+    fetch('/action/review_opportunity', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({flat_id: flatId})
+        body: JSON.stringify({flat_id: flatId, decision: 'consider'})
     })
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            window.open('/flat/' + flatId, '_blank');
+        }
+    })
+    .catch(err => console.error('Consider failed:', err));
+}
+
+function showIgnoreModal(flatId) {
+    document.getElementById('ignoreModalFlatId').value = flatId;
+    document.getElementById('ignoreReason').value = '';
+    new bootstrap.Modal(document.getElementById('ignoreModal')).show();
+}
+
+function confirmIgnore() {
+    const flatId = document.getElementById('ignoreModalFlatId').value;
+    const reason = document.getElementById('ignoreReason').value.trim();
+
+    fetch('/action/review_opportunity', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({flat_id: flatId, decision: 'ignore', reason: reason || null})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('ignoreModal')).hide();
             window.location.reload();
         }
     })
@@ -536,21 +585,6 @@ function toggleDistrict(city, district, blacklisted) {
 
 // Load districts on page load
 document.addEventListener('DOMContentLoaded', function() { loadDistricts(); });
-
-function ignoreOpportunityMobile(flatId) {
-    fetch('/action/ignore_opportunity', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({flat_id: flatId})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        }
-    })
-    .catch(err => console.error('Ignore failed:', err));
-}
 
 document.addEventListener('DOMContentLoaded', function() {
     // Flats by Type Chart

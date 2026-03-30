@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timedelta
 from urllib.parse import unquote
 
+import toml
 from flask import Flask, render_template, request, jsonify, redirect, url_for
 
 from api.src.analysis_objects import SalesAnalysisResponse, FlatTypeStats, Opportunity
@@ -82,6 +83,13 @@ def utc_to_cet_filter(timestamp_str):
     return _shift_to_cet(timestamp_str, src_offset_hours=0)
 
 
+# Load review config
+_config_path = os.path.join(
+    os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
+)
+_config = toml.load(_config_path) if os.path.exists(_config_path) else {}
+IGNORE_EXCLUSION_DAYS = _config.get("review", {}).get("ignore_exclusion_days", 30)
+
 # Initialize API client
 api_client = WebappAPIClient()
 
@@ -132,6 +140,7 @@ def index():
             city=city,
             flat_types=flat_types,
             seller_type=seller_type_filter,
+            ignore_exclusion_days=IGNORE_EXCLUSION_DAYS,
         )
         price_movers = db.get_price_movers(city=city, limit=5)
         rental_yields = db.get_best_rental_yields(city=city, limit=10)
@@ -857,6 +866,24 @@ def ignore_opportunity():
 
     with OrthancDB() as db:
         success = db.ignore_opportunity(flat_id)
+    return jsonify({"success": success})
+
+
+@app.route("/action/review_opportunity", methods=["POST"])
+def review_opportunity():
+    """Record a structured review decision for an opportunity."""
+    data = request.json
+    flat_id = data.get("flat_id")
+    decision = data.get("decision")
+    reason = data.get("reason")
+
+    if not flat_id or decision not in ("consider", "ignore"):
+        return jsonify(
+            {"success": False, "error": "flat_id and valid decision required"}
+        ), 400
+
+    with OrthancDB() as db:
+        success = db.add_review(flat_id, decision, reason)
     return jsonify({"success": success})
 
 
