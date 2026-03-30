@@ -2639,7 +2639,7 @@ class OrthancDB:
             conditions.append("oa.price <= ?")
             params.append(max_price)
 
-        # Exclude ignored opportunities (legacy) and blacklisted JKs
+        # Exclude ignored opportunities and blacklisted JKs
         conditions.append(
             "oa.flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)"
         )
