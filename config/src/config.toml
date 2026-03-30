@@ -107,3 +107,11 @@ ignore_exclusion_days = 30  # Days to exclude ignored flats from opportunity res
 # Applied to needs_remont flats before median comparison in opportunity scoring
 [analysis.remont_cost_per_sqm]
 almaty = 100_000
+
+# Deal economics spreadsheet configuration
+[deals]
+spreadsheet_id = "1_9D86-mrri5JINp8xOkH9DoZsAKyDxKbt2xGQxlgKoY"
+sheet_gid = 436254584
+resale_multiplier = 1.15          # default Resale Price = flat.price * this
+fallback_eur_kzt_rate = 530.0     # used when live rate fetch fails
+google_service_account_json = "config/google_service_account.json"
