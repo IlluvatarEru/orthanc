@@ -2060,7 +2060,7 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, city, seller_type, seller_name
+                   archived, scraped_at, city, seller_type, seller_name, condition
             FROM rental_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2088,6 +2088,7 @@ class OrthancDB:
                 city=row[14] if len(row) > 14 else None,
                 seller_type=row[15] if len(row) > 15 else None,
                 seller_name=row[16] if len(row) > 16 else None,
+                condition=row[17] if len(row) > 17 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2100,7 +2101,8 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, published_at, created_at, city, seller_type, seller_name
+                   archived, scraped_at, published_at, created_at, city, seller_type,
+                   seller_name, condition
             FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2130,6 +2132,7 @@ class OrthancDB:
                 city=row[16] if len(row) > 16 else None,
                 seller_type=row[17] if len(row) > 17 else None,
                 seller_name=row[18] if len(row) > 18 else None,
+                condition=row[19] if len(row) > 19 else None,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"

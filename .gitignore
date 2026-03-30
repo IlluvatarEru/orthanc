@@ -17,5 +17,8 @@ venv/
 # Ruff cache
 .ruff_cache/
 
+# Config JSON files
+config/**/*.json
+
 # Claude
 .claude/

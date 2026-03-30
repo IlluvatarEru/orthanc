@@ -46,6 +46,7 @@ async def get_flat_details(flat_id: str):
             "created_at": getattr(flat_info, "created_at", None),
             "seller_type": flat_info.seller_type,
             "seller_name": flat_info.seller_name,
+            "condition": flat_info.condition,
         }
 
         return {"success": True, "flat": flat_dict}
