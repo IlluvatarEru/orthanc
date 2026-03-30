@@ -173,6 +173,8 @@ async def get_market_context(flat_id: str):
             "success": True,
             "first_seen": first_seen,
             "days_on_market": days_on_market,
+            "relist_count": flat_info.relist_count,
+            "relisted_from_flat_id": flat_info.relisted_from_flat_id,
             "turnover": turnover,
         }
     except HTTPException:

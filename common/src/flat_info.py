@@ -41,3 +41,6 @@ class FlatInfo:
     seller_type: Optional[str] = None
     seller_name: Optional[str] = None
     condition: Optional[str] = None
+    first_seen_at: Optional[str] = None
+    relisted_from_flat_id: Optional[str] = None
+    relist_count: int = 0

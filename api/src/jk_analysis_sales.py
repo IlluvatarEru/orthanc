@@ -70,13 +70,16 @@ async def get_jk_sales_analysis(
     for flat_type, opportunities in opportunities_by_type.items():
         opp_list = []
         for opp in opportunities:
-            # Calculate days on market from published_at
+            # Calculate days on market: prefer first_seen_at (relist-aware),
+            # fall back to published_at
             days_on_market = None
+            first_seen = getattr(opp.flat_info, "first_seen_at", None)
             published_at = getattr(opp.flat_info, "published_at", None)
-            if published_at:
+            date_str = first_seen or published_at
+            if date_str:
                 try:
-                    pub_date = datetime.strptime(published_at, "%Y-%m-%d").date()
-                    days_on_market = (today - pub_date).days
+                    ref_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    days_on_market = (today - ref_date).days
                 except (ValueError, TypeError):
                     pass
             opp_list.append(

@@ -48,7 +48,7 @@
 <div class="container mt-4">
     <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
         <div>
-            <h2 class="text-white mb-0">Flat Details - {{ flat_data.residential_complex }}</h2>
+            <h2 class="text-white mb-0">Flat Details - <a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat_data.residential_complex | urlencode }}" class="text-white text-decoration-underline">{{ flat_data.residential_complex }}</a></h2>
             {% if developer_info %}
             <p class="text-muted mb-0 mt-1" style="font-size: 0.9rem;">
                 Developer: {{ developer_info.name }}
@@ -167,10 +167,14 @@
                             </div>
                             {% elif market_context and market_context.first_seen %}
                             <p class="mt-2 mb-0 text-muted" style="font-size: 0.85rem;">
-                                <i class="fas fa-clock me-1"></i>First seen on {{ market_context.first_seen }}
+                                <i class="fas fa-clock me-1"></i>
                                 {% if market_context.days_on_market is not none %}
-                                    ({{ market_context.days_on_market }} days on market)
+                                    On market: {{ market_context.days_on_market }}d
+                                    {% if market_context.relist_count and market_context.relist_count > 0 %}
+                                        (relisted {{ market_context.relist_count }}x)
+                                    {% endif %}
                                 {% endif %}
+                                <span class="ms-1 hint-tip" data-tip="Original listing first seen {{ market_context.first_seen }}">?</span>
                             </p>
                             {% endif %}
                         </div>
@@ -400,7 +404,7 @@
                                 <strong>Area:</strong> {{ flat.area }} m²<br>
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
-                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
+                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}
                             </p>
                             <div class="mt-2">
                                 {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
@@ -449,7 +453,7 @@
                                 <strong>Area:</strong> {{ flat.area }} m²<br>
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
-                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
+                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}
                             </p>
                             <div class="mt-2">
                                 <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"

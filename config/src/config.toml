@@ -108,6 +108,14 @@ ignore_exclusion_days = 30  # Days to exclude ignored flats from opportunity res
 [analysis.remont_cost_per_sqm]
 almaty = 100_000
 
+# Relist detection configuration
+[relist]
+similarity_threshold = 0.95       # difflib SequenceMatcher ratio
+area_tolerance_pct = 5.0          # ±5% area match
+price_tolerance_pct = 10.0        # ±10% price match
+disappeared_cycles = 3            # must be absent from last N scraping cycles
+lookback_days = 90                # only look at flats that disappeared within this window
+
 # Deal economics spreadsheet configuration
 [deals]
 spreadsheet_id = "1_9D86-mrri5JINp8xOkH9DoZsAKyDxKbt2xGQxlgKoY"

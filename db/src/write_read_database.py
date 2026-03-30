@@ -11,7 +11,37 @@ import logging
 from datetime import datetime
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FLAT_TYPE_VALUES
+from db.src.relist_detection import detect_relist
 from .table_creation import DatabaseSchema
+
+
+def _detect_relist_for_flat(conn, flat_info, flat_type, table):
+    """Run relist detection, returning match dict or None."""
+    try:
+        return detect_relist(
+            conn=conn,
+            flat_id=flat_info.flat_id,
+            residential_complex=flat_info.residential_complex,
+            flat_type=flat_type,
+            area=flat_info.area,
+            price=flat_info.price,
+            description=flat_info.description,
+            table=table,
+        )
+    except Exception:
+        logging.exception(f"Relist detection failed for {flat_info.flat_id}")
+        return None
+
+
+def _increment_relist_count(conn, original_flat_id, table):
+    """Increment relist_count on all rows of the original flat."""
+    try:
+        conn.execute(
+            f"UPDATE {table} SET relist_count = relist_count + 1 WHERE flat_id = ?",
+            (original_flat_id,),
+        )
+    except Exception:
+        logging.exception(f"Failed to increment relist_count for {original_flat_id}")
 
 
 class OrthancDB:
@@ -85,14 +115,26 @@ class OrthancDB:
         # Use flat_type from parameter or from flat_info object
         actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
 
+        # Relist detection
+        first_seen_at = query_date
+        relisted_from = None
+        relist = _detect_relist_for_flat(
+            self.conn, flat_info, actual_flat_type, "rental_flats"
+        )
+        if relist:
+            first_seen_at = relist["first_seen_at"] or query_date
+            relisted_from = relist["flat_id"]
+            _increment_relist_count(self.conn, relist["flat_id"], "rental_flats")
+
         try:
             self.conn.execute(
                 """
                 INSERT INTO rental_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
                     construction_year, parking, description, url, query_date, archived,
-                    seller_type, seller_name, condition
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    seller_type, seller_name, condition,
+                    first_seen_at, relisted_from_flat_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -111,6 +153,8 @@ class OrthancDB:
                     flat_info.seller_type,
                     flat_info.seller_name,
                     getattr(flat_info, "condition", None),
+                    first_seen_at,
+                    relisted_from,
                 ),
             )
 
@@ -150,14 +194,26 @@ class OrthancDB:
         # Use flat_type from parameter or from flat_info object
         actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
 
+        # Relist detection
+        first_seen_at = query_date
+        relisted_from = None
+        relist = _detect_relist_for_flat(
+            self.conn, flat_info, actual_flat_type, "sales_flats"
+        )
+        if relist:
+            first_seen_at = relist["first_seen_at"] or query_date
+            relisted_from = relist["flat_id"]
+            _increment_relist_count(self.conn, relist["flat_id"], "sales_flats")
+
         try:
             self.conn.execute(
                 """
                 INSERT INTO sales_flats (
                     flat_id, price, area, flat_type, residential_complex, floor, total_floors,
                     construction_year, parking, description, url, query_date, archived, city,
-                    seller_type, seller_name, condition, published_at, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    seller_type, seller_name, condition, published_at, created_at,
+                    first_seen_at, relisted_from_flat_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
                 (
                     flat_info.flat_id,
@@ -179,6 +235,8 @@ class OrthancDB:
                     getattr(flat_info, "condition", None),
                     getattr(flat_info, "published_at", None),
                     getattr(flat_info, "created_at", None),
+                    first_seen_at,
+                    relisted_from,
                 ),
             )
 
@@ -2060,7 +2118,8 @@ class OrthancDB:
             """
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
-                   archived, scraped_at, city, seller_type, seller_name, condition
+                   archived, scraped_at, city, seller_type, seller_name, condition,
+                   first_seen_at, relisted_from_flat_id, relist_count
             FROM rental_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2089,6 +2148,9 @@ class OrthancDB:
                 seller_type=row[15] if len(row) > 15 else None,
                 seller_name=row[16] if len(row) > 16 else None,
                 condition=row[17] if len(row) > 17 else None,
+                first_seen_at=row[18] if len(row) > 18 else None,
+                relisted_from_flat_id=row[19] if len(row) > 19 else None,
+                relist_count=row[20] if len(row) > 20 and row[20] else 0,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -2102,7 +2164,8 @@ class OrthancDB:
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    total_floors, construction_year, parking, description, url, query_date,
                    archived, scraped_at, published_at, created_at, city, seller_type,
-                   seller_name, condition
+                   seller_name, condition,
+                   first_seen_at, relisted_from_flat_id, relist_count
             FROM sales_flats
             WHERE flat_id = ?
             ORDER BY query_date DESC
@@ -2133,6 +2196,9 @@ class OrthancDB:
                 seller_type=row[17] if len(row) > 17 else None,
                 seller_name=row[18] if len(row) > 18 else None,
                 condition=row[19] if len(row) > 19 else None,
+                first_seen_at=row[20] if len(row) > 20 else None,
+                relisted_from_flat_id=row[21] if len(row) > 21 else None,
+                relist_count=row[22] if len(row) > 22 and row[22] else 0,
             )
             flat_info.url = (
                 row[10] if row[10] else f"https://krisha.kz/a/show/{flat_id}"
@@ -3060,15 +3126,19 @@ class OrthancDB:
 
     def get_flat_first_seen(self, flat_id: str) -> Optional[str]:
         """
-        Get the earliest query_date for a flat (first time we saw it).
+        Get the earliest first_seen_at for a flat, which accounts for re-lists.
+        Falls back to MIN(query_date) for rows that predate the migration.
 
         :param flat_id: str, flat ID to look up
-        :return: Optional[str], earliest query_date string or None
+        :return: Optional[str], earliest date string or None
         """
         self.connect()
 
+        # Prefer first_seen_at (relist-aware), fall back to MIN(query_date)
         cursor = self.conn.execute(
-            "SELECT MIN(query_date) FROM sales_flats WHERE flat_id = ?", (flat_id,)
+            "SELECT MIN(COALESCE(first_seen_at, query_date)) "
+            "FROM sales_flats WHERE flat_id = ?",
+            (flat_id,),
         )
         row = cursor.fetchone()
         if row and row[0]:
@@ -3076,7 +3146,9 @@ class OrthancDB:
             return row[0]
 
         cursor = self.conn.execute(
-            "SELECT MIN(query_date) FROM rental_flats WHERE flat_id = ?", (flat_id,)
+            "SELECT MIN(COALESCE(first_seen_at, query_date)) "
+            "FROM rental_flats WHERE flat_id = ?",
+            (flat_id,),
         )
         row = cursor.fetchone()
         self.disconnect()
