@@ -68,6 +68,8 @@ class Opportunity:
     parking: bool
     description: str
     is_rental: bool
+    seller_type: Optional[str] = None
+    seller_name: Optional[str] = None
     discount_percentage_vs_median: Optional[float] = None
     yield_percentage: Optional[float] = None
     market_stats: Optional[Dict] = None

@@ -36,7 +36,7 @@ async def search_flats(
 
         # Build query based on filters
         # List columns explicitly since sales_flats has extra columns
-        common_cols = "id, flat_id, price, area, flat_type, residential_complex, floor, total_floors, construction_year, parking, description, url, query_date, archived, scraped_at, updated_at, city"
+        common_cols = "id, flat_id, price, area, flat_type, residential_complex, floor, total_floors, construction_year, parking, description, url, query_date, archived, scraped_at, updated_at, city, seller_type, seller_name"
         query = "SELECT * FROM ("
         query += f"SELECT {common_cols}, 'rental' as table_type FROM rental_flats "
         query += "UNION ALL "
@@ -133,9 +133,10 @@ async def get_flat_details(flat_id: str):
         db = OrthancDB("flats.db")
         db.connect()
 
-        # Try rental_flats first
+        # Try rental_flats first (latest entry)
         cursor = db.conn.execute(
-            "SELECT * FROM rental_flats WHERE flat_id = ?", (flat_id,)
+            "SELECT * FROM rental_flats WHERE flat_id = ? ORDER BY query_date DESC LIMIT 1",
+            (flat_id,),
         )
         rental_flat = cursor.fetchone()
 
@@ -143,9 +144,10 @@ async def get_flat_details(flat_id: str):
             db.disconnect()
             return {"success": True, "flat": dict(rental_flat), "type": "rental"}
 
-        # Try sales_flats
+        # Try sales_flats (latest entry)
         cursor = db.conn.execute(
-            "SELECT * FROM sales_flats WHERE flat_id = ?", (flat_id,)
+            "SELECT * FROM sales_flats WHERE flat_id = ? ORDER BY query_date DESC LIMIT 1",
+            (flat_id,),
         )
         sales_flat = cursor.fetchone()
 

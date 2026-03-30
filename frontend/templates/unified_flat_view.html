@@ -121,6 +121,24 @@
                             </h5>
                             <p class="mb-1"><strong>Area:</strong> {{ flat_data.area }} m²</p>
                             <p class="mb-1"><strong>Type:</strong> {{ flat_data.flat_type }}</p>
+                            {% if flat_data.seller_type %}
+                            <p class="mb-1"><strong>Seller:</strong>
+                                {% if flat_data.seller_type == 'owner' %}
+                                    <span class="badge bg-primary" style="font-size: 0.8rem;">Owner</span>
+                                {% elif flat_data.seller_type == 'agent' %}
+                                    <span class="badge bg-primary" style="font-size: 0.8rem;">Agent</span>
+                                {% elif flat_data.seller_type == 'builder' %}
+                                    <span class="badge bg-primary" style="font-size: 0.8rem;">Builder</span>
+                                {% elif flat_data.seller_type == 'complex' %}
+                                    <span class="badge bg-primary" style="font-size: 0.8rem;">Complex</span>
+                                {% else %}
+                                    {{ flat_data.seller_type }}
+                                {% endif %}
+                            </p>
+                            {% endif %}
+                            {% if flat_data.seller_name %}
+                            <p class="mb-1"><strong>Seller Name:</strong> {{ flat_data.seller_name }}</p>
+                            {% endif %}
                             {% if flat_data.floor %}
                             <p class="mb-1"><strong>Floor:</strong> {{ flat_data.floor }}{% if flat_data.total_floors %}/{{ flat_data.total_floors }}{% endif %}</p>
                             {% endif %}

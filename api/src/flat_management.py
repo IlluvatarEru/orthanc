@@ -44,6 +44,8 @@ async def get_flat_details(flat_id: str):
             "scraped_at": flat_info.scraped_at,
             "published_at": getattr(flat_info, "published_at", None),
             "created_at": getattr(flat_info, "created_at", None),
+            "seller_type": flat_info.seller_type,
+            "seller_name": flat_info.seller_name,
         }
 
         return {"success": True, "flat": flat_dict}
@@ -96,6 +98,8 @@ async def get_similar_flats(
                     "residential_complex": rental.residential_complex,
                     "floor": rental.floor,
                     "construction_year": rental.construction_year,
+                    "seller_type": rental.seller_type,
+                    "seller_name": rental.seller_name,
                 }
             )
 
@@ -109,6 +113,8 @@ async def get_similar_flats(
                     "residential_complex": sale.residential_complex,
                     "floor": sale.floor,
                     "construction_year": sale.construction_year,
+                    "seller_type": sale.seller_type,
+                    "seller_name": sale.seller_name,
                 }
             )
 

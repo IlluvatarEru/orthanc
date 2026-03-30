@@ -44,6 +44,8 @@ def _log_flat_info(flat_info):
         ("parking", flat_info.parking),
         ("description", flat_info.description),
         ("is_rental", flat_info.is_rental),
+        ("seller_type", flat_info.seller_type),
+        ("seller_name", flat_info.seller_name),
     ]
     for field_name, field_value in fields_to_check:
         logger.info(f"{field_name:20}: {field_value}")

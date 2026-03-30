@@ -362,6 +362,8 @@ class JKRentalAnalytics:
                         parking=rental.get("parking"),
                         description=rental.get("description", ""),
                         is_rental=True,
+                        seller_type=rental.get("seller_type"),
+                        seller_name=rental.get("seller_name"),
                     )
 
                     stats_for_flat_type = StatsForFlatType(

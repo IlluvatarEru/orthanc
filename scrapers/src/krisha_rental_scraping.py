@@ -32,6 +32,9 @@ from scrapers.src.utils import (
     extract_flat_id_from_url,
     fetch_url,
     get_city_url_slug,
+    extract_seller_type_from_api,
+    extract_seller_type_from_html,
+    extract_seller_name_from_api,
 )
 
 
@@ -191,6 +194,10 @@ def scrape_rental_flat(krisha_id: str) -> Optional[FlatInfo]:
 
         flat_type = determine_flat_type_from_text(title, description, area)
 
+        # Seller info from owner object
+        seller_type = extract_seller_type_from_api(advert)
+        seller_name = extract_seller_name_from_api(advert)
+
         flat_info = FlatInfo(
             flat_id=str(krisha_id),
             price=int(price),
@@ -204,6 +211,8 @@ def scrape_rental_flat(krisha_id: str) -> Optional[FlatInfo]:
             description=description,
             is_rental=True,
             archived=is_archived,
+            seller_type=seller_type,
+            seller_name=seller_name,
         )
 
         return flat_info
@@ -272,6 +281,9 @@ def extract_rental_info(
             is_archived = True
             logging.info(f"Flat {flat_id} is marked as archived in HTML")
 
+        # Extract seller type from HTML
+        seller_type = extract_seller_type_from_html(soup)
+
         # Create FlatInfo object
         flat_info = FlatInfo(
             flat_id=flat_id,
@@ -286,6 +298,7 @@ def extract_rental_info(
             description=description,
             is_rental=True,
             archived=is_archived,
+            seller_type=seller_type,
         )
 
         return flat_info
