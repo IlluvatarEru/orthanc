@@ -33,6 +33,7 @@ from scrapers.src.utils import (
     extract_seller_type_from_api,
     extract_seller_type_from_html,
     extract_seller_name_from_api,
+    extract_condition_from_description,
 )
 
 
@@ -230,6 +231,7 @@ def scrape_sales_flat_from_analytics_page(
             created_at=api_created_at,
             seller_type=seller_type,
             seller_name=seller_name,
+            condition=extract_condition_from_description(description),
         )
 
         return flat_info
@@ -315,6 +317,7 @@ def extract_sales_info(
             is_rental=False,  # This is a sales flat
             archived=is_archived,
             seller_type=seller_type,
+            condition=extract_condition_from_description(description),
         )
 
         return flat_info

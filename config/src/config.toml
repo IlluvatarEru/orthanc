@@ -98,4 +98,9 @@ fair_deal_discount = 1.0         # Fair deal if price is within 5% of median
 
 # Analysis configuration
 [analysis]
-default_area_tolerance = 10.0  # Default area tolerance percentage for finding similar flats 
+default_area_tolerance = 10.0  # Default area tolerance percentage for finding similar flats
+
+# Remont (renovation) cost adjustment per city (KZT per sqm)
+# Applied to needs_remont flats before median comparison in opportunity scoring
+[analysis.remont_cost_per_sqm]
+almaty = 100_000

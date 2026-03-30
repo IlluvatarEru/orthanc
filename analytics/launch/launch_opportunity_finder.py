@@ -94,6 +94,7 @@ def find_all_opportunities(
                         if opp.flat_info.description
                         else ""
                     ),
+                    "condition": opp.flat_info.condition or "unknown",
                 }
                 all_opportunities.append(opportunity_dict)
                 jk_opportunity_count += 1
@@ -237,6 +238,7 @@ def write_opportunities_to_csv(
         "query_date",
         "url",
         "description",
+        "condition",
     ]
 
     try:
