@@ -220,6 +220,17 @@ class DatabaseSchema:
             )
         """)
 
+        # Create opportunity reviews table (structured analyst decisions)
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS opportunity_reviews (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                flat_id TEXT NOT NULL,
+                decision TEXT NOT NULL CHECK (decision IN ('consider', 'ignore')),
+                reason TEXT,
+                reviewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Create pipeline runs stats table
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS pipeline_runs (
@@ -430,6 +441,14 @@ class DatabaseSchema:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_opportunity_discount ON opportunity_analysis(discount_percentage_vs_median)"
+        )
+
+        # Opportunity reviews indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reviews_flat_id ON opportunity_reviews(flat_id)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_reviews_decision ON opportunity_reviews(decision, reviewed_at)"
         )
 
         self.conn.commit()

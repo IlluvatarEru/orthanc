@@ -2612,6 +2612,7 @@ class OrthancDB:
         city: str = None,
         flat_types: List[str] = None,
         seller_type: str = None,
+        ignore_exclusion_days: int = 30,
     ) -> List[Dict]:
         """
         Get top N opportunities from the latest analysis run.
@@ -2642,6 +2643,14 @@ class OrthancDB:
         conditions.append(
             "oa.flat_id NOT IN (SELECT flat_id FROM ignored_opportunities)"
         )
+        # Exclude flats with 'ignore' review within exclusion window
+        conditions.append(
+            "oa.flat_id NOT IN ("
+            "SELECT flat_id FROM opportunity_reviews "
+            "WHERE decision = 'ignore' AND reviewed_at >= datetime('now', ?)"
+            ")"
+        )
+        params.append(f"-{ignore_exclusion_days} days")
         conditions.append(
             "oa.residential_complex NOT IN (SELECT name FROM blacklisted_jks)"
         )
@@ -2752,6 +2761,86 @@ class OrthancDB:
         except Exception as e:
             logging.error(f"Error unignoring opportunity {flat_id}: {e}")
             return False
+        finally:
+            self.disconnect()
+
+    def add_review(self, flat_id: str, decision: str, reason: str = None) -> bool:
+        """
+        Record an analyst review decision for an opportunity.
+
+        :param flat_id: str, flat ID being reviewed
+        :param decision: str, 'consider' or 'ignore'
+        :param reason: str, free-text reason (optional, mainly for ignore)
+        :return: bool, True if successful
+        """
+        self.connect()
+        try:
+            self.conn.execute(
+                "INSERT INTO opportunity_reviews (flat_id, decision, reason) VALUES (?, ?, ?)",
+                (flat_id, decision, reason),
+            )
+            self.conn.commit()
+            return True
+        except Exception as e:
+            logging.error(f"Error adding review for {flat_id}: {e}")
+            return False
+        finally:
+            self.disconnect()
+
+    def get_review(self, flat_id: str) -> Optional[Dict]:
+        """
+        Get the most recent review for a flat.
+
+        :param flat_id: str, flat ID
+        :return: Optional[Dict], review record or None
+        """
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT flat_id, decision, reason, reviewed_at FROM opportunity_reviews "
+                "WHERE flat_id = ? ORDER BY reviewed_at DESC, id DESC LIMIT 1",
+                (flat_id,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
+        finally:
+            self.disconnect()
+
+    def get_reviews_for_flat(self, flat_id: str) -> List[Dict]:
+        """
+        Get all reviews for a flat, most recent first.
+
+        :param flat_id: str, flat ID
+        :return: List[Dict], review records
+        """
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT flat_id, decision, reason, reviewed_at FROM opportunity_reviews "
+                "WHERE flat_id = ? ORDER BY reviewed_at DESC, id DESC",
+                (flat_id,),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            self.disconnect()
+
+    def get_ignored_flat_ids_within_window(self, days: int = 30) -> List[str]:
+        """
+        Get flat IDs that were ignored within the given window.
+
+        :param days: int, exclusion window in days
+        :return: List[str], flat IDs to exclude
+        """
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT DISTINCT flat_id FROM opportunity_reviews "
+                "WHERE decision = 'ignore' AND reviewed_at >= datetime('now', ?)",
+                (f"-{days} days",),
+            )
+            return [row[0] for row in cursor.fetchall()]
         finally:
             self.disconnect()
 
