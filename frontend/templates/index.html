@@ -499,6 +499,9 @@ function considerOpportunity(flatId) {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
+            if (data.sheet_url) {
+                window.open(data.sheet_url, '_blank');
+            }
             window.open('/flat/' + flatId, '_blank');
         }
     })

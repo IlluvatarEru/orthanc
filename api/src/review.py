@@ -17,6 +17,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _write_deal_sheet(flat_id: str) -> Optional[str]:
+    """Attempt to write a deal column for a considered flat.
+    Returns the sheet URL on success, None on failure (non-blocking)."""
+    try:
+        from api.src.deals_sheet import DealsSheetClient
+
+        with OrthancDB() as db:
+            flat = db.get_flat_info_by_id(flat_id)
+        if flat is None:
+            logger.warning(f"Flat {flat_id} not found in DB, skipping sheet write")
+            return None
+        client = DealsSheetClient()
+        return client.write_deal_column(flat)
+    except Exception:
+        logger.exception(f"Failed to write deal sheet for flat {flat_id}")
+        return None
+
+
 class ReviewRequest(BaseModel):
     decision: str
     reason: Optional[str] = None
@@ -40,7 +58,14 @@ async def post_review(flat_id: str, review: ReviewRequest):
     if not success:
         raise HTTPException(status_code=500, detail="Failed to save review")
 
-    return {"success": True, "flat_id": flat_id, "decision": review.decision}
+    result = {"success": True, "flat_id": flat_id, "decision": review.decision}
+
+    if review.decision == "consider":
+        sheet_url = _write_deal_sheet(flat_id)
+        if sheet_url:
+            result["sheet_url"] = sheet_url
+
+    return result
 
 
 @router.get("/{flat_id}")

@@ -884,7 +884,22 @@ def review_opportunity():
 
     with OrthancDB() as db:
         success = db.add_review(flat_id, decision, reason)
-    return jsonify({"success": success})
+
+    result = {"success": success}
+
+    if success and decision == "consider":
+        try:
+            from api.src.deals_sheet import DealsSheetClient
+
+            with OrthancDB() as db:
+                flat = db.get_flat_info_by_id(flat_id)
+            if flat:
+                client = DealsSheetClient()
+                result["sheet_url"] = client.write_deal_column(flat)
+        except Exception:
+            logger.exception(f"Failed to write deal sheet for flat {flat_id}")
+
+    return jsonify(result)
 
 
 @app.route("/api/districts/<city>")
