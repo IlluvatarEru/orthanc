@@ -484,9 +484,11 @@ def view_flat_details(flat_id):
 
     # Developer info for this JK
     developer_info = None
+    jk_profile = None
     if flat_data.get("residential_complex"):
         with OrthancDB() as db:
             developer_info = db.get_developer_for_jk(flat_data["residential_complex"])
+        jk_profile = api_client.get_jk_profile(flat_data["residential_complex"])
 
     return render_template(
         "unified_flat_view.html",
@@ -508,6 +510,7 @@ def view_flat_details(flat_id):
         sold_stats=sold_stats,
         sale_returns=sale_returns,
         sold_returns=sold_returns,
+        jk_profile=jk_profile,
     )
 
 

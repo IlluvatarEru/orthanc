@@ -17,6 +17,7 @@ from api.src.database_stats import router as database_stats_router
 from api.src.review import router as review_router
 from api.src.deals import router as deals_router
 from api.src.portfolio import router as portfolio_router
+from api.src.jk_profile import router as jk_profile_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +59,7 @@ app.include_router(
 app.include_router(review_router, prefix="/api/review", tags=["review"])
 app.include_router(deals_router, prefix="/api/deals", tags=["deals"])
 app.include_router(portfolio_router, prefix="/api/portfolio", tags=["portfolio"])
+app.include_router(jk_profile_router, prefix="/api/jks", tags=["jk-profile"])
 
 
 @app.get("/")

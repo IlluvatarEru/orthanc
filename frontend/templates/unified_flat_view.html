@@ -366,6 +366,78 @@
         </div>
     </div>
 
+    <!-- JK Quality Profile -->
+    {% if jk_profile %}
+    <div class="mb-4">
+        <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('jk-profile')">
+            <i class="fas fa-chevron-right me-2" id="jk-profile-icon"></i>JK Quality Profile
+        </h4>
+        <div id="jk-profile-content" class="collapse">
+            <div class="card stats-card">
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <p class="mb-1"><strong>JK:</strong> {{ jk_profile.name }}</p>
+                            {% if jk_profile.city %}<p class="mb-1"><strong>City:</strong> {{ jk_profile.city }}</p>{% endif %}
+                            {% if jk_profile.district %}<p class="mb-1"><strong>District:</strong> {{ jk_profile.district }}</p>{% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            {% if jk_profile.sales %}
+                            <p class="mb-1"><strong>For sale:</strong> {{ jk_profile.sales.count or 0 }}</p>
+                            {% if jk_profile.sales.median_price %}
+                            <p class="mb-1"><strong>Median price/sqm:</strong>
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(jk_profile.sales.median_price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(jk_profile.sales.median_price|int) }}
+                                {% endif %}
+                            </p>
+                            {% endif %}
+                            {% if jk_profile.sales.avg_price_per_sqm %}
+                            <p class="mb-1"><strong>Avg price/sqm:</strong>
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(jk_profile.sales.avg_price_per_sqm / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(jk_profile.sales.avg_price_per_sqm|int) }}
+                                {% endif %}
+                            </p>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+                        <div class="col-md-4">
+                            {% if jk_profile.sales and jk_profile.sales.yield_median %}
+                            <p class="mb-1"><strong>Yield:</strong>
+                                {{ "{:.1f}".format(jk_profile.sales.yield_min) }}% - {{ "{:.1f}".format(jk_profile.sales.yield_max) }}%
+                                (median {{ "{:.1f}".format(jk_profile.sales.yield_median) }}%)
+                            </p>
+                            {% endif %}
+                            {% if jk_profile.turnover %}
+                            <p class="mb-1"><strong>Turnover:</strong>
+                                {% for label, val in jk_profile.turnover.items() %}
+                                    {% if val is not none %}
+                                        <span class="{% if val >= 0.30 %}text-success{% elif val >= 0.15 %}text-warning{% else %}text-danger{% endif %}">{{ label }}: {{ "{:.1f}".format(val * 100) }}%</span>{% if not loop.last %} | {% endif %}
+                                    {% else %}
+                                        {{ label }}: N/A{% if not loop.last %} | {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                            </p>
+                            {% endif %}
+                            {% if jk_profile.opportunity_frequency %}
+                            <p class="mb-1"><strong>Opportunities (90d):</strong> {{ jk_profile.opportunity_frequency.last_90d }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if jk_profile.price_trend and jk_profile.price_trend|length > 0 %}
+                    <div class="chart-container">
+                        <canvas id="jkPriceTrendChart"></canvas>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Similar Flats for Sale -->
     <div class="mb-4">
         <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('similar-sales')">
@@ -546,6 +618,95 @@ function toggleSection(sectionId) {
         icon.classList.add('fa-chevron-down');
     }
 }
+
+// JK Price Trend Chart
+{% if jk_profile and jk_profile.price_trend and jk_profile.price_trend|length > 0 %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('jkPriceTrendChart');
+    if (!ctx) return;
+
+    const trendData = {{ jk_profile.price_trend | tojson }};
+    const labels = trendData.map(d => d.week);
+
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'For-sale median',
+                    data: trendData.map(d => d.for_sale_median_sqm),
+                    borderColor: '#4f9eff',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    spanGaps: true
+                },
+                {
+                    label: 'For-sale mean',
+                    data: trendData.map(d => d.for_sale_mean_sqm),
+                    borderColor: '#4f9eff',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    pointRadius: 2,
+                    spanGaps: true
+                },
+                {
+                    label: 'Sold median',
+                    data: trendData.map(d => d.sold_median_sqm),
+                    borderColor: '#ffa502',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    spanGaps: true
+                },
+                {
+                    label: 'Sold mean',
+                    data: trendData.map(d => d.sold_mean_sqm),
+                    borderColor: '#ffa502',
+                    backgroundColor: 'transparent',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    tension: 0.3,
+                    pointRadius: 2,
+                    spanGaps: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Listed vs sold price/sqm -- {{ jk_profile.name }}',
+                    color: '#ffffff',
+                    font: { size: 14 }
+                },
+                legend: {
+                    labels: { color: '#b0b0b0' }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'ISO Week', color: '#b0b0b0' },
+                    ticks: { color: '#888888' },
+                    grid: { color: '#404040' }
+                },
+                y: {
+                    title: { display: true, text: 'KZT/sqm', color: '#b0b0b0' },
+                    ticks: { color: '#888888' },
+                    grid: { color: '#404040' }
+                }
+            }
+        }
+    });
+});
+{% endif %}
 
 // Handle filter input changes
 document.addEventListener('DOMContentLoaded', function() {

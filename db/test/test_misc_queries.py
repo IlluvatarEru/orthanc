@@ -122,3 +122,154 @@ class TestMiscQueries:
 
             # Flat ID should be non-empty
             assert sale["flat_id"], "Flat ID should not be empty"
+
+
+class TestJKPriceTrend:
+    """Test class for JK price trend queries."""
+
+    @pytest.fixture
+    def db_fx(self):
+        """Create database with multi-date sales data for price trend testing."""
+        fd, temp_db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = OrthancDB(temp_db_path)
+
+        jk_name = "Trend JK"
+        # Insert flats across two query dates so we can detect sold flats
+        date1 = "2025-03-01"
+        date2 = "2025-03-08"
+
+        # Date 1: flats 1-5
+        for i in range(1, 6):
+            flat = FlatInfo(
+                f"trend_{i}",
+                20000000 + i * 1000000,
+                50.0 + i * 5,
+                "2BR",
+                jk_name,
+                i,
+                10,
+                2020,
+                "Yes",
+                f"Flat {i}",
+                False,
+            )
+            db.insert_sales_flat(
+                flat, f"https://krisha.kz/a/show/trend_{i}", date1, flat.flat_type
+            )
+
+        # Date 2: flats 3-7 (1,2 disappeared = sold; 6,7 are new)
+        for i in range(3, 8):
+            flat = FlatInfo(
+                f"trend_{i}",
+                20000000 + i * 1000000,
+                50.0 + i * 5,
+                "2BR",
+                jk_name,
+                i,
+                10,
+                2020,
+                "Yes",
+                f"Flat {i}",
+                False,
+            )
+            db.insert_sales_flat(
+                flat, f"https://krisha.kz/a/show/trend_{i}", date2, flat.flat_type
+            )
+
+        yield db
+
+        db.disconnect()
+        if os.path.exists(temp_db_path):
+            os.remove(temp_db_path)
+
+    def test_price_trend_returns_weekly_data(self, db_fx):
+        """Test that price trend returns aggregated weekly data."""
+        result = db_fx.get_jk_price_trend("Trend JK")
+        assert isinstance(result, list)
+        assert len(result) > 0
+
+        for entry in result:
+            assert "week" in entry
+            assert "for_sale_median_sqm" in entry
+            assert "for_sale_mean_sqm" in entry
+            assert "sold_median_sqm" in entry
+            assert "sold_mean_sqm" in entry
+
+    def test_price_trend_has_for_sale_data(self, db_fx):
+        """Test that for-sale series has values."""
+        result = db_fx.get_jk_price_trend("Trend JK")
+        has_for_sale = any(e["for_sale_median_sqm"] is not None for e in result)
+        assert has_for_sale, "Should have for-sale data"
+
+    def test_price_trend_has_sold_data(self, db_fx):
+        """Test that sold series has values (flats 1,2 disappeared)."""
+        result = db_fx.get_jk_price_trend("Trend JK")
+        has_sold = any(e["sold_median_sqm"] is not None for e in result)
+        assert has_sold, "Should have sold data (flats 1,2 disappeared between dates)"
+
+    def test_price_trend_nonexistent_jk(self, db_fx):
+        """Test that nonexistent JK returns empty list."""
+        result = db_fx.get_jk_price_trend("Nonexistent")
+        assert result == []
+
+
+class TestOpportunityFrequency:
+    """Test class for opportunity frequency queries."""
+
+    @pytest.fixture
+    def db_fx(self):
+        """Create database with opportunity analysis data."""
+        fd, temp_db_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        db = OrthancDB(temp_db_path)
+
+        # Insert some opportunity analysis rows
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        opportunities = [
+            {
+                "rank": i,
+                "flat_id": f"opp_{i}",
+                "residential_complex": "Opp JK",
+                "price": 20000000 + i * 1000000,
+                "area": 60.0,
+                "flat_type": "2BR",
+                "floor": 3,
+                "total_floors": 10,
+                "construction_year": 2021,
+                "parking": "Yes",
+                "discount_percentage_vs_median": 0.15 + i * 0.02,
+                "median_price": 25000000,
+                "mean_price": 24000000,
+                "min_price": 20000000,
+                "max_price": 30000000,
+                "sample_size": 10,
+                "query_date": datetime.now().strftime("%Y-%m-%d"),
+                "url": f"https://krisha.kz/a/show/opp_{i}",
+                "description": f"Opp flat {i}",
+            }
+            for i in range(1, 6)
+        ]
+        db.insert_opportunity_analysis_batch(opportunities, now)
+
+        yield db
+
+        db.disconnect()
+        if os.path.exists(temp_db_path):
+            os.remove(temp_db_path)
+
+    def test_opportunity_frequency_counts(self, db_fx):
+        """Test that opportunity frequency returns correct count."""
+        count = db_fx.get_opportunity_frequency("Opp JK", days=90, min_discount=0.15)
+        assert count == 5
+
+    def test_opportunity_frequency_with_higher_threshold(self, db_fx):
+        """Test filtering by higher discount threshold."""
+        count = db_fx.get_opportunity_frequency("Opp JK", days=90, min_discount=0.20)
+        # Discounts: 0.17, 0.19, 0.21, 0.23, 0.25 -- 3 are >= 0.20
+        assert count == 3
+
+    def test_opportunity_frequency_nonexistent_jk(self, db_fx):
+        """Test nonexistent JK returns 0."""
+        count = db_fx.get_opportunity_frequency("Nonexistent", days=90)
+        assert count == 0

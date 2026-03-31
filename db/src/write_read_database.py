@@ -3411,6 +3411,133 @@ class OrthancDB:
             "new_date": new_date,
         }
 
+    def get_jk_price_trend(
+        self, residential_complex: str, weeks: int = 12
+    ) -> List[Dict]:
+        """
+        Weekly median and mean price/sqm for a JK, split into for-sale and sold series.
+
+        For-sale: flats present in sales_flats for this JK in a given ISO week.
+        Sold: flats that disappeared during that week (present in previous week but
+        absent in current). Excludes relisted flats. Uses last known price/area.
+
+        :param residential_complex: str, JK name
+        :param weeks: int, rolling window size (minimum)
+        :return: List[Dict] with week, for_sale_median_sqm, for_sale_mean_sqm,
+                 sold_median_sqm, sold_mean_sqm
+        """
+        self.connect()
+
+        # Get distinct query dates for this JK, ordered
+        cursor = self.conn.execute(
+            """SELECT DISTINCT query_date FROM sales_flats
+               WHERE residential_complex = ?
+               ORDER BY query_date""",
+            (residential_complex,),
+        )
+        all_dates = [row[0] for row in cursor.fetchall()]
+
+        if len(all_dates) < 2:
+            self.disconnect()
+            return []
+
+        # Group dates by ISO week (YYYY-Www)
+        def _iso_week(date_str):
+            d = datetime.strptime(date_str, "%Y-%m-%d")
+            iso = d.isocalendar()
+            return f"{iso[0]}-W{iso[1]:02d}"
+
+        # For each query_date, get flat_id -> price/area
+        date_flats = {}
+        for qd in all_dates:
+            cursor = self.conn.execute(
+                """SELECT flat_id, price, area, relisted_from_flat_id
+                   FROM sales_flats
+                   WHERE residential_complex = ? AND query_date = ? AND area > 0""",
+                (residential_complex, qd),
+            )
+            date_flats[qd] = {
+                row[0]: {"price_sqm": row[1] / row[2], "relisted": row[3] is not None}
+                for row in cursor.fetchall()
+            }
+
+        # Build weekly aggregates
+        week_for_sale = {}  # week -> list of price_sqm
+        week_sold = {}  # week -> list of price_sqm
+
+        for i, qd in enumerate(all_dates):
+            week = _iso_week(qd)
+            flats = date_flats[qd]
+
+            # For-sale: all flats present on this date
+            for_sale_prices = [v["price_sqm"] for v in flats.values()]
+            week_for_sale.setdefault(week, []).extend(for_sale_prices)
+
+            # Sold: flats in previous date but not in this one (exclude relisted)
+            if i > 0:
+                prev_qd = all_dates[i - 1]
+                prev_flats = date_flats[prev_qd]
+                current_ids = set(flats.keys())
+                for fid, fdata in prev_flats.items():
+                    if fid not in current_ids and not fdata["relisted"]:
+                        week_sold.setdefault(week, []).append(fdata["price_sqm"])
+
+        self.disconnect()
+
+        # Collect all weeks, sort, take last N
+        all_weeks = sorted(set(list(week_for_sale.keys()) + list(week_sold.keys())))
+        if len(all_weeks) > weeks:
+            all_weeks = all_weeks[-weeks:]
+
+        def _median(values):
+            if not values:
+                return None
+            s = sorted(values)
+            n = len(s)
+            return (s[n // 2 - 1] + s[n // 2]) / 2 if n % 2 == 0 else s[n // 2]
+
+        def _mean(values):
+            return sum(values) / len(values) if values else None
+
+        result = []
+        for week in all_weeks:
+            fs = week_for_sale.get(week, [])
+            sd = week_sold.get(week, [])
+            result.append(
+                {
+                    "week": week,
+                    "for_sale_median_sqm": round(_median(fs)) if fs else None,
+                    "for_sale_mean_sqm": round(_mean(fs)) if fs else None,
+                    "sold_median_sqm": round(_median(sd)) if sd else None,
+                    "sold_mean_sqm": round(_mean(sd)) if sd else None,
+                }
+            )
+
+        return result
+
+    def get_opportunity_frequency(
+        self, residential_complex: str, days: int = 90, min_discount: float = 0.15
+    ) -> int:
+        """
+        Count opportunities >= min_discount below median for a JK in last N days.
+
+        :param residential_complex: str, JK name
+        :param days: int, lookback window
+        :param min_discount: float, minimum discount threshold
+        :return: int, count
+        """
+        self.connect()
+        cursor = self.conn.execute(
+            """SELECT COUNT(*) FROM opportunity_analysis
+               WHERE residential_complex = ?
+               AND discount_percentage_vs_median >= ?
+               AND run_timestamp >= date('now', ?)""",
+            (residential_complex, min_discount, f"-{days} days"),
+        )
+        count = cursor.fetchone()[0]
+        self.disconnect()
+        return count
+
     def get_price_per_sqm_rankings(
         self, city: str = None, limit: int = 15
     ) -> List[Dict]:
