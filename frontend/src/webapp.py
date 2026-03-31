@@ -669,12 +669,14 @@ def calculate_investment_analysis(
 
 @app.route("/portfolio")
 def portfolio():
-    """Portfolio page showing completed deals from the deals spreadsheet."""
+    """Portfolio page showing active and completed deals."""
     from api.src.deals_sheet import DealsSheetClient
 
-    data = DealsSheetClient().read_completed_deals()
+    data = DealsSheetClient().read_portfolio()
     return render_template(
         "portfolio.html",
+        active=data["active"],
+        not_done=data["not_done"],
         completed=data["completed"],
         summary=data["summary"],
     )
