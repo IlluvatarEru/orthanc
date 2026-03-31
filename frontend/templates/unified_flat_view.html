@@ -183,62 +183,32 @@
                         </div>
                         <div class="col-md-6">
                             <h6>Market Statistics for Similar Flats</h6>
-                            {% if opportunity.market_stats.count > 0 %}
-                            <div class="row">
-                                <div class="col-6 col-md-3">
-                                    <h6 class="text-muted">Median Price</h6>
-                                    <p class="text-white h5">
-                                        {% if show_eur %}
-                                            €{{ "{:,.0f}".format((opportunity.market_stats.median_price|int) / eur_rate) }}
-                                        {% else %}
-                                            ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
-                                        {% endif %}
-                                    </p>
+                            {% macro price_stats_row(label, stats) %}
+                            <div class="mb-2">
+                                <strong class="text-muted" style="font-size: 0.85rem;">{{ label }} ({{ stats.count }})</strong>
+                                {% if stats.count > 0 %}
+                                <div class="row mt-1">
+                                    <div class="col-3"><span class="text-muted" style="font-size: 0.75rem;">Median</span><br><span class="text-white">{% if show_eur %}€{{ "{:,.0f}".format(stats.median / eur_rate) }}{% else %}₸{{ "%.1f"|format(stats.median / 1000000) }}M{% endif %}</span></div>
+                                    <div class="col-3"><span class="text-muted" style="font-size: 0.75rem;">Mean</span><br><span class="text-white">{% if show_eur %}€{{ "{:,.0f}".format(stats.mean / eur_rate) }}{% else %}₸{{ "%.1f"|format(stats.mean / 1000000) }}M{% endif %}</span></div>
+                                    <div class="col-3"><span class="text-muted" style="font-size: 0.75rem;">Min</span><br><span class="text-white">{% if show_eur %}€{{ "{:,.0f}".format(stats.min / eur_rate) }}{% else %}₸{{ "%.1f"|format(stats.min / 1000000) }}M{% endif %}</span></div>
+                                    <div class="col-3"><span class="text-muted" style="font-size: 0.75rem;">Max</span><br><span class="text-white">{% if show_eur %}€{{ "{:,.0f}".format(stats.max / eur_rate) }}{% else %}₸{{ "%.1f"|format(stats.max / 1000000) }}M{% endif %}</span></div>
                                 </div>
-                                <div class="col-6 col-md-3">
-                                    <h6 class="text-muted">Mean Price</h6>
-                                    <p class="text-white h5">
-                                        {% if show_eur %}
-                                            €{{ "{:,.0f}".format((opportunity.market_stats.mean_price|int) / eur_rate) }}
-                                        {% else %}
-                                            ₸{{ "{:,}".format(opportunity.market_stats.mean_price|int) }}
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                <div class="col-6 col-md-3">
-                                    <h6 class="text-muted">Min Price</h6>
-                                    <p class="text-white h5">
-                                        {% if show_eur %}
-                                            €{{ "{:,.0f}".format((opportunity.market_stats.min_price|int) / eur_rate) }}
-                                        {% else %}
-                                            ₸{{ "{:,}".format(opportunity.market_stats.min_price|int) }}
-                                        {% endif %}
-                                    </p>
-                                </div>
-                                <div class="col-6 col-md-3">
-                                    <h6 class="text-muted">Max Price</h6>
-                                    <p class="text-white h5">
-                                        {% if show_eur %}
-                                            €{{ "{:,.0f}".format((opportunity.market_stats.max_price|int) / eur_rate) }}
-                                        {% else %}
-                                            ₸{{ "{:,}".format(opportunity.market_stats.max_price|int) }}
-                                        {% endif %}
-                                    </p>
-                                </div>
+                                {% else %}
+                                <p class="text-muted mb-0" style="font-size: 0.8rem;">No data</p>
+                                {% endif %}
                             </div>
-                            <div class="mt-3">
+                            {% endmacro %}
+                            {{ price_stats_row("Currently for Sale", opportunity.market_stats) }}
+                            {{ price_stats_row("Recently Sold", sold_stats) }}
+                            <div class="mt-2">
                                 <p class="text-muted mb-1">
-                                    <strong>Sample Size:</strong><span class="ms-1 hint-tip" data-tip="Number of active sales listings in the same JK with area within +/-10% of this flat. Used to compute the median price and discount.">?</span> {{ opportunity.market_stats.count }} similar properties
-                                </p>
-                                <p class="text-muted mb-0">
                                     <strong>Confidence:</strong><span class="ms-1 hint-tip" data-tip="Score from 0-100% based on how many similar flats are available for comparison. Formula: N/(N+3) where N is the number of similar sales. Higher = more reliable estimate.">?</span>
                                     <span class="{% if confidence_score >= 70 %}text-success{% elif confidence_score >= 40 %}text-warning{% else %}text-danger{% endif %}">
                                         {{ confidence_score }}%
                                     </span>
-                                    <span style="font-size: 0.8rem;">(based on N={{ opportunity.market_stats.count }} comparables)</span>
+                                    <span style="font-size: 0.8rem;">(based on N={{ opportunity.market_stats.count }} for-sale comparables)</span>
                                 </p>
                             </div>
-                            {% endif %}
                             {% if market_context and market_context.turnover %}
                             <div class="mt-2">
                                 <p class="text-muted mb-1" style="font-size: 0.85rem;">
@@ -270,48 +240,34 @@
                     <h4><i class="fas fa-exchange-alt me-2"></i>Buy and Sell Analysis</h4>
                 </div>
                 <div class="card-body">
-                    <div class="row mb-3">
-                        <div class="col-md-12">
-                            <p class="text-white mb-2">
-                                <strong>Current Price:</strong>
-                                {% if show_eur %}
-                                    €{{ "{:,.0f}".format(flat_data.price / eur_rate) }}
-                                {% else %}
-                                    ₸{{ "{:,}".format(flat_data.price) }}
-                                {% endif %}
-                                | 
-                                <strong>Median Price (similar flats):</strong>
-                                {% if show_eur %}
-                                    €{{ "{:,.0f}".format((opportunity.market_stats.median_price|int) / eur_rate) }}
-                                {% else %}
-                                    ₸{{ "{:,}".format(opportunity.market_stats.median_price|int) }}
-                                {% endif %}
-                            </p>
+                    <p class="text-white mb-3">
+                        <strong>Current Price:</strong>
+                        {% if show_eur %}€{{ "{:,.0f}".format(flat_data.price / eur_rate) }}{% else %}₸{{ "{:,}".format(flat_data.price) }}{% endif %}
+                    </p>
+                    {% macro returns_row(label, returns) %}
+                    <div class="mb-3">
+                        <strong class="text-muted" style="font-size: 0.85rem;">{{ label }}</strong>
+                        <div class="row mt-1">
+                            <div class="col-4">
+                                <span class="text-muted" style="font-size: 0.75rem;">Gross Return</span><br>
+                                <span class="text-white h5">{% if returns.gross > 0 %}+{% endif %}{{ "{:.1f}".format(returns.gross) }}%</span>
+                            </div>
+                            <div class="col-4">
+                                <span class="text-muted" style="font-size: 0.75rem;">Net Return</span><br>
+                                <span class="text-white h5">{% if returns.net > 0 %}+{% endif %}{{ "{:.1f}".format(returns.net) }}%</span>
+                            </div>
+                            <div class="col-4">
+                                <span class="text-muted" style="font-size: 0.75rem;">Annual Net</span><br>
+                                <span class="text-white h5">{% if returns.annual_net > 0 %}+{% endif %}{{ "{:.1f}".format(returns.annual_net) }}%</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-6 col-12 col-md-4 mb-3">
-                            <h6>Expected Return</h6>
-                            <p class="h4 text-white">
-                                {% if buy_sell_return_percentage > 0 %}+{% endif %}{{ "{:.2f}".format(buy_sell_return_percentage) }}%
-                            </p>
-                            <p class="text-muted small">Gross return (before taxes & fees)</p>
-                        </div>
-                        <div class="col-6 col-12 col-md-4 mb-3">
-                            <h6>Expected Net Return</h6>
-                            <p class="h4 text-white">
-                                {% if buy_sell_net_return_percentage > 0 %}+{% endif %}{{ "{:.2f}".format(buy_sell_net_return_percentage) }}%
-                            </p>
-                            <p class="text-muted small">After 10% tax & 500k notary</p>
-                        </div>
-                        <div class="col-12 col-12 col-md-4 mb-3">
-                            <h6>Annual Net Return</h6>
-                            <p class="h4 text-white">
-                                {% if equivalent_annual_net_return > 0 %}+{% endif %}{{ "{:.2f}".format(equivalent_annual_net_return) }}%
-                            </p>
-                            <p class="text-muted small">Assuming 2M holding time and linear annualisation</p>
-                        </div>
-                    </div>
+                    {% endmacro %}
+                    {{ returns_row("Based on For-Sale Comparables (median: " ~ ("€{:,.0f}".format(opportunity.market_stats.median_price / eur_rate) if show_eur else "₸{:,}".format(opportunity.market_stats.median_price|int)) ~ ")", sale_returns) }}
+                    {% if sold_stats.count > 0 %}
+                    {{ returns_row("Based on Recently Sold (median: " ~ ("€{:,.0f}".format(sold_stats.median / eur_rate) if show_eur else "₸{:,}".format(sold_stats.median|int)) ~ ")", sold_returns) }}
+                    {% endif %}
+                    <p class="text-muted small mb-0">Net = after 10% tax on profit & 500k notary. Annual = linear over 2M holding.</p>
                 </div>
             </div>
         </div>
@@ -433,49 +389,6 @@
         </div>
     </div>
 
-    <!-- Similar Flats for Rent -->
-    <div class="mb-4">
-        <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('similar-rentals')">
-            <i class="fas fa-chevron-down me-2" id="similar-rentals-icon"></i>Similar Flats for Rent <span class="hint-tip hint-lg" data-tip="Active (non-archived) rental listings in the same residential complex with area within +/-10% of this flat.">?</span>
-        </h4>
-        <div id="similar-rentals-content" class="collapse show">
-            {% if similar_rentals and similar_rentals|length > 0 %}
-            <div class="row">
-                {% for flat in similar_rentals %}
-                <div class="col-12 col-md-4 mb-3">
-                    <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
-                        <div class="card-body">
-                            <h5 class="card-title text-white">
-                                {% if show_eur %}
-                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
-                                {% else %}
-                                    ₸{{ "{:,}".format(flat.price) }}
-                                {% endif %}
-                            </h5>
-                            <p class="card-text small">
-                                <strong>Area:</strong> {{ flat.area }} m²<br>
-                                <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
-                                <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
-                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
-                            </p>
-                            <div class="mt-2">
-                                <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
-                                   target="_blank"
-                                   class="btn btn-sm btn-outline-krisha">
-                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <p class="text-muted">No similar flats for rent found.</p>
-            {% endif %}
-        </div>
-    </div>
-
     <!-- Recently Sold -->
     <div class="mb-4">
         <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('recently-sold')">
@@ -521,6 +434,49 @@
             </div>
             {% else %}
             <p class="text-muted">No recently sold flats found.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Similar Flats for Rent -->
+    <div class="mb-4">
+        <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('similar-rentals')">
+            <i class="fas fa-chevron-down me-2" id="similar-rentals-icon"></i>Similar Flats for Rent <span class="hint-tip hint-lg" data-tip="Active (non-archived) rental listings in the same residential complex with area within +/-10% of this flat.">?</span>
+        </h4>
+        <div id="similar-rentals-content" class="collapse show">
+            {% if similar_rentals and similar_rentals|length > 0 %}
+            <div class="row">
+                {% for flat in similar_rentals %}
+                <div class="col-12 col-md-4 mb-3">
+                    <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                        <div class="card-body">
+                            <h5 class="card-title text-white">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat.price) }}
+                                {% endif %}
+                            </h5>
+                            <p class="card-text small">
+                                <strong>Area:</strong> {{ flat.area }} m²<br>
+                                <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
+                                <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
+                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}
+                            </p>
+                            <div class="mt-2">
+                                <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-krisha">
+                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No similar flats for rent found.</p>
             {% endif %}
         </div>
     </div>

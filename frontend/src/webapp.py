@@ -413,49 +413,46 @@ def view_flat_details(flat_id):
         flat_data, similar_rentals, similar_sales, area_tolerance
     )
 
-    # Calculate median price properly
-    if similar_sales:
-        sorted_prices = sorted([flat["price"] for flat in similar_sales])
-        n = len(sorted_prices)
-        if n % 2 == 0:
-            median_price = (sorted_prices[n // 2 - 1] + sorted_prices[n // 2]) / 2
-        else:
-            median_price = sorted_prices[n // 2]
-        mean_price = sum(flat["price"] for flat in similar_sales) / len(similar_sales)
-        min_price = min(flat["price"] for flat in similar_sales)
-        max_price = max(flat["price"] for flat in similar_sales)
-    else:
-        median_price = 0
-        mean_price = 0
-        min_price = 0
-        max_price = 0
-
-    # Calculate buy and sell return percentage
-    current_price = flat_data["price"]
-    buy_sell_return_percentage = 0
-    buy_sell_net_return_percentage = 0
-    equivalent_annual_net_return = 0
-
-    if median_price > 0 and current_price > 0:
-        # Expected return (gross)
-        buy_sell_return_percentage = (
-            (median_price - current_price) / current_price
-        ) * 100
-
-        # Expected net return (after 10% tax on profit and 500k notary fee)
-        tax_rate = 0.10  # 10% tax on profit only
-        notary_fee = 500000  # 500k notary fee in KZT
-        profit = median_price - current_price  # Profit = sale price - buy price
-        sale_tax = profit * tax_rate  # Tax is 10% of profit, not sale price
-        net_sale_proceeds = median_price - sale_tax - notary_fee
-        net_profit = net_sale_proceeds - current_price
-        buy_sell_net_return_percentage = (net_profit / current_price) * 100
-
-        # Equivalent annual net return (LINEAR - assuming 2M holding period)
-        holding_period_years = 2 / 12
-        equivalent_annual_net_return = (
-            buy_sell_net_return_percentage / holding_period_years
+    # Helper to compute price stats from a list of flat dicts
+    def _price_stats(flats):
+        if not flats:
+            return {"median": 0, "mean": 0, "min": 0, "max": 0, "count": 0}
+        prices = sorted([f["price"] for f in flats])
+        n = len(prices)
+        median = (
+            (prices[n // 2 - 1] + prices[n // 2]) / 2 if n % 2 == 0 else prices[n // 2]
         )
+        return {
+            "median": median,
+            "mean": sum(prices) / n,
+            "min": prices[0],
+            "max": prices[-1],
+            "count": n,
+        }
+
+    # Helper to compute buy/sell returns from a median price
+    def _buy_sell_returns(median_price, current_price):
+        if median_price <= 0 or current_price <= 0:
+            return {"gross": 0, "net": 0, "annual_net": 0}
+        gross = ((median_price - current_price) / current_price) * 100
+        profit = median_price - current_price
+        sale_tax = profit * 0.10
+        net_profit = median_price - sale_tax - 500000 - current_price
+        net = (net_profit / current_price) * 100
+        annual_net = net / (2 / 12)
+        return {"gross": gross, "net": net, "annual_net": annual_net}
+
+    sale_stats = _price_stats(similar_sales)
+    sold_stats = _price_stats(recently_sold)
+
+    current_price = flat_data["price"]
+    sale_returns = _buy_sell_returns(sale_stats["median"], current_price)
+    sold_returns = _buy_sell_returns(sold_stats["median"], current_price)
+
+    # Legacy names for template compatibility
+    buy_sell_return_percentage = sale_returns["gross"]
+    buy_sell_net_return_percentage = sale_returns["net"]
+    equivalent_annual_net_return = sale_returns["annual_net"]
 
     # Create opportunity-like object for template compatibility
     opportunity = type(
@@ -474,18 +471,18 @@ def view_flat_details(flat_id):
             "description": flat_data["description"],
             "discount_percentage_vs_median": None,  # Will be calculated
             "market_stats": {
-                "median_price": median_price,
-                "mean_price": mean_price,
-                "min_price": min_price,
-                "max_price": max_price,
-                "count": len(similar_sales),
+                "median_price": sale_stats["median"],
+                "mean_price": sale_stats["mean"],
+                "min_price": sale_stats["min"],
+                "max_price": sale_stats["max"],
+                "count": sale_stats["count"],
             },
             "bucket_flats": similar_sales,  # Use similar sales as bucket flats for comparison
         },
     )()
 
     # Confidence score: based on number of similar sales in same JK/bucket
-    sample_count = len(similar_sales)
+    sample_count = sale_stats["count"]
     confidence_score = (
         round(sample_count / (sample_count + 3) * 100) if sample_count > 0 else 0
     )
@@ -513,6 +510,9 @@ def view_flat_details(flat_id):
         confidence_score=confidence_score,
         developer_info=developer_info,
         recently_sold=recently_sold,
+        sold_stats=sold_stats,
+        sale_returns=sale_returns,
+        sold_returns=sold_returns,
     )
 
 
