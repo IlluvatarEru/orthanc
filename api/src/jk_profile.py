@@ -3,7 +3,9 @@ JK (Residential Complex) profile endpoint.
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
 
 from db.src.write_read_database import OrthancDB
 
@@ -14,7 +16,12 @@ db = OrthancDB("flats.db")
 
 
 @router.get("/{jk_name}/profile")
-async def get_jk_profile(jk_name: str):
+async def get_jk_profile(
+    jk_name: str,
+    flat_type: Optional[str] = Query(None),
+    area: Optional[float] = Query(None),
+    area_tolerance: Optional[float] = Query(None),
+):
     """Get comprehensive profile for a residential complex."""
     # Basic info
     rc = db.get_residential_complex_by_name(jk_name)
@@ -46,14 +53,23 @@ async def get_jk_profile(jk_name: str):
         else:
             turnover[label] = None
 
-    # Price trend
+    # Price trend (all JK flats)
     price_trend = db.get_jk_price_trend(jk_name)
+
+    # Price trend for similar flats (filtered by flat_type and area range)
+    price_trend_similar = None
+    if flat_type and area and area_tolerance:
+        area_min = area * (1 - area_tolerance / 100)
+        area_max = area * (1 + area_tolerance / 100)
+        price_trend_similar = db.get_jk_price_trend(
+            jk_name, flat_type=flat_type, area_min=area_min, area_max=area_max
+        )
 
     # Opportunity frequency
     opp_60 = db.get_opportunity_frequency(jk_name, days=60)
     opp_90 = db.get_opportunity_frequency(jk_name, days=90)
 
-    return {
+    result = {
         "success": True,
         "name": rc["name"],
         "city": rc.get("city"),
@@ -66,3 +82,6 @@ async def get_jk_profile(jk_name: str):
             "last_90d": opp_90,
         },
     }
+    if price_trend_similar is not None:
+        result["price_trend_similar"] = price_trend_similar
+    return result

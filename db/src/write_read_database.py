@@ -3412,7 +3412,12 @@ class OrthancDB:
         }
 
     def get_jk_price_trend(
-        self, residential_complex: str, weeks: int = 12
+        self,
+        residential_complex: str,
+        weeks: int = 12,
+        flat_type: str = None,
+        area_min: float = None,
+        area_max: float = None,
     ) -> List[Dict]:
         """
         Weekly median and mean price/sqm for a JK, split into for-sale and sold series.
@@ -3423,6 +3428,9 @@ class OrthancDB:
 
         :param residential_complex: str, JK name
         :param weeks: int, rolling window size (minimum)
+        :param flat_type: str, optional filter by flat type
+        :param area_min: float, optional minimum area filter
+        :param area_max: float, optional maximum area filter
         :return: List[Dict] with week, for_sale_median_sqm, for_sale_mean_sqm,
                  sold_median_sqm, sold_mean_sqm
         """
@@ -3447,14 +3455,27 @@ class OrthancDB:
             iso = d.isocalendar()
             return f"{iso[0]}-W{iso[1]:02d}"
 
+        # Build optional WHERE clauses for flat_type and area range
+        extra_where = ""
+        extra_params = []
+        if flat_type is not None:
+            extra_where += " AND flat_type = ?"
+            extra_params.append(flat_type)
+        if area_min is not None:
+            extra_where += " AND area >= ?"
+            extra_params.append(area_min)
+        if area_max is not None:
+            extra_where += " AND area <= ?"
+            extra_params.append(area_max)
+
         # For each query_date, get flat_id -> price/area
         date_flats = {}
         for qd in all_dates:
             cursor = self.conn.execute(
-                """SELECT flat_id, price, area, relisted_from_flat_id
+                f"""SELECT flat_id, price, area, relisted_from_flat_id
                    FROM sales_flats
-                   WHERE residential_complex = ? AND query_date = ? AND area > 0""",
-                (residential_complex, qd),
+                   WHERE residential_complex = ? AND query_date = ? AND area > 0{extra_where}""",
+                (residential_complex, qd, *extra_params),
             )
             date_flats[qd] = {
                 row[0]: {"price_sqm": row[1] / row[2], "relisted": row[3] is not None}
@@ -3508,8 +3529,10 @@ class OrthancDB:
                     "week": week,
                     "for_sale_median_sqm": round(_median(fs)) if fs else None,
                     "for_sale_mean_sqm": round(_mean(fs)) if fs else None,
+                    "for_sale_count": len(fs),
                     "sold_median_sqm": round(_median(sd)) if sd else None,
                     "sold_mean_sqm": round(_mean(sd)) if sd else None,
+                    "sold_count": len(sd),
                 }
             )
 
