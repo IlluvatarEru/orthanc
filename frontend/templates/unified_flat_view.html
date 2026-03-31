@@ -85,6 +85,13 @@
                            min="1" max="100" value="{{ area_tolerance }}"
                            style="width: 70px; max-width: 80px;">
                 </div>
+                <div class="d-flex flex-column">
+                    <label for="recency_days" class="form-label mb-0 text-white" style="font-size: 0.85rem;">Sold Window (d)</label>
+                    <input type="number" id="recency_days" name="recency_days"
+                           class="form-control form-control-sm"
+                           min="1" max="365" value="{{ recency_days }}"
+                           style="width: 70px; max-width: 80px;">
+                </div>
             </div>
         </div>
     </div>
@@ -469,6 +476,55 @@
         </div>
     </div>
 
+    <!-- Recently Sold -->
+    <div class="mb-4">
+        <h4 class="text-white mb-3" style="cursor: pointer;" onclick="toggleSection('recently-sold')">
+            <i class="fas fa-chevron-down me-2" id="recently-sold-icon"></i>Recently Sold ({{ recently_sold|length }}) <span class="hint-tip hint-lg" data-tip="Flats in the same complex and flat type that disappeared from listings within the configured recency window. Excludes re-listed flats.">?</span>
+        </h4>
+        <div id="recently-sold-content" class="collapse show">
+            {% if recently_sold and recently_sold|length > 0 %}
+            <div class="row">
+                {% for flat in recently_sold %}
+                <div class="col-12 col-md-4 mb-3">
+                    <div class="card h-100" style="background: linear-gradient(135deg, var(--dark-card) 0%, #333 100%);">
+                        <div class="card-body">
+                            <h5 class="card-title text-white">
+                                {% if show_eur %}
+                                    €{{ "{:,.0f}".format(flat.price / eur_rate) }}
+                                {% else %}
+                                    ₸{{ "{:,}".format(flat.price) }}
+                                {% endif %}
+                            </h5>
+                            <p class="card-text small">
+                                <strong>Area:</strong> {{ flat.area }} m²<br>
+                                <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
+                                <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
+                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
+                            </p>
+                            <div class="mt-2">
+                                {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
+                                <span class="text-white">
+                                    {% if price_diff > 0 %}+{% endif %}{{ "{:.1f}".format(price_diff) }}% vs This Flat
+                                </span>
+                            </div>
+                            <div class="mt-2">
+                                <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
+                                   target="_blank"
+                                   class="btn btn-sm btn-outline-krisha">
+                                    <i class="fas fa-external-link-alt me-1"></i>View On Krisha
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted">No recently sold flats found.</p>
+            {% endif %}
+        </div>
+    </div>
+
     <div class="mt-4">
         <a href="{{ url_for('index') }}" class="btn btn-secondary">
             <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
@@ -509,27 +565,36 @@ function toggleSection(sectionId) {
     }
 }
 
-// Handle area_tolerance input changes
+// Handle filter input changes
 document.addEventListener('DOMContentLoaded', function() {
     const areaToleranceInput = document.getElementById('area_tolerance');
-    
-    if (areaToleranceInput) {
-        function updateURL() {
-            const areaTolerance = areaToleranceInput.value;
-            
-            // Build new URL with updated parameter
-            const url = new URL(window.location.href);
-            url.searchParams.set('area_tolerance', areaTolerance);
-            
-            // Reload page with new parameter
-            window.location.href = url.toString();
+    const recencyDaysInput = document.getElementById('recency_days');
+
+    function updateURL() {
+        const url = new URL(window.location.href);
+        if (areaToleranceInput) {
+            url.searchParams.set('area_tolerance', areaToleranceInput.value);
         }
-        
-        // Add change event listener - update on blur (when user finishes editing)
+        if (recencyDaysInput) {
+            url.searchParams.set('recency_days', recencyDaysInput.value);
+        }
+        window.location.href = url.toString();
+    }
+
+    if (areaToleranceInput) {
         areaToleranceInput.addEventListener('change', function() {
             const value = parseFloat(this.value);
             if (value < 1) this.value = 1;
             if (value > 100) this.value = 100;
+            updateURL();
+        });
+    }
+
+    if (recencyDaysInput) {
+        recencyDaysInput.addEventListener('change', function() {
+            const value = parseInt(this.value);
+            if (value < 1) this.value = 1;
+            if (value > 365) this.value = 365;
             updateURL();
         });
     }

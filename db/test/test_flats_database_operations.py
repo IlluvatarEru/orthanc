@@ -680,3 +680,108 @@ class TestDatabaseOperations:
             db.conn.execute("DELETE FROM rental_flats WHERE flat_id = ?", (fid,))
         db.conn.commit()
         db.disconnect()
+
+    def test_recently_sold_flats(self, db):
+        """Test get_recently_sold_flats returns flats that disappeared from listings."""
+        today = datetime.now().strftime("%Y-%m-%d")
+        old_date = "2026-03-15"
+        jk = "Test Sold Complex"
+
+        # Flat A: present on old_date but NOT on today -> "sold"
+        flat_a = FlatInfo(
+            flat_id="sold_a",
+            price=20000000,
+            area=50.0,
+            flat_type="2BR",
+            residential_complex=jk,
+            floor=3,
+            total_floors=10,
+            construction_year=2021,
+            parking="Нет",
+            description="Sold flat A",
+            is_rental=False,
+        )
+        db.insert_sales_flat(flat_a, "https://krisha.kz/a/show/sold_a", old_date, "2BR")
+
+        # Flat B: present on both dates -> still active, not sold
+        flat_b = FlatInfo(
+            flat_id="sold_b",
+            price=22000000,
+            area=52.0,
+            flat_type="2BR",
+            residential_complex=jk,
+            floor=5,
+            total_floors=10,
+            construction_year=2021,
+            parking="Нет",
+            description="Active flat B",
+            is_rental=False,
+        )
+        db.insert_sales_flat(flat_b, "https://krisha.kz/a/show/sold_b", old_date, "2BR")
+        db.insert_sales_flat(flat_b, "https://krisha.kz/a/show/sold_b", today, "2BR")
+
+        # Flat C: present on old_date, but is a relist -> should be excluded
+        flat_c = FlatInfo(
+            flat_id="sold_c",
+            price=21000000,
+            area=51.0,
+            flat_type="2BR",
+            residential_complex=jk,
+            floor=4,
+            total_floors=10,
+            construction_year=2021,
+            parking="Нет",
+            description="Relisted flat C",
+            is_rental=False,
+        )
+        db.insert_sales_flat(flat_c, "https://krisha.kz/a/show/sold_c", old_date, "2BR")
+        db.connect()
+        db.conn.execute(
+            "UPDATE sales_flats SET relisted_from_flat_id = ? WHERE flat_id = ?",
+            ("some_old_id", "sold_c"),
+        )
+        db.conn.commit()
+        db.disconnect()
+
+        # Flat D: different flat_type -> should not appear
+        flat_d = FlatInfo(
+            flat_id="sold_d",
+            price=15000000,
+            area=35.0,
+            flat_type="1BR",
+            residential_complex=jk,
+            floor=2,
+            total_floors=10,
+            construction_year=2021,
+            parking="Нет",
+            description="Different type flat D",
+            is_rental=False,
+        )
+        db.insert_sales_flat(flat_d, "https://krisha.kz/a/show/sold_d", old_date, "1BR")
+
+        # Query: same JK, flat_type=2BR, area ~50m2
+        result = db.get_recently_sold_flats(
+            residential_complex=jk,
+            flat_type="2BR",
+            area=50.0,
+            area_tolerance_pct=10.0,
+            recency_days=60,
+        )
+
+        result_ids = {f.flat_id for f in result}
+
+        assert "sold_a" in result_ids, "Flat A should be returned (sold)"
+        assert "sold_b" not in result_ids, (
+            "Flat B should NOT be returned (still active)"
+        )
+        assert "sold_c" not in result_ids, "Flat C should NOT be returned (relist)"
+        assert "sold_d" not in result_ids, (
+            "Flat D should NOT be returned (wrong flat_type)"
+        )
+
+        # Clean up
+        db.connect()
+        for fid in ["sold_a", "sold_b", "sold_c", "sold_d"]:
+            db.conn.execute("DELETE FROM sales_flats WHERE flat_id = ?", (fid,))
+        db.conn.commit()
+        db.disconnect()

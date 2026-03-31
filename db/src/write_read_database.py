@@ -2273,6 +2273,89 @@ class OrthancDB:
         self.disconnect()
         return similar_sales
 
+    def get_recently_sold_flats(
+        self,
+        residential_complex: str,
+        flat_type: str,
+        area: float,
+        area_tolerance_pct: float = 10.0,
+        recency_days: int = 30,
+    ) -> List[FlatInfo]:
+        """
+        Get flats that were likely sold recently (disappeared from listings).
+
+        A flat is considered "sold" if it appeared in previous scrapes but is
+        absent from the most recent query_date for that JK, disappeared within
+        the recency window, and is not a relist.
+
+        :param residential_complex: str, residential complex name
+        :param flat_type: str, flat type (e.g. '1BR', '2BR')
+        :param area: float, reference area in m²
+        :param area_tolerance_pct: float, area tolerance percentage (default 10%)
+        :param recency_days: int, how far back to look for disappearances (default 30)
+        :return: List[FlatInfo], list of recently sold flats
+        """
+        self.connect()
+        try:
+            area_min = area * (1 - area_tolerance_pct / 100)
+            area_max = area * (1 + area_tolerance_pct / 100)
+
+            query = """
+                SELECT s.flat_id, s.price, s.area, s.flat_type, s.residential_complex,
+                       s.floor, s.construction_year, s.total_floors, s.parking,
+                       s.description, s.seller_type, s.seller_name, MAX(s.query_date) as last_seen
+                FROM sales_flats s
+                WHERE s.residential_complex = ?
+                AND s.flat_type = ?
+                AND s.area BETWEEN ? AND ?
+                AND (s.relisted_from_flat_id IS NULL)
+                AND s.query_date >= date('now', ?)
+                AND s.flat_id NOT IN (
+                    SELECT s2.flat_id FROM sales_flats s2
+                    WHERE s2.residential_complex = s.residential_complex
+                    AND s2.query_date = (
+                        SELECT MAX(s3.query_date) FROM sales_flats s3
+                        WHERE s3.residential_complex = s.residential_complex
+                    )
+                )
+                GROUP BY s.flat_id
+                ORDER BY MAX(s.query_date) DESC
+            """
+
+            recency_modifier = f"-{recency_days} days"
+            params = [
+                residential_complex,
+                flat_type,
+                area_min,
+                area_max,
+                recency_modifier,
+            ]
+
+            cursor = self.conn.execute(query, params)
+
+            sold_flats = []
+            for row in cursor.fetchall():
+                flat = FlatInfo(
+                    flat_id=row[0],
+                    price=row[1],
+                    area=row[2],
+                    flat_type=row[3],
+                    residential_complex=row[4],
+                    floor=row[5],
+                    construction_year=row[6],
+                    total_floors=row[7] if row[7] else 0,
+                    parking=row[8] if row[8] else False,
+                    description=row[9] if row[9] else "",
+                    is_rental=False,
+                    seller_type=row[10] if row[10] else None,
+                    seller_name=row[11] if row[11] else None,
+                )
+                sold_flats.append(flat)
+
+            return sold_flats
+        finally:
+            self.disconnect()
+
     def _calculate_median(self, values: List[float]) -> float:
         """
         Calculate median of a list of values.

@@ -163,6 +163,25 @@ class WebappAPIClient:
                 "min_required": min_flats,
             }
 
+    def get_recently_sold_flats(
+        self, flat_id: str, area_tolerance: float = 10.0, recency_days: int = 30
+    ) -> Dict:
+        """Get recently sold flats similar to this flat."""
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/flats/{flat_id}/recently-sold",
+                params={
+                    "area_tolerance": area_tolerance,
+                    "recency_days": recency_days,
+                },
+                timeout=DEFAULT_TIMEOUT,
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"API error getting recently sold flats for {flat_id}: {e}")
+            return {"success": False, "error": str(e), "recently_sold": [], "count": 0}
+
     def get_market_context(self, flat_id: str) -> Optional[Dict]:
         """Get first_seen date, days_on_market, and JK liquidity for a flat."""
         try:

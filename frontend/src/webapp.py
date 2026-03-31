@@ -367,8 +367,9 @@ def analyze_jk(
 @app.route("/flat/<flat_id>")
 def view_flat_details(flat_id):
     """View detailed flat information with bucket comparison - unified route for both flat ID search and opportunities."""
-    # Get analysis parameters (10% matches the opportunity finder's area bucket logic)
+    # Get analysis parameters
     area_tolerance = float(request.args.get("area_tolerance", 10.0))
+    recency_days = int(request.args.get("recency_days", 30))
 
     # Get flat information using API
     flat_data = api_client.get_flat_info(flat_id)
@@ -396,6 +397,16 @@ def view_flat_details(flat_id):
         if not similar_sales:
             rental_count = len(similar_rentals)
             data_warning = f"Insufficient sales data for analysis. Found {rental_count} rental and 0 sales flats. Try increasing Area Tolerance."
+
+    # Get recently sold flats
+    recently_sold_result = api_client.get_recently_sold_flats(
+        flat_id, area_tolerance, recency_days
+    )
+    recently_sold = (
+        recently_sold_result.get("recently_sold", [])
+        if recently_sold_result.get("success")
+        else []
+    )
 
     # Calculate investment analysis
     investment_analysis = calculate_investment_analysis(
@@ -496,10 +507,12 @@ def view_flat_details(flat_id):
         buy_sell_net_return_percentage=buy_sell_net_return_percentage,
         equivalent_annual_net_return=equivalent_annual_net_return,
         area_tolerance=area_tolerance,
+        recency_days=recency_days,
         data_warning=data_warning,
         market_context=market_context,
         confidence_score=confidence_score,
         developer_info=developer_info,
+        recently_sold=recently_sold,
     )
 
 
