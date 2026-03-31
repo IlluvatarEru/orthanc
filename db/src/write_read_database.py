@@ -3154,6 +3154,90 @@ class OrthancDB:
         self.disconnect()
         return row[0] if row and row[0] else None
 
+    def get_flat_price_history(self, flat_id: str) -> List[Dict]:
+        """
+        Get condensed price history for a flat and its relist chain.
+
+        Follows relisted_from_flat_id backwards to gather the full chain,
+        then returns only the rows where the price changed (plus the first
+        and last observation per listing).
+
+        :param flat_id: str, flat ID to look up
+        :return: list of dicts with keys: flat_id, date, price, event
+        """
+        self.connect()
+
+        # Build chain of flat_ids (current + ancestors via relisted_from)
+        chain = [flat_id]
+        current = flat_id
+        for _ in range(20):  # safety limit
+            row = self.conn.execute(
+                "SELECT relisted_from_flat_id FROM sales_flats "
+                "WHERE flat_id = ? AND relisted_from_flat_id IS NOT NULL LIMIT 1",
+                (current,),
+            ).fetchone()
+            if not row or not row[0]:
+                row = self.conn.execute(
+                    "SELECT relisted_from_flat_id FROM rental_flats "
+                    "WHERE flat_id = ? AND relisted_from_flat_id IS NOT NULL LIMIT 1",
+                    (current,),
+                ).fetchone()
+            if not row or not row[0]:
+                break
+            chain.append(row[0])
+            current = row[0]
+
+        chain.reverse()  # oldest first
+
+        history: List[Dict] = []
+        for fid in chain:
+            # Try sales first, then rentals
+            rows = self.conn.execute(
+                "SELECT query_date, price, published_at, created_at "
+                "FROM sales_flats WHERE flat_id = ? ORDER BY query_date ASC",
+                (fid,),
+            ).fetchall()
+            if not rows:
+                rows = self.conn.execute(
+                    "SELECT query_date, price, NULL, NULL "
+                    "FROM rental_flats WHERE flat_id = ? ORDER BY query_date ASC",
+                    (fid,),
+                ).fetchall()
+            if not rows:
+                continue
+
+            prev_price = None
+            first_row = rows[0]
+            # Add first observation
+            event = "listed" if fid == chain[0] else "relisted"
+            created_at = first_row[3]
+            listing_date = created_at or first_row[0]
+            history.append(
+                {
+                    "flat_id": fid,
+                    "date": listing_date,
+                    "price": first_row[1],
+                    "event": event,
+                }
+            )
+            prev_price = first_row[1]
+
+            # Add price changes
+            for row in rows[1:]:
+                if row[1] != prev_price:
+                    history.append(
+                        {
+                            "flat_id": fid,
+                            "date": row[0],
+                            "price": row[1],
+                            "event": "price_change",
+                        }
+                    )
+                    prev_price = row[1]
+
+        self.disconnect()
+        return history
+
     def get_jk_liquidity_score(self, residential_complex: str) -> Optional[Dict]:
         """Deprecated: use get_jk_turnover() instead."""
         return self.get_jk_turnover(residential_complex, days=30)

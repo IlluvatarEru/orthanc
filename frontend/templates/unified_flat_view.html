@@ -145,6 +145,15 @@
                             {% if flat_data.parking %}
                             <p class="mb-1"><strong>Parking:</strong> {{ flat_data.parking }}</p>
                             {% endif %}
+                            {% if flat_data.created_at %}
+                            <p class="mb-1"><strong>Listed:</strong> {{ flat_data.created_at }}</p>
+                            {% endif %}
+                            {% if flat_data.published_at and flat_data.published_at != flat_data.created_at %}
+                            <p class="mb-1"><strong>Renewed:</strong> {{ flat_data.published_at }}</p>
+                            {% endif %}
+                            {% if market_context and market_context.days_on_market is not none %}
+                            <p class="mb-1"><strong>On market:</strong> {{ market_context.days_on_market }}d{% if market_context.relist_count and market_context.relist_count > 0 %} (relisted {{ market_context.relist_count }}x){% endif %}</p>
+                            {% endif %}
                             <div class="mt-3">
                                 <a href="https://krisha.kz/a/show/{{ flat_data.flat_id }}"
                                    target="_blank"
@@ -152,30 +161,41 @@
                                     <i class="fas fa-external-link-alt me-1"></i>View On Krisha
                                 </a>
                             </div>
-                            {% if flat_data.created_at or flat_data.published_at %}
-                            <div class="mt-2" style="font-size: 0.85rem;">
-                                {% if flat_data.created_at %}
-                                <p class="mb-0 text-muted">
-                                    <i class="fas fa-calendar-plus me-1"></i>Listed on {{ flat_data.created_at }}
-                                </p>
-                                {% endif %}
-                                {% if flat_data.published_at and flat_data.published_at != flat_data.created_at %}
-                                <p class="mb-0 text-muted">
-                                    <i class="fas fa-redo me-1"></i>Renewed on {{ flat_data.published_at }}
-                                </p>
-                                {% endif %}
+                            {% if market_context and market_context.price_history and market_context.price_history|length > 0 %}
+                            <div class="mt-3" style="font-size: 0.85rem;">
+                                <h6 class="text-white mb-2"><i class="fas fa-chart-line me-1"></i>Price History</h6>
+                                <table class="table table-sm table-dark mb-0" style="font-size: 0.8rem;">
+                                    <tbody>
+                                    {% for entry in market_context.price_history %}
+                                        <tr>
+                                            <td class="text-muted" style="width: 100px;">{{ entry.date }}</td>
+                                            <td>
+                                                {% if show_eur %}
+                                                    €{{ "{:,.0f}".format(entry.price / eur_rate) }}
+                                                {% else %}
+                                                    ₸{{ "{:,}".format(entry.price) }}
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-muted">
+                                                {% if entry.event == 'listed' %}
+                                                    <span class="text-info">initial listing</span>
+                                                {% elif entry.event == 'relisted' %}
+                                                    <span class="text-warning">relisted (ID: {{ entry.flat_id }})</span>
+                                                {% elif entry.event == 'price_change' %}
+                                                    {% if loop.index > 1 %}
+                                                        {% set prev_price = market_context.price_history[loop.index0 - 1].price %}
+                                                        {% set diff_pct = ((entry.price - prev_price) / prev_price * 100) %}
+                                                        <span class="{% if diff_pct < 0 %}text-success{% else %}text-danger{% endif %}">
+                                                            {% if diff_pct > 0 %}+{% endif %}{{ "{:.1f}".format(diff_pct) }}%
+                                                        </span>
+                                                    {% endif %}
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
                             </div>
-                            {% elif market_context and market_context.first_seen %}
-                            <p class="mt-2 mb-0 text-muted" style="font-size: 0.85rem;">
-                                <i class="fas fa-clock me-1"></i>
-                                {% if market_context.days_on_market is not none %}
-                                    On market: {{ market_context.days_on_market }}d
-                                    {% if market_context.relist_count and market_context.relist_count > 0 %}
-                                        (relisted {{ market_context.relist_count }}x)
-                                    {% endif %}
-                                {% endif %}
-                                <span class="ms-1 hint-tip" data-tip="Original listing first seen {{ market_context.first_seen }}">?</span>
-                            </p>
                             {% endif %}
                         </div>
                         <div class="col-md-6">
