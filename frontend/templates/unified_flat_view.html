@@ -184,10 +184,12 @@
                                                 {% elif entry.event == 'price_change' %}
                                                     {% if loop.index > 1 %}
                                                         {% set prev_price = market_context.price_history[loop.index0 - 1].price %}
-                                                        {% set diff_pct = ((entry.price - prev_price) / prev_price * 100) %}
-                                                        <span class="{% if diff_pct < 0 %}text-success{% else %}text-danger{% endif %}">
-                                                            {% if diff_pct > 0 %}+{% endif %}{{ "{:.1f}".format(diff_pct) }}%
-                                                        </span>
+                                                        {% if prev_price %}
+                                                            {% set diff_pct = ((entry.price - prev_price) / prev_price * 100) %}
+                                                            <span class="{% if diff_pct < 0 %}text-success{% else %}text-danger{% endif %}">
+                                                                {% if diff_pct > 0 %}+{% endif %}{{ "{:.1f}".format(diff_pct) }}%
+                                                            </span>
+                                                        {% endif %}
                                                     {% endif %}
                                                 {% endif %}
                                             </td>

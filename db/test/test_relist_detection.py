@@ -3,7 +3,6 @@ Tests for relist detection logic.
 """
 
 import os
-import sqlite3
 import tempfile
 import time
 
@@ -226,7 +225,7 @@ class TestRelistDetection:
         filler = _make_flat("perf_filler", description="Filler")
         for d in ["2026-03-27", "2026-03-28", "2026-03-29", "2026-03-30"]:
             db.insert_sales_flat(
-                filler, f"https://krisha.kz/a/show/perf_filler", d, city="Алматы"
+                filler, "https://krisha.kz/a/show/perf_filler", d, city="Алматы"
             )
 
         # Time a new insert with relist check

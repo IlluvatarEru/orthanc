@@ -18,16 +18,14 @@ import toml
 
 logger = logging.getLogger(__name__)
 
-
-def _load_relist_config() -> dict:
-    config_path = os.path.join(
-        os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
-    )
-    try:
-        config = toml.load(config_path)
-        return config.get("relist", {})
-    except Exception:
-        return {}
+_config_path = os.path.join(
+    os.path.dirname(__file__), "..", "..", "config", "src", "config.toml"
+)
+try:
+    _relist_config = toml.load(_config_path).get("relist", {})
+except Exception:
+    logger.exception("Failed to load relist config, using defaults")
+    _relist_config = {}
 
 
 def detect_relist(
@@ -59,12 +57,11 @@ def detect_relist(
     if not residential_complex or not flat_type or not description:
         return None
 
-    cfg = _load_relist_config()
-    similarity_threshold = cfg.get("similarity_threshold", 0.95)
-    area_tol = cfg.get("area_tolerance_pct", 5.0) / 100.0
-    price_tol = cfg.get("price_tolerance_pct", 10.0) / 100.0
-    disappeared_cycles = cfg.get("disappeared_cycles", 3)
-    lookback_days = cfg.get("lookback_days", 90)
+    similarity_threshold = _relist_config.get("similarity_threshold", 0.95)
+    area_tol = _relist_config.get("area_tolerance_pct", 5.0) / 100.0
+    price_tol = _relist_config.get("price_tolerance_pct", 10.0) / 100.0
+    disappeared_cycles = _relist_config.get("disappeared_cycles", 3)
+    lookback_days = _relist_config.get("lookback_days", 90)
 
     # Find the Nth most recent distinct query_date (the cutoff).
     # Flats whose latest query_date is older than this have "disappeared".

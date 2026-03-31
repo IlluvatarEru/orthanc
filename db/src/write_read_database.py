@@ -17,31 +17,24 @@ from .table_creation import DatabaseSchema
 
 def _detect_relist_for_flat(conn, flat_info, flat_type, table):
     """Run relist detection, returning match dict or None."""
-    try:
-        return detect_relist(
-            conn=conn,
-            flat_id=flat_info.flat_id,
-            residential_complex=flat_info.residential_complex,
-            flat_type=flat_type,
-            area=flat_info.area,
-            price=flat_info.price,
-            description=flat_info.description,
-            table=table,
-        )
-    except Exception:
-        logging.exception(f"Relist detection failed for {flat_info.flat_id}")
-        return None
+    return detect_relist(
+        conn=conn,
+        flat_id=flat_info.flat_id,
+        residential_complex=flat_info.residential_complex,
+        flat_type=flat_type,
+        area=flat_info.area,
+        price=flat_info.price,
+        description=flat_info.description,
+        table=table,
+    )
 
 
 def _increment_relist_count(conn, original_flat_id, table):
     """Increment relist_count on all rows of the original flat."""
-    try:
-        conn.execute(
-            f"UPDATE {table} SET relist_count = relist_count + 1 WHERE flat_id = ?",
-            (original_flat_id,),
-        )
-    except Exception:
-        logging.exception(f"Failed to increment relist_count for {original_flat_id}")
+    conn.execute(
+        f"UPDATE {table} SET relist_count = relist_count + 1 WHERE flat_id = ?",
+        (original_flat_id,),
+    )
 
 
 class OrthancDB:
