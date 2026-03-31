@@ -139,9 +139,6 @@ class DatabaseSchema:
                 relist_count INTEGER DEFAULT 0,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                first_seen_at DATE,
-                relisted_from_flat_id TEXT,
-                relist_count INTEGER DEFAULT 0,
                 UNIQUE(flat_id, query_date)
             )
         """)

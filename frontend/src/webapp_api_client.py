@@ -330,6 +330,34 @@ class WebappAPIClient:
 
         return RentalAnalysisResponse(**data)
 
+    def get_jk_profile(
+        self,
+        jk_name: str,
+        flat_type: Optional[str] = None,
+        area: Optional[float] = None,
+        area_tolerance: Optional[float] = None,
+    ) -> Optional[Dict]:
+        """Get JK profile (sales stats, turnover, price trend, opportunity frequency)."""
+        try:
+            params = {}
+            if flat_type is not None:
+                params["flat_type"] = flat_type
+            if area is not None:
+                params["area"] = area
+            if area_tolerance is not None:
+                params["area_tolerance"] = area_tolerance
+            response = requests.get(
+                f"{self.base_url}/api/jks/{jk_name}/profile",
+                params=params,
+                timeout=DEFAULT_TIMEOUT,
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data if data.get("success") else None
+        except requests.RequestException as e:
+            logger.error(f"API error getting JK profile for {jk_name}: {e}")
+            return None
+
 
 # Global API client instance
 api_client = WebappAPIClient()
