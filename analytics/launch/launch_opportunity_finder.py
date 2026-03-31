@@ -95,6 +95,8 @@ def find_all_opportunities(
                         else ""
                     ),
                     "condition": opp.flat_info.condition or "unknown",
+                    "first_seen_at": getattr(opp.flat_info, "first_seen_at", "") or "",
+                    "relist_count": getattr(opp.flat_info, "relist_count", 0) or 0,
                 }
                 all_opportunities.append(opportunity_dict)
                 jk_opportunity_count += 1
@@ -239,6 +241,8 @@ def write_opportunities_to_csv(
         "url",
         "description",
         "condition",
+        "first_seen_at",
+        "relist_count",
     ]
 
     try:

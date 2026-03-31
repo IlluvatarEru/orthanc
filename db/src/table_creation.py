@@ -102,6 +102,9 @@ class DatabaseSchema:
                 seller_type TEXT,
                 seller_name TEXT,
                 condition TEXT,
+                first_seen_at DATE,
+                relisted_from_flat_id TEXT,
+                relist_count INTEGER DEFAULT 0,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -131,6 +134,9 @@ class DatabaseSchema:
                 condition TEXT,
                 published_at DATE,
                 created_at DATE,
+                first_seen_at DATE,
+                relisted_from_flat_id TEXT,
+                relist_count INTEGER DEFAULT 0,
                 scraped_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(flat_id, query_date)
@@ -449,6 +455,16 @@ class DatabaseSchema:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_reviews_decision ON opportunity_reviews(decision, reviewed_at)"
+        )
+
+        # Relist detection indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_sales_relist_candidates "
+            "ON sales_flats(residential_complex, flat_type)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_rental_relist_candidates "
+            "ON rental_flats(residential_complex, flat_type)"
         )
 
         self.conn.commit()

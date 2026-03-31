@@ -326,13 +326,14 @@ def analyze_jk(
     flat_type_buckets = sales_analysis.current_market.flat_type_buckets
     opportunities_by_flat_type = sales_analysis.current_market.opportunities
 
-    # Compute days on market for sales flats
+    # Compute days on market for sales flats (prefer first_seen_at for relist awareness)
     today = datetime.now().date()
     for flat in sales_flats:
-        if flat.published_at:
+        date_str = getattr(flat, "first_seen_at", None) or flat.published_at
+        if date_str:
             try:
-                pub_date = datetime.strptime(flat.published_at, "%Y-%m-%d").date()
-                flat.days_on_market = (today - pub_date).days
+                ref_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                flat.days_on_market = (today - ref_date).days
             except (ValueError, TypeError):
                 flat.days_on_market = None
         else:

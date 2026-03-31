@@ -169,10 +169,15 @@ async def get_market_context(flat_id: str):
             if result:
                 turnover[label] = result
 
+        price_history = db.get_flat_price_history(flat_id)
+
         return {
             "success": True,
             "first_seen": first_seen,
             "days_on_market": days_on_market,
+            "relist_count": flat_info.relist_count,
+            "relisted_from_flat_id": flat_info.relisted_from_flat_id,
+            "price_history": price_history,
             "turnover": turnover,
         }
     except HTTPException:
