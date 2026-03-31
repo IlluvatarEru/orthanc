@@ -8,6 +8,7 @@ pytest tests/test_portfolio.py -v -m "not requires_sheet"   # unit tests only
 """
 
 import os
+
 import pytest
 
 from api.src.deals_sheet import DealsSheetClient
@@ -30,7 +31,7 @@ def deals():
 
 @pytest.fixture(scope="module")
 def completed(deals):
-    return [d for d in deals if d["completed"]]
+    return [d for d in deals if d["status"] == "completed"]
 
 
 class TestPortfolio:
@@ -40,9 +41,9 @@ class TestPortfolio:
         assert len(deals) > 0, "Expected at least one deal in the spreadsheet"
 
     @requires_sheet
-    def test_completed_deals_have_completed_true(self, completed):
+    def test_completed_deals_have_status_completed(self, completed):
         for deal in completed:
-            assert deal["completed"] is True
+            assert deal["status"] == "completed"
 
     @requires_sheet
     def test_known_completed_deal_present(self, completed):
@@ -56,7 +57,7 @@ class TestPortfolio:
             "project",
             "flat_id",
             "investment_date",
-            "completed",
+            "status",
             "days_held",
         ]
         for deal in completed:
@@ -103,7 +104,7 @@ class TestPortfolio:
         assert deal["project"] == "TestProject"
         assert deal["flat_id"] == "99999"
         assert deal["investment_date"] == "2022-10-25"
-        assert deal["completed"] is True
+        assert deal["status"] == "completed"
         assert deal["flat_price"] == 30000000.0
         assert deal["resale_date"] == "2023-01-15"
         assert deal["days_held"] is not None
@@ -117,6 +118,6 @@ class TestPortfolio:
             "Completed": "FALSE",
         }
         deal = DealsSheetClient._parse_deal(raw)
-        assert deal["completed"] is False
+        assert deal["status"] == "not_done"
         assert deal["days_held"] is not None
         assert deal["days_held"] >= 0
