@@ -137,7 +137,7 @@
                                         </span>
                                     {% else %}-{% endif %}
                                 </td>
-                                <td>{{ "%.2f"|format(deal.multiple) if deal.multiple else '-' }}x</td>
+                                <td>{% if deal.multiple %}{{ "%.2f"|format(deal.multiple) }}x{% else %}-{% endif %}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

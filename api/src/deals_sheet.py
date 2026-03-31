@@ -8,7 +8,7 @@ blue-cell defaults and grey-cell formulas copied from a reference column.
 import logging
 import os
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 import toml
@@ -309,6 +309,23 @@ class DealsSheetClient:
         logger.info(f"Wrote deal column {new_col} for flat {flat.flat_id}")
         return self.sheet_url
 
+    def read_completed_deals(self) -> dict:
+        """Read deals and return completed deals with summary stats."""
+        all_deals = self.read_all_deals()
+        completed = [d for d in all_deals if d["completed"]]
+        total_invested = sum(d["total_cost"] or 0 for d in completed)
+        total_profit_kzt = sum(d["net_profit_kzt"] or 0 for d in completed)
+        total_profit_eur = sum(d["net_profit_eur"] or 0 for d in completed)
+        return {
+            "completed": completed,
+            "summary": {
+                "completed_count": len(completed),
+                "total_invested_kzt": total_invested,
+                "total_profit_kzt": total_profit_kzt,
+                "total_profit_eur": total_profit_eur,
+            },
+        }
+
     def get_sheet_url_for_flat(self, flat_id: str) -> Optional[str]:
         """Return the sheet URL if the flat has a column, else None."""
         col = self.find_column_for_flat(flat_id)
@@ -388,11 +405,9 @@ class DealsSheetClient:
             """Parse DD/MM/YYYY to ISO YYYY-MM-DD."""
             if not val:
                 return None
-            from datetime import datetime as dt
-
             for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%m/%d/%Y"):
                 try:
-                    return dt.strptime(val, fmt).strftime("%Y-%m-%d")
+                    return datetime.strptime(val, fmt).strftime("%Y-%m-%d")
                 except ValueError:
                     continue
             return None
@@ -406,13 +421,11 @@ class DealsSheetClient:
         # Compute days_held
         days_held = None
         if investment_date_iso:
-            from datetime import date as d
-
-            inv = d.fromisoformat(investment_date_iso)
+            inv = date.fromisoformat(investment_date_iso)
             if completed and resale_date_iso:
-                end = d.fromisoformat(resale_date_iso)
+                end = date.fromisoformat(resale_date_iso)
             else:
-                end = d.today()
+                end = date.today()
             days_held = (end - inv).days
 
         return {

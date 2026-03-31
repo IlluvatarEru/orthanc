@@ -8,8 +8,6 @@ pytest tests/test_portfolio.py -v -m "not requires_sheet"   # unit tests only
 """
 
 import os
-import subprocess
-
 import pytest
 
 from api.src.deals_sheet import DealsSheetClient
@@ -122,23 +120,3 @@ class TestPortfolio:
         assert deal["completed"] is False
         assert deal["days_held"] is not None
         assert deal["days_held"] >= 0
-
-    def test_full_suite_passes(self):
-        import sys
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "tests/test_portfolio.py",
-                "-v",
-                "--tb=short",
-                "-m",
-                "not requires_sheet",
-                "-k",
-                "not test_full_suite_passes",
-            ],
-            capture_output=True,
-        )
-        assert result.returncode == 0
