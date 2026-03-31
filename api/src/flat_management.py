@@ -146,6 +146,62 @@ async def get_similar_flats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{flat_id}/recently-sold")
+async def get_recently_sold_flats(
+    flat_id: str,
+    area_tolerance: float = Query(10.0, description="Area tolerance percentage"),
+    recency_days: int = Query(30, description="How many days back to look"),
+):
+    """
+    Get recently sold flats (disappeared from listings) similar to this flat.
+    """
+    try:
+        db = OrthancDB()
+        flat_info = db.get_flat_info_by_id(flat_id)
+        if not flat_info:
+            raise HTTPException(status_code=404, detail=f"Flat {flat_id} not found")
+
+        if not flat_info.residential_complex or not flat_info.flat_type:
+            return {"success": True, "recently_sold": [], "count": 0}
+
+        sold_flats = db.get_recently_sold_flats(
+            residential_complex=flat_info.residential_complex,
+            flat_type=flat_info.flat_type,
+            area=flat_info.area,
+            area_tolerance_pct=area_tolerance,
+            recency_days=recency_days,
+        )
+
+        sold_data = []
+        for flat in sold_flats:
+            sold_data.append(
+                {
+                    "flat_id": flat.flat_id,
+                    "price": flat.price,
+                    "area": flat.area,
+                    "residential_complex": flat.residential_complex,
+                    "floor": flat.floor,
+                    "construction_year": flat.construction_year,
+                    "flat_type": flat.flat_type,
+                    "seller_type": flat.seller_type,
+                    "seller_name": flat.seller_name,
+                }
+            )
+
+        return {
+            "success": True,
+            "recently_sold": sold_data,
+            "count": len(sold_data),
+            "area_tolerance": area_tolerance,
+            "recency_days": recency_days,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting recently sold flats for {flat_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{flat_id}/market-context")
 async def get_market_context(flat_id: str):
     """
@@ -215,11 +271,19 @@ def get_similar_properties(
 
     # Get similar rentals and sales using database methods (filter by city to avoid cross-city matches)
     similar_rentals = db.get_similar_rentals_by_area_and_complex(
-        flat_info.residential_complex, area_min, area_max, city=flat_info.city
+        flat_info.residential_complex,
+        area_min,
+        area_max,
+        city=flat_info.city,
+        exclude_flat_id=flat_info.flat_id,
     )
 
     similar_sales = db.get_similar_sales_by_area_and_complex(
-        flat_info.residential_complex, area_min, area_max, city=flat_info.city
+        flat_info.residential_complex,
+        area_min,
+        area_max,
+        city=flat_info.city,
+        exclude_flat_id=flat_info.flat_id,
     )
 
     logger.info(
