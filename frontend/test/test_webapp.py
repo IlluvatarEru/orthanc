@@ -64,3 +64,16 @@ class TestWebappConnectivity:
             logger.info("Analyze JK endpoint is working")
         except requests.exceptions.ConnectionError:
             pytest.skip("Webapp is not running on localhost:5000")
+
+    def test_flat_detail_page_loads(self, webapp_url):
+        """Test flat detail page renders without 500 errors (market stats, buy/sell analysis)."""
+        try:
+            response = requests.get(
+                f"{webapp_url}/flat/1010597571?area_tolerance=10&recency_days=30",
+                timeout=15,
+            )
+            assert response.status_code == 200, (
+                f"Flat detail page returned status {response.status_code}"
+            )
+        except requests.exceptions.ConnectionError:
+            pytest.skip("Webapp is not running on localhost:5000")

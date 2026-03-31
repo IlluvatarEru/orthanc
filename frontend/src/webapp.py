@@ -470,13 +470,7 @@ def view_flat_details(flat_id):
             "parking": flat_data["parking"],
             "description": flat_data["description"],
             "discount_percentage_vs_median": None,  # Will be calculated
-            "market_stats": {
-                "median_price": sale_stats["median"],
-                "mean_price": sale_stats["mean"],
-                "min_price": sale_stats["min"],
-                "max_price": sale_stats["max"],
-                "count": sale_stats["count"],
-            },
+            "market_stats": sale_stats,
             "bucket_flats": similar_sales,  # Use similar sales as bucket flats for comparison
         },
     )()

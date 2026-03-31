@@ -263,7 +263,7 @@
                         </div>
                     </div>
                     {% endmacro %}
-                    {{ returns_row("Based on For-Sale Comparables (median: " ~ ("€{:,.0f}".format(opportunity.market_stats.median_price / eur_rate) if show_eur else "₸{:,}".format(opportunity.market_stats.median_price|int)) ~ ")", sale_returns) }}
+                    {{ returns_row("Based on For-Sale Comparables (median: " ~ ("€{:,.0f}".format(opportunity.market_stats.median / eur_rate) if show_eur else "₸{:,}".format(opportunity.market_stats.median|int)) ~ ")", sale_returns) }}
                     {% if sold_stats.count > 0 %}
                     {{ returns_row("Based on Recently Sold (median: " ~ ("€{:,.0f}".format(sold_stats.median / eur_rate) if show_eur else "₸{:,}".format(sold_stats.median|int)) ~ ")", sold_returns) }}
                     {% endif %}
