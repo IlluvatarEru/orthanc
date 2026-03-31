@@ -2149,6 +2149,7 @@ class OrthancDB:
         area_min: float,
         area_max: float,
         city: Optional[str] = None,
+        exclude_flat_id: Optional[str] = None,
     ) -> List[FlatInfo]:
         """
         Get similar rental flats by residential complex and area range.
@@ -2157,6 +2158,7 @@ class OrthancDB:
         :param area_min: float, minimum area
         :param area_max: float, maximum area
         :param city: Optional[str], city to filter by (e.g. "Алматы")
+        :param exclude_flat_id: Optional[str], flat_id to exclude from results
         :return: List[FlatInfo], list of similar rental flats
         """
         self.connect()
@@ -2169,6 +2171,11 @@ class OrthancDB:
             city_filter = "AND city = ?"
             params.append(city)
 
+        exclude_filter = ""
+        if exclude_flat_id:
+            exclude_filter = "AND flat_id != ?"
+            params.append(exclude_flat_id)
+
         query = f"""
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    construction_year, total_floors, parking, description, seller_type, seller_name
@@ -2177,6 +2184,7 @@ class OrthancDB:
             AND area BETWEEN ? AND ?
             AND (archived = 0 OR archived IS NULL)
             {city_filter}
+            {exclude_filter}
             AND query_date = (
                 SELECT MAX(r2.query_date) FROM rental_flats r2
                 WHERE r2.flat_id = rental_flats.flat_id
@@ -2214,6 +2222,7 @@ class OrthancDB:
         area_min: float,
         area_max: float,
         city: Optional[str] = None,
+        exclude_flat_id: Optional[str] = None,
     ) -> List[FlatInfo]:
         """
         Get similar sales flats by residential complex and area range.
@@ -2222,6 +2231,7 @@ class OrthancDB:
         :param area_min: float, minimum area
         :param area_max: float, maximum area
         :param city: Optional[str], city to filter by (e.g. "Алматы")
+        :param exclude_flat_id: Optional[str], flat_id to exclude from results
         :return: List[FlatInfo], list of similar sales flats
         """
         self.connect()
@@ -2234,6 +2244,11 @@ class OrthancDB:
             city_filter = "AND city = ?"
             params.append(city)
 
+        exclude_filter = ""
+        if exclude_flat_id:
+            exclude_filter = "AND flat_id != ?"
+            params.append(exclude_flat_id)
+
         query = f"""
             SELECT flat_id, price, area, flat_type, residential_complex, floor,
                    construction_year, total_floors, parking, description, seller_type, seller_name
@@ -2242,6 +2257,7 @@ class OrthancDB:
             AND area BETWEEN ? AND ?
             AND (archived = 0 OR archived IS NULL)
             {city_filter}
+            {exclude_filter}
             AND query_date = (
                 SELECT MAX(s2.query_date) FROM sales_flats s2
                 WHERE s2.flat_id = sales_flats.flat_id

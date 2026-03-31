@@ -266,11 +266,19 @@ def get_similar_properties(
 
     # Get similar rentals and sales using database methods (filter by city to avoid cross-city matches)
     similar_rentals = db.get_similar_rentals_by_area_and_complex(
-        flat_info.residential_complex, area_min, area_max, city=flat_info.city
+        flat_info.residential_complex,
+        area_min,
+        area_max,
+        city=flat_info.city,
+        exclude_flat_id=flat_info.flat_id,
     )
 
     similar_sales = db.get_similar_sales_by_area_and_complex(
-        flat_info.residential_complex, area_min, area_max, city=flat_info.city
+        flat_info.residential_complex,
+        area_min,
+        area_max,
+        city=flat_info.city,
+        exclude_flat_id=flat_info.flat_id,
     )
 
     logger.info(
