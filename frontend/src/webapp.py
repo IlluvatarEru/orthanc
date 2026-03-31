@@ -344,6 +344,9 @@ def analyze_jk(
     with OrthancDB() as db:
         developer_info = db.get_developer_for_jk(residential_complex_name)
 
+    # JK profile for price trend chart
+    jk_profile = api_client.get_jk_profile(residential_complex_name)
+
     return render_template(
         "unified_jk_view.html",
         complex_info=complex_info,
@@ -362,6 +365,7 @@ def analyze_jk(
         area_tolerance=area_tolerance,
         discount_percentage=discount_percentage,
         developer_info=developer_info,
+        jk_profile=jk_profile,
     )
 
 

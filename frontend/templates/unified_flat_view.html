@@ -429,12 +429,12 @@
                     </div>
                     {% if jk_profile.price_trend and jk_profile.price_trend|length > 0 %}
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-12 mb-3">
                             <div class="chart-container">
                                 <canvas id="jkPriceTrendChart"></canvas>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-12">
                             {% if jk_profile.price_trend_similar and jk_profile.price_trend_similar|length > 0 %}
                             <div class="chart-container">
                                 <canvas id="jkPriceTrendSimilarChart"></canvas>
