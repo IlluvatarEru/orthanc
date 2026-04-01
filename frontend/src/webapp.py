@@ -339,10 +339,11 @@ def analyze_jk(
         else:
             flat.days_on_market = None
 
-    # Developer info for this JK
+    # Developer info and favorite status for this JK
     developer_info = None
     with OrthancDB() as db:
         developer_info = db.get_developer_for_jk(residential_complex_name)
+        is_favorite_jk = db.is_favorite_jk(residential_complex_name)
 
     # JK profile for price trend chart
     jk_profile = api_client.get_jk_profile(residential_complex_name)
@@ -366,6 +367,7 @@ def analyze_jk(
         discount_percentage=discount_percentage,
         developer_info=developer_info,
         jk_profile=jk_profile,
+        is_favorite_jk=is_favorite_jk,
     )
 
 
@@ -534,6 +536,22 @@ def blacklist_jk(jk_name):
         return jsonify({"success": True})
     except Exception as e:
         logger.error(f"Failed to blacklist JK {jk_name}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/favorite_jk/<jk_name>", methods=["POST"])
+def toggle_favorite_jk(jk_name):
+    jk_name = unquote(jk_name)
+    try:
+        with OrthancDB() as db:
+            if db.is_favorite_jk(jk_name):
+                db.remove_favorite_jk(jk_name)
+                return jsonify({"success": True, "is_favorite": False})
+            else:
+                db.add_favorite_jk(jk_name)
+                return jsonify({"success": True, "is_favorite": True})
+    except Exception as e:
+        logger.error(f"Failed to toggle favorite JK {jk_name}: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 

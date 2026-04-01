@@ -166,6 +166,16 @@ class DatabaseSchema:
             )
         """)
 
+        # Create favorite JKs table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS favorite_jks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                notes TEXT
+            )
+        """)
+
         # Create blacklisted districts table
         self.conn.execute("""
             CREATE TABLE IF NOT EXISTS blacklisted_districts (
