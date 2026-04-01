@@ -267,9 +267,14 @@ def _find_opportunities_for_city(
     max_discount: float,
     max_price: int = None,
     flat_types: List[str] = None,
+    default_filter_min: int = 50,
 ) -> List[Dict]:
     """
     Find, filter, and rank top N opportunities for a single city.
+
+    Ensures at least default_filter_min opportunities match the default
+    dashboard filters (price <= 50M, seller_type = owner, S/1/2BR) so the
+    dashboard isn't empty after filtering.
 
     :param city: str, city slug (e.g. "almaty")
     :param db_path: str, path to database file
@@ -278,6 +283,7 @@ def _find_opportunities_for_city(
     :param max_discount: float, maximum discount percentage to allow
     :param max_price: int, maximum price to include (optional)
     :param flat_types: List[str], allowed flat types (optional)
+    :param default_filter_min: int, minimum opps matching default dashboard filters
     :return: List[Dict], ranked top N opportunities for this city
     """
     logger.info(f"--- Analyzing city: {city} ---")
@@ -297,8 +303,65 @@ def _find_opportunities_for_city(
     ranked = rank_opportunities(filtered)
     top = ranked[:top_n]
 
+    # Ensure enough opportunities match default dashboard filters
+    # (price <= 50M, seller_type = owner, flat_type in S/1/2BR)
+    # We check seller_type from sales_flats since it's not in the opportunity dict
+    default_flat_types = {"Studio", "1BR", "2BR"}
+    default_max_price = 50_000_000
+
+    # Load seller_type for all flat_ids in one query
+    db = OrthancDB(db_path)
+    db.connect()
+    all_flat_ids = [opp["flat_id"] for opp in ranked]
+    seller_types = {}
+    if all_flat_ids:
+        placeholders = ",".join(["?"] * len(all_flat_ids))
+        cursor = db.conn.execute(
+            f"SELECT flat_id, seller_type FROM sales_flats "
+            f"WHERE flat_id IN ({placeholders}) "
+            f"ORDER BY query_date DESC",
+            all_flat_ids,
+        )
+        for row in cursor.fetchall():
+            if row[0] not in seller_types:
+                seller_types[row[0]] = row[1]
+    db.disconnect()
+
+    top_ids = {opp["flat_id"] for opp in top}
+
+    def _matches_default(opp):
+        return (
+            opp["price"] <= default_max_price
+            and opp.get("flat_type") in default_flat_types
+            and seller_types.get(opp["flat_id"]) == "owner"
+        )
+
+    default_count = sum(1 for opp in top if _matches_default(opp))
+
+    if default_count < default_filter_min:
+        # Find additional opps from the full ranked list that match defaults
+        extras = [
+            opp
+            for opp in ranked[top_n:]
+            if _matches_default(opp) and opp["flat_id"] not in top_ids
+        ]
+        needed = default_filter_min - default_count
+        top.extend(extras[:needed])
+        added = min(needed, len(extras))
+        if added > 0:
+            logger.info(
+                f"Added {added} extra default-filter opportunities "
+                f"({default_count} -> {default_count + added})"
+            )
+        else:
+            logger.info(
+                f"Only {default_count} opportunities match default dashboard filters "
+                f"(owner, <=50M, S/1/2BR) — no more available to add. "
+                f"Consider lowering --discount-threshold to find more."
+            )
+
     logger.info(
-        f"{city}: {len(all_opportunities)} total -> {len(filtered)} filtered -> top {len(top)}"
+        f"{city}: {len(all_opportunities)} total -> {len(filtered)} filtered -> {len(top)} saved"
     )
     return top
 
@@ -404,8 +467,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--discount-threshold",
         type=float,
-        default=0.15,
-        help="Minimum discount percentage threshold (default: 0.15 = 15%%)",
+        default=0.10,
+        help="Minimum discount percentage threshold (default: 0.10 = 10%%)",
     )
     parser.add_argument(
         "--output",

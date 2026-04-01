@@ -5,10 +5,11 @@ This module provides functionality to store and retrieve flat data
 with historical tracking and residential complex mapping.
 """
 
+import json
 import sqlite3
 from typing import Optional, List, Dict
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FLAT_TYPE_VALUES
 from db.src.relist_detection import detect_relist
@@ -3082,12 +3083,23 @@ class OrthancDB:
         finally:
             self.disconnect()
 
-    def get_price_movers(self, city: str = None, limit: int = 5) -> Dict:
+    def _get_two_recent_complete_dates(self) -> List[str]:
+        """Get the two most recent query dates, excluding today (may be incomplete)."""
+        cursor = self.conn.execute(
+            "SELECT DISTINCT query_date FROM sales_flats "
+            "WHERE query_date < date('now') ORDER BY query_date DESC LIMIT 3"
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+    def get_price_movers(
+        self, city: str = None, limit: int = 5, flat_types: List[str] = None
+    ) -> Dict:
         """
-        Get JKs with biggest price increases and decreases between earliest and latest query dates.
+        Get JKs with biggest price increases and decreases between two most recent query dates.
 
         :param city: str, city name in Cyrillic to filter by (optional)
         :param limit: int, number of top movers to return per direction
+        :param flat_types: List[str], flat types to include (default: all)
         :return: Dict with 'risers', 'fallers', 'old_date', 'new_date' keys
         """
         self.connect()
@@ -3102,11 +3114,16 @@ class OrthancDB:
             city_condition = "AND rc.city = ?"
             city_params = (city,)
 
-        # Get the two most recent distinct query dates
-        cursor = self.conn.execute(
-            "SELECT DISTINCT query_date FROM sales_flats ORDER BY query_date DESC LIMIT 2"
-        )
-        dates = [row[0] for row in cursor.fetchall()]
+        # Flat type filter
+        if flat_types:
+            ft_placeholders = ",".join(["?"] * len(flat_types))
+            flat_type_condition = f"AND s.flat_type IN ({ft_placeholders})"
+            flat_type_params = tuple(flat_types)
+        else:
+            flat_type_condition = ""
+            flat_type_params = ()
+
+        dates = self._get_two_recent_complete_dates()
         if len(dates) < 2:
             self.disconnect()
             return {"risers": [], "fallers": [], "old_date": None, "new_date": None}
@@ -3118,37 +3135,142 @@ class OrthancDB:
             "  SELECT s.residential_complex, AVG(s.price / s.area) as avg_price_m2, COUNT(*) as cnt"
             f"  FROM sales_flats s {city_join}"
             f"  WHERE s.query_date = ? AND s.area > 0 AND s.price / s.area < 5000000"
-            f"  AND s.flat_type IN ('Studio', '1BR', '2BR') {city_condition}"
+            f"  {flat_type_condition} {city_condition}"
             "  GROUP BY s.residential_complex HAVING cnt >= 3"
             "), new_prices AS ("
             "  SELECT s.residential_complex, AVG(s.price / s.area) as avg_price_m2, COUNT(*) as cnt"
             f"  FROM sales_flats s {city_join}"
             f"  WHERE s.query_date = ? AND s.area > 0 AND s.price / s.area < 5000000"
-            f"  AND s.flat_type IN ('Studio', '1BR', '2BR') {city_condition}"
+            f"  {flat_type_condition} {city_condition}"
             "  GROUP BY s.residential_complex HAVING cnt >= 3"
             ") SELECT o.residential_complex, o.avg_price_m2 as old_price, n.avg_price_m2 as new_price,"
             "  ((n.avg_price_m2 - o.avg_price_m2) / o.avg_price_m2 * 100) as pct_change,"
             "  o.cnt as count_old, n.cnt as count_new"
             " FROM old_prices o JOIN new_prices n ON o.residential_complex = n.residential_complex"
+            " WHERE pct_change {sign_filter}"
             " ORDER BY pct_change {order}"
             " LIMIT ?"
         )
 
-        # Get risers (params: old_date, [city], new_date, [city], limit)
-        risers_query = query_template.format(order="DESC")
+        # Params: date, flat_types, city, date, flat_types, city, limit
+        base_params = (
+            flat_type_params + city_params
+        )
+
+        risers_query = query_template.format(sign_filter="> 0", order="DESC")
         cursor = self.conn.execute(
             risers_query,
-            (old_date,) + city_params + (new_date,) + city_params + (limit,),
+            (old_date,) + base_params + (new_date,) + base_params + (limit,),
         )
         risers = [dict(row) for row in cursor.fetchall()]
 
-        # Get fallers
-        fallers_query = query_template.format(order="ASC")
+        fallers_query = query_template.format(sign_filter="< 0", order="ASC")
         cursor = self.conn.execute(
             fallers_query,
-            (old_date,) + city_params + (new_date,) + city_params + (limit,),
+            (old_date,) + base_params + (new_date,) + base_params + (limit,),
         )
         fallers = [dict(row) for row in cursor.fetchall()]
+
+        self.disconnect()
+        return {
+            "risers": risers,
+            "fallers": fallers,
+            "old_date": old_date,
+            "new_date": new_date,
+        }
+
+    def get_sold_price_movers(
+        self, city: str = None, limit: int = 5, flat_types: List[str] = None
+    ) -> Dict:
+        """
+        Get JKs with biggest price changes for sold (disappeared) flats.
+
+        Compares disappeared flats between the two most recent date pairs:
+        - Current sold: flats on date[1] not on date[0] (excluding relists)
+        - Previous sold: flats on date[2] not on date[1]
+
+        :param city: str, city name in Cyrillic to filter by (optional)
+        :param limit: int, number of top movers per direction
+        :param flat_types: List[str], flat types to include (default: all)
+        :return: Dict with 'risers', 'fallers', 'old_date', 'new_date' keys
+        """
+        self.connect()
+
+        dates = self._get_two_recent_complete_dates()
+        if len(dates) < 3:
+            self.disconnect()
+            return {"risers": [], "fallers": [], "old_date": None, "new_date": None}
+
+        new_date, old_date, third_date = dates[0], dates[1], dates[2]
+
+        city_join = ""
+        city_condition = ""
+        city_params = ()
+        if city is not None:
+            city_join = (
+                "JOIN residential_complexes rc ON a.residential_complex = rc.name"
+            )
+            city_condition = "AND rc.city = ?"
+            city_params = (city,)
+
+        flat_type_condition = ""
+        flat_type_params = ()
+        if flat_types:
+            ft_placeholders = ",".join(["?"] * len(flat_types))
+            flat_type_condition = f"AND a.flat_type IN ({ft_placeholders})"
+            flat_type_params = tuple(flat_types)
+
+        # Query to get median price/sqm of disappeared flats per JK for a date pair
+        # disappeared = on earlier_date but NOT on later_date, excluding relists
+        disappeared_query = (
+            "SELECT a.residential_complex,"
+            "  AVG(a.price / a.area) as avg_price_m2,"
+            "  COUNT(*) as cnt"
+            f" FROM sales_flats a {city_join}"
+            " WHERE a.query_date = ? AND a.area > 0"
+            "  AND a.flat_id NOT IN ("
+            "    SELECT flat_id FROM sales_flats WHERE query_date = ? AND residential_complex = a.residential_complex"
+            "  )"
+            "  AND a.flat_id NOT IN ("
+            "    SELECT relisted_from_flat_id FROM sales_flats"
+            "    WHERE query_date = ? AND residential_complex = a.residential_complex"
+            "    AND relisted_from_flat_id IS NOT NULL"
+            "  )"
+            f"  {flat_type_condition} {city_condition}"
+            " GROUP BY a.residential_complex HAVING cnt >= 1"
+        )
+
+        # Current sold: on old_date, not on new_date
+        current_params = (old_date, new_date, new_date) + flat_type_params + city_params
+        cursor = self.conn.execute(disappeared_query, current_params)
+        current_sold = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # Previous sold: on third_date, not on old_date
+        prev_params = (third_date, old_date, old_date) + flat_type_params + city_params
+        cursor = self.conn.execute(disappeared_query, prev_params)
+        prev_sold = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # Compute pct change for JKs that appear in both periods
+        movers = []
+        for jk_name in current_sold:
+            if jk_name in prev_sold and prev_sold[jk_name] > 0:
+                pct = ((current_sold[jk_name] - prev_sold[jk_name]) / prev_sold[jk_name]) * 100
+                movers.append({
+                    "residential_complex": jk_name,
+                    "old_price": prev_sold[jk_name],
+                    "new_price": current_sold[jk_name],
+                    "pct_change": round(pct, 2),
+                })
+
+        risers = sorted(
+            [m for m in movers if m["pct_change"] > 0],
+            key=lambda x: x["pct_change"],
+            reverse=True,
+        )[:limit]
+        fallers = sorted(
+            [m for m in movers if m["pct_change"] < 0],
+            key=lambda x: x["pct_change"],
+        )[:limit]
 
         self.disconnect()
         return {
@@ -4209,6 +4331,155 @@ class OrthancDB:
             return False
         finally:
             self.disconnect()
+
+    def save_heat_scores(self, scores: List[Dict], week: str) -> None:
+        self.connect()
+        for s in scores:
+            signals_json = json.dumps(s["signals"])
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO jk_heat_scores
+                    (jk_name, week, heat_score, signals_json, active_listings,
+                     median_price_sqm, city, district)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    s["jk_name"],
+                    week,
+                    s["heat_score"],
+                    signals_json,
+                    s["active_listings"],
+                    s.get("median_price_sqm"),
+                    s.get("city"),
+                    s.get("district"),
+                ),
+            )
+        self.conn.commit()
+        self.disconnect()
+
+    def get_hot_jks(self, week: str = None, limit: int = 20) -> List[Dict]:
+        self.connect()
+
+        if week is None:
+            cursor = self.conn.execute("SELECT MAX(week) FROM jk_heat_scores")
+            row = cursor.fetchone()
+            week = row[0] if row and row[0] else None
+
+        if week is None:
+            self.disconnect()
+            return []
+
+        cursor = self.conn.execute(
+            """
+            SELECT jk_name, week, heat_score, signals_json, active_listings,
+                   median_price_sqm, city, district
+            FROM jk_heat_scores
+            WHERE week = ?
+            ORDER BY heat_score DESC
+            LIMIT ?
+            """,
+            (week, limit),
+        )
+        results = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            d["signals"] = json.loads(d.pop("signals_json"))
+            results.append(d)
+
+        self.disconnect()
+        return results
+
+    def save_price_trends(self, trends: List[Dict], week: str) -> None:
+        self.connect()
+        for t in trends:
+            for_sale = t.get("for_sale", {})
+            sold = t.get("sold")
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO jk_price_trends
+                    (jk_name, week, for_sale_old_sqm, for_sale_new_sqm,
+                     for_sale_change_pct, sold_old_sqm, sold_new_sqm, sold_change_pct)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    t["jk_name"],
+                    week,
+                    for_sale.get("old_price_sqm"),
+                    for_sale.get("new_price_sqm"),
+                    for_sale.get("change_pct"),
+                    sold["old_price_sqm"] if sold else None,
+                    sold["new_price_sqm"] if sold else None,
+                    sold["change_pct"] if sold else None,
+                ),
+            )
+        self.conn.commit()
+        self.disconnect()
+
+    def get_price_trends(self, week: str = None) -> Dict:
+        self.connect()
+
+        if week is None:
+            cursor = self.conn.execute("SELECT MAX(week) FROM jk_price_trends")
+            row = cursor.fetchone()
+            week = row[0] if row and row[0] else None
+
+        if week is None:
+            self.disconnect()
+            return {"week": None, "reference_week": None, "jks": []}
+
+        # Compute previous ISO week string
+        try:
+            # Parse week string like "2026-W14"
+            year = int(week.split("-W")[0])
+            wk = int(week.split("-W")[1])
+            # Get a date in that ISO week (Monday)
+            jan4 = datetime(year, 1, 4)
+            start_of_week1 = jan4 - timedelta(days=jan4.isoweekday() - 1)
+            current_monday = start_of_week1 + timedelta(weeks=wk - 1)
+            prev_monday = current_monday - timedelta(weeks=1)
+            prev_iso = prev_monday.isocalendar()
+            reference_week = f"{prev_iso[0]}-W{prev_iso[1]:02d}"
+        except (ValueError, IndexError):
+            reference_week = None
+
+        cursor = self.conn.execute(
+            """
+            SELECT pt.jk_name, pt.for_sale_old_sqm, pt.for_sale_new_sqm,
+                   pt.for_sale_change_pct, pt.sold_old_sqm, pt.sold_new_sqm,
+                   pt.sold_change_pct, MIN(rc.city) as city
+            FROM jk_price_trends pt
+            LEFT JOIN residential_complexes rc ON pt.jk_name = rc.name
+            WHERE pt.week = ?
+            GROUP BY pt.jk_name
+            """,
+            (week,),
+        )
+
+        jks = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            sold = None
+            if d["sold_old_sqm"] is not None:
+                sold = {
+                    "old_price_sqm": d["sold_old_sqm"],
+                    "new_price_sqm": d["sold_new_sqm"],
+                    "change_pct": d["sold_change_pct"],
+                }
+            jks.append(
+                {
+                    "jk_name": d["jk_name"],
+                    "city": d["city"],
+                    "for_sale": {
+                        "old_price_sqm": d["for_sale_old_sqm"],
+                        "new_price_sqm": d["for_sale_new_sqm"],
+                        "change_pct": d["for_sale_change_pct"],
+                    },
+                    "sold": sold,
+                }
+            )
+
+        self.disconnect()
+        return {"week": week, "reference_week": reference_week, "jks": jks}
 
 
 # Convenience functions
