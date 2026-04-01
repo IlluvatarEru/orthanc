@@ -333,6 +333,40 @@ class DatabaseSchema:
             )
         """)
 
+        # Create JK heat scores table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS jk_heat_scores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jk_name TEXT NOT NULL,
+                week TEXT NOT NULL,
+                heat_score REAL NOT NULL,
+                signals_json TEXT NOT NULL,
+                active_listings INTEGER NOT NULL,
+                median_price_sqm REAL,
+                city TEXT,
+                district TEXT,
+                computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(jk_name, week)
+            )
+        """)
+
+        # Create JK price trends table
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS jk_price_trends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                jk_name TEXT NOT NULL,
+                week TEXT NOT NULL,
+                for_sale_old_sqm REAL,
+                for_sale_new_sqm REAL,
+                for_sale_change_pct REAL,
+                sold_old_sqm REAL,
+                sold_new_sqm REAL,
+                sold_change_pct REAL,
+                computed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(jk_name, week)
+            )
+        """)
+
         self.conn.commit()
         self.disconnect()
 
@@ -465,6 +499,19 @@ class DatabaseSchema:
         )
         self.conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_reviews_decision ON opportunity_reviews(decision, reviewed_at)"
+        )
+
+        # Heat scores indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_heat_scores_week ON jk_heat_scores(week)"
+        )
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_heat_scores_score ON jk_heat_scores(heat_score)"
+        )
+
+        # Price trends indexes
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_price_trends_week ON jk_price_trends(week)"
         )
 
         # Relist detection indexes

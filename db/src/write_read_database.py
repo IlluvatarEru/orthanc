@@ -5,10 +5,11 @@ This module provides functionality to store and retrieve flat data
 with historical tracking and residential complex mapping.
 """
 
+import json
 import sqlite3
 from typing import Optional, List, Dict
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from common.src.flat_info import FlatInfo
 from common.src.flat_type import FLAT_TYPE_VALUES
 from db.src.relist_detection import detect_relist
@@ -4209,6 +4210,154 @@ class OrthancDB:
             return False
         finally:
             self.disconnect()
+
+    def save_heat_scores(self, scores: List[Dict], week: str) -> None:
+        self.connect()
+        for s in scores:
+            signals_json = json.dumps(s["signals"])
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO jk_heat_scores
+                    (jk_name, week, heat_score, signals_json, active_listings,
+                     median_price_sqm, city, district)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    s["jk_name"],
+                    week,
+                    s["heat_score"],
+                    signals_json,
+                    s["active_listings"],
+                    s.get("median_price_sqm"),
+                    s.get("city"),
+                    s.get("district"),
+                ),
+            )
+        self.conn.commit()
+        self.disconnect()
+
+    def get_hot_jks(self, week: str = None, limit: int = 20) -> List[Dict]:
+        self.connect()
+
+        if week is None:
+            cursor = self.conn.execute("SELECT MAX(week) FROM jk_heat_scores")
+            row = cursor.fetchone()
+            week = row[0] if row and row[0] else None
+
+        if week is None:
+            self.disconnect()
+            return []
+
+        cursor = self.conn.execute(
+            """
+            SELECT jk_name, week, heat_score, signals_json, active_listings,
+                   median_price_sqm, city, district
+            FROM jk_heat_scores
+            WHERE week = ?
+            ORDER BY heat_score DESC
+            LIMIT ?
+            """,
+            (week, limit),
+        )
+        results = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            d["signals"] = json.loads(d.pop("signals_json"))
+            results.append(d)
+
+        self.disconnect()
+        return results
+
+    def save_price_trends(self, trends: List[Dict], week: str) -> None:
+        self.connect()
+        for t in trends:
+            for_sale = t.get("for_sale", {})
+            sold = t.get("sold")
+            self.conn.execute(
+                """
+                INSERT OR REPLACE INTO jk_price_trends
+                    (jk_name, week, for_sale_old_sqm, for_sale_new_sqm,
+                     for_sale_change_pct, sold_old_sqm, sold_new_sqm, sold_change_pct)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    t["jk_name"],
+                    week,
+                    for_sale.get("old_price_sqm"),
+                    for_sale.get("new_price_sqm"),
+                    for_sale.get("change_pct"),
+                    sold["old_price_sqm"] if sold else None,
+                    sold["new_price_sqm"] if sold else None,
+                    sold["change_pct"] if sold else None,
+                ),
+            )
+        self.conn.commit()
+        self.disconnect()
+
+    def get_price_trends(self, week: str = None) -> Dict:
+        self.connect()
+
+        if week is None:
+            cursor = self.conn.execute("SELECT MAX(week) FROM jk_price_trends")
+            row = cursor.fetchone()
+            week = row[0] if row and row[0] else None
+
+        if week is None:
+            self.disconnect()
+            return {"week": None, "reference_week": None, "jks": []}
+
+        # Compute previous ISO week string
+        try:
+            # Parse week string like "2026-W14"
+            year = int(week.split("-W")[0])
+            wk = int(week.split("-W")[1])
+            # Get a date in that ISO week (Monday)
+            jan4 = datetime(year, 1, 4)
+            start_of_week1 = jan4 - timedelta(days=jan4.isoweekday() - 1)
+            current_monday = start_of_week1 + timedelta(weeks=wk - 1)
+            prev_monday = current_monday - timedelta(weeks=1)
+            prev_iso = prev_monday.isocalendar()
+            reference_week = f"{prev_iso[0]}-W{prev_iso[1]:02d}"
+        except (ValueError, IndexError):
+            reference_week = None
+
+        cursor = self.conn.execute(
+            """
+            SELECT pt.jk_name, pt.for_sale_old_sqm, pt.for_sale_new_sqm,
+                   pt.for_sale_change_pct, pt.sold_old_sqm, pt.sold_new_sqm,
+                   pt.sold_change_pct, rc.city
+            FROM jk_price_trends pt
+            LEFT JOIN residential_complexes rc ON pt.jk_name = rc.name
+            WHERE pt.week = ?
+            """,
+            (week,),
+        )
+
+        jks = []
+        for row in cursor.fetchall():
+            d = dict(row)
+            sold = None
+            if d["sold_old_sqm"] is not None:
+                sold = {
+                    "old_price_sqm": d["sold_old_sqm"],
+                    "new_price_sqm": d["sold_new_sqm"],
+                    "change_pct": d["sold_change_pct"],
+                }
+            jks.append(
+                {
+                    "jk_name": d["jk_name"],
+                    "city": d["city"],
+                    "for_sale": {
+                        "old_price_sqm": d["for_sale_old_sqm"],
+                        "new_price_sqm": d["for_sale_new_sqm"],
+                        "change_pct": d["for_sale_change_pct"],
+                    },
+                    "sold": sold,
+                }
+            )
+
+        self.disconnect()
+        return {"week": week, "reference_week": reference_week, "jks": jks}
 
 
 # Convenience functions

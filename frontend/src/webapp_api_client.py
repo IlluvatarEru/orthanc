@@ -358,6 +358,31 @@ class WebappAPIClient:
             logger.error(f"API error getting JK profile for {jk_name}: {e}")
             return None
 
+    def get_hot_jks(self, limit: int = 5) -> Dict:
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/jks/hot",
+                params={"limit": limit},
+                timeout=DEFAULT_TIMEOUT,
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"API error getting hot JKs: {e}")
+            return {"week": None, "rankings": []}
+
+    def get_price_trends(self) -> Dict:
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/jks/price-trends",
+                timeout=DEFAULT_TIMEOUT,
+            )
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"API error getting price trends: {e}")
+            return {"week": None, "reference_week": None, "jks": []}
+
 
 # Global API client instance
 api_client = WebappAPIClient()

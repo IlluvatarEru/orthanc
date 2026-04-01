@@ -147,6 +147,35 @@ def index():
         market_velocity = db.get_market_velocity(city=city)
         price_per_sqm = db.get_price_per_sqm_rankings(city=city, limit=15)
 
+    # Hot JKs and price trends
+    hot_jks_data = api_client.get_hot_jks(limit=10)
+    hot_jks = hot_jks_data.get("rankings", [])
+    hot_jk_names = {jk["jk_name"] for jk in hot_jks}
+
+    price_trends_data = api_client.get_price_trends()
+    sold_risers = []
+    sold_fallers = []
+    for jk in price_trends_data.get("jks", []):
+        if jk.get("sold"):
+            entry = {
+                "residential_complex": jk["jk_name"],
+                "old_price": jk["sold"]["old_price_sqm"],
+                "new_price": jk["sold"]["new_price_sqm"],
+                "pct_change": jk["sold"]["change_pct"],
+            }
+            if jk["sold"]["change_pct"] > 0:
+                sold_risers.append(entry)
+            elif jk["sold"]["change_pct"] < 0:
+                sold_fallers.append(entry)
+    sold_risers.sort(key=lambda x: x["pct_change"], reverse=True)
+    sold_fallers.sort(key=lambda x: x["pct_change"])
+    sold_risers = sold_risers[:5]
+    sold_fallers = sold_fallers[:5]
+
+    # Tag opportunities with hot status
+    for opp in top_opportunities:
+        opp["hot"] = opp.get("residential_complex", "") in hot_jk_names
+
     return render_template(
         "index.html",
         total_flats=stats["total_flats"],
@@ -168,6 +197,9 @@ def index():
         rental_yields=rental_yields,
         market_velocity=market_velocity,
         price_per_sqm=price_per_sqm,
+        hot_jks=hot_jks,
+        sold_risers=sold_risers,
+        sold_fallers=sold_fallers,
     )
 
 
@@ -501,6 +533,11 @@ def view_flat_details(flat_id):
             area_tolerance=area_tolerance,
         )
 
+    # Check if this flat's JK is in the hot list
+    hot_jks_data = api_client.get_hot_jks(limit=10)
+    hot_jk_names = {jk["jk_name"] for jk in hot_jks_data.get("rankings", [])}
+    is_hot = flat_data.get("residential_complex", "") in hot_jk_names
+
     return render_template(
         "unified_flat_view.html",
         flat_data=flat_data,
@@ -522,6 +559,7 @@ def view_flat_details(flat_id):
         sale_returns=sale_returns,
         sold_returns=sold_returns,
         jk_profile=jk_profile,
+        is_hot=is_hot,
     )
 
 
