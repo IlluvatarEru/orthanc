@@ -9,7 +9,52 @@
         <div class="card">
             <div class="card-header">
                 <h2 class="mb-1"><i class="fas fa-heart me-2"></i>My Favorites</h2>
-                <p class="mb-0 text-muted">Your saved flats for quick access and analysis</p>
+                <p class="mb-0 text-muted">Your saved JKs and flats for quick access</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Favorite JKs Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="fas fa-star me-2"></i>Favorite JKs</h5>
+            </div>
+            <div class="card-body">
+                {% if favorite_jks %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Complex</th>
+                                <th>Added</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for jk in favorite_jks %}
+                            <tr>
+                                <td>
+                                    <a href="{{ url_for('analyze_jk', residential_complex_name=jk.name) }}">
+                                        {{ jk.name }}
+                                    </a>
+                                </td>
+                                <td><small class="text-muted">{{ jk.added_at[:10] }}</small></td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-outline-warning unfavorite-jk" data-jk-name="{{ jk.name }}">
+                                        <i class="fas fa-star"></i> Unfavorite
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">No favorite JKs yet. Add JKs to favorites from their analysis page.</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -142,9 +187,25 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Unfavorite JK functionality
+    document.querySelectorAll('.unfavorite-jk').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const jkName = this.getAttribute('data-jk-name');
+            if (confirm('Remove ' + jkName + ' from favorites?')) {
+                fetch('/favorite_jk/' + encodeURIComponent(jkName), { method: 'POST' })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            location.reload();
+                        }
+                    });
+            }
+        });
+    });
+
     // Remove from favorites functionality
     const removeButtons = document.querySelectorAll('.remove-favorite');
-    
+
     removeButtons.forEach(function(button) {
         button.addEventListener('click', function() {
             const flatId = this.getAttribute('data-flat-id');

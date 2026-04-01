@@ -67,7 +67,7 @@
                     data-total-floors="{{ flat_data.total_floors or '' }}"
                     data-construction-year="{{ flat_data.construction_year or '' }}"
                     data-parking="{{ flat_data.parking or '' }}"
-                    data-description="{{ flat_data.description or '' }}"
+                    data-description="{{ (flat_data.description or '')|e }}"
                     data-url="{% if flat_data.url %}{{ flat_data.url }}{% else %}https://krisha.kz/a/show/{{ flat_data.flat_id }}{% endif %}"
                     title="Add to favorites">
                 <i class="fas fa-heart"></i>

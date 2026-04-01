@@ -1811,6 +1811,62 @@ class OrthancDB:
             self.disconnect()
             raise Exception(f"JK '{jk_id}' not found in residential_complexes table")
 
+    # ---- Favorite JKs Methods ----
+
+    def add_favorite_jk(self, name: str, notes: str = None) -> bool:
+        self.connect()
+        try:
+            self.conn.execute(
+                "INSERT INTO favorite_jks (name, notes) VALUES (?, ?)",
+                (name, notes),
+            )
+            self.conn.commit()
+            logging.info(f"Added favorite JK: {name}")
+            return True
+        except sqlite3.IntegrityError:
+            logging.info(f"JK already in favorites: {name}")
+            return False
+        finally:
+            self.disconnect()
+
+    def remove_favorite_jk(self, name: str) -> bool:
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "DELETE FROM favorite_jks WHERE name = ?",
+                (name,),
+            )
+            self.conn.commit()
+            if cursor.rowcount > 0:
+                logging.info(f"Removed favorite JK: {name}")
+                return True
+            else:
+                logging.warning(f"JK not found in favorites: {name}")
+                return False
+        finally:
+            self.disconnect()
+
+    def get_favorite_jks(self) -> List[dict]:
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT name, added_at, notes FROM favorite_jks ORDER BY added_at DESC"
+            )
+            return [dict(row) for row in cursor.fetchall()]
+        finally:
+            self.disconnect()
+
+    def is_favorite_jk(self, name: str) -> bool:
+        self.connect()
+        try:
+            cursor = self.conn.execute(
+                "SELECT 1 FROM favorite_jks WHERE name = ?",
+                (name,),
+            )
+            return cursor.fetchone() is not None
+        finally:
+            self.disconnect()
+
     # ---- District Blacklist Methods ----
 
     def add_blacklisted_district(

@@ -54,6 +54,9 @@
                             <button id="refreshAnalysisBtn" class="btn btn-sm btn-primary" onclick="showRefreshConfirm();">
                                 <i class="fas fa-sync-alt me-1"></i>Refresh
                             </button>
+                            <button class="btn btn-sm {{ 'btn-warning' if is_favorite_jk else 'btn-outline-warning' }}" onclick="toggleFavoriteJK('{{ complex_info.name }}')">
+                                <i class="{{ 'fas' if is_favorite_jk else 'far' }} fa-star me-1"></i>Favorite
+                            </button>
                             <button class="btn btn-sm btn-danger" onclick="blacklistJK('{{ complex_info.name }}')">
                                 <i class="fas fa-ban me-1"></i>Blacklist
                             </button>
@@ -552,6 +555,20 @@ window.blacklistJK = function(jkName) {
         .catch(err => alert('Error: ' + err));
 };
 
+// Toggle Favorite JK functionality
+window.toggleFavoriteJK = function(jkName) {
+    fetch('/favorite_jk/' + encodeURIComponent(jkName), { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Failed to toggle favorite: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(err => alert('Error: ' + err));
+};
+
 // Refresh Analysis functionality - Global functions
 window.showRefreshConfirm = function() {
     console.log('🔍 showRefreshConfirm function called');
@@ -852,7 +869,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                                                 data-total-floors="{{ flat.total_floors or '' }}"
                                                 data-construction-year="{{ flat.construction_year or '' }}"
                                                 data-parking="{{ flat.parking or '' }}"
-                                                data-description="{{ flat.description }}"
+                                                data-description="{{ flat.description|e }}"
                                                 data-url="{{ flat.url }}">
                                             <i class="fas fa-heart"></i>
                                         </button>
@@ -917,7 +934,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                                                 data-total-floors="{{ flat.total_floors or '' }}"
                                                 data-construction-year="{{ flat.construction_year or '' }}"
                                                 data-parking="{{ flat.parking or '' }}"
-                                                data-description="{{ flat.description }}"
+                                                data-description="{{ flat.description|e }}"
                                                 data-url="{{ flat.url }}">
                                             <i class="fas fa-heart"></i>
                                         </button>
