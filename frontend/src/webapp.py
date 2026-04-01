@@ -775,11 +775,14 @@ def tech_status():
 
 @app.route("/favorites")
 def favorites(db_path="flats.db"):
-    """Display user's favorite flats."""
+    """Display user's favorite flats and JKs."""
     with OrthancDB(db_path) as db:
         favorites_list = db.get_favorites()
+        favorite_jks = db.get_favorite_jks()
 
-    return render_template("favorites.html", favorites=favorites_list)
+    return render_template(
+        "favorites.html", favorites=favorites_list, favorite_jks=favorite_jks
+    )
 
 
 @app.route("/api/favorites/add", methods=["POST"])
