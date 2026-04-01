@@ -340,11 +340,6 @@ def scrape_jk_rentals(
     complex_id = complex_info["complex_id"]
     logging.info(f"Found complex ID: {complex_id}")
 
-    # Initialize database connection once for checking archived status
-    from db.src.write_read_database import OrthancDB
-
-    db = OrthancDB(db_path)
-
     # Scrape each page
     for page in range(1, max_pages + 1):
         logging.info(f"Scraping page {page} for {jk_name}")
@@ -363,14 +358,12 @@ def scrape_jk_rentals(
 
         logging.info(f"Found {len(flat_urls)} flats on page {page}")
 
-        # Filter out archived flats first (main thread, uses DB)
+        # Collect flat IDs to scrape (all flats from search results, including
+        # previously archived ones -- they may have been relisted)
         flat_ids_to_scrape = []
         for flat_url in flat_urls:
             flat_id = extract_flat_id_from_url(flat_url)
             if not flat_id:
-                continue
-            if db.is_flat_archived(flat_id, is_rental=True):
-                logging.info(f"Skipping archived rental flat: {flat_id}")
                 continue
             flat_ids_to_scrape.append(flat_id)
 

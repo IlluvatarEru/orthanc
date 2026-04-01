@@ -108,6 +108,18 @@ class OrthancDB:
         # Use flat_type from parameter or from flat_info object
         actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
 
+        # If flat is not archived, clear archived flag on all previous rows
+        # (handles relisted flats that were previously marked archived)
+        if not flat_info.archived:
+            self.conn.execute(
+                """
+                UPDATE rental_flats
+                SET archived = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE flat_id = ? AND archived = 1
+                """,
+                (flat_info.flat_id,),
+            )
+
         # Relist detection
         first_seen_at = query_date
         relisted_from = None
@@ -186,6 +198,18 @@ class OrthancDB:
 
         # Use flat_type from parameter or from flat_info object
         actual_flat_type = flat_type if flat_type is not None else flat_info.flat_type
+
+        # If flat is not archived, clear archived flag on all previous rows
+        # (handles relisted flats that were previously marked archived)
+        if not flat_info.archived:
+            self.conn.execute(
+                """
+                UPDATE sales_flats
+                SET archived = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE flat_id = ? AND archived = 1
+                """,
+                (flat_info.flat_id,),
+            )
 
         # Relist detection
         first_seen_at = query_date
