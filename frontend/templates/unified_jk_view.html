@@ -869,7 +869,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                                                 data-total-floors="{{ flat.total_floors or '' }}"
                                                 data-construction-year="{{ flat.construction_year or '' }}"
                                                 data-parking="{{ flat.parking or '' }}"
-                                                data-description="{{ flat.description }}"
+                                                data-description="{{ flat.description|e }}"
                                                 data-url="{{ flat.url }}">
                                             <i class="fas fa-heart"></i>
                                         </button>
@@ -934,7 +934,7 @@ console.log('🔍 window.performRefreshAnalysis:', typeof window.performRefreshA
                                                 data-total-floors="{{ flat.total_floors or '' }}"
                                                 data-construction-year="{{ flat.construction_year or '' }}"
                                                 data-parking="{{ flat.parking or '' }}"
-                                                data-description="{{ flat.description }}"
+                                                data-description="{{ flat.description|e }}"
                                                 data-url="{{ flat.url }}">
                                             <i class="fas fa-heart"></i>
                                         </button>
