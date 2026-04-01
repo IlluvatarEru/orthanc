@@ -143,13 +143,209 @@
     </div>
 </div>
 
-<!-- Hot JKs This Week -->
-{% if hot_jks %}
-<div class="row mb-4">
+<!-- Price Movers Filter -->
+<div class="row mb-2">
     <div class="col-12">
+        <form method="GET" action="/" class="d-inline">
+            {% for key, val in request.args.items() if key != 'price_flat_type' %}
+            <input type="hidden" name="{{ key }}" value="{{ val }}">
+            {% endfor %}
+            <label class="text-muted me-2" style="font-size: 0.85rem;">Price movers by flat type:</label>
+            <select name="price_flat_type" class="form-select form-select-sm d-inline-block" style="width: auto;" onchange="this.form.submit()">
+                <option value="default" {% if price_flat_type == 'default' %}selected{% endif %}>S/1/2BR</option>
+                <option value="all" {% if price_flat_type == 'all' %}selected{% endif %}>All</option>
+                <option value="Studio" {% if price_flat_type == 'Studio' %}selected{% endif %}>Studio</option>
+                <option value="1BR" {% if price_flat_type == '1BR' %}selected{% endif %}>1BR</option>
+                <option value="2BR" {% if price_flat_type == '2BR' %}selected{% endif %}>2BR</option>
+                <option value="3BR+" {% if price_flat_type == '3BR+' %}selected{% endif %}>3BR+</option>
+            </select>
+        </form>
+    </div>
+</div>
+
+<!-- Price Movers - For Sale -->
+{% if price_movers.risers or price_movers.fallers %}
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
         <div class="card">
             <div class="card-header">
-                <h5 class="mb-0">Hot JKs This Week</h5>
+                <h5 class="mb-0">Rising Prices - For Sale</h5>
+                {% if price_movers.old_date and price_movers.new_date %}
+                <small class="text-muted">{{ price_movers.old_date }} to {{ price_movers.new_date }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if price_movers.risers %}
+                <div class="chart-container">
+                    <canvas id="risersChart"></canvas>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>JK</th>
+                                <th>Old /m2</th>
+                                <th>New /m2</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in price_movers.risers %}
+                            <tr>
+                                <td><a href="/analyze_jk/{{ r.residential_complex|urlencode }}">{{ r.residential_complex }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.old_price) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.new_price) }}{% endif %}</td>
+                                <td><span class="text-success">+{{ "%.1f"|format(r.pct_change) }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Not enough data for rising prices analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Falling Prices - For Sale</h5>
+                {% if price_movers.old_date and price_movers.new_date %}
+                <small class="text-muted">{{ price_movers.old_date }} to {{ price_movers.new_date }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if price_movers.fallers %}
+                <div class="chart-container">
+                    <canvas id="fallersChart"></canvas>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>JK</th>
+                                <th>Old /m2</th>
+                                <th>New /m2</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in price_movers.fallers %}
+                            <tr>
+                                <td><a href="/analyze_jk/{{ f.residential_complex|urlencode }}">{{ f.residential_complex }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.old_price) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.new_price) }}{% endif %}</td>
+                                <td><span class="text-danger">{{ "%.1f"|format(f.pct_change) }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Not enough data for falling prices analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Sold Price Movers -->
+{% if sold_movers.risers or sold_movers.fallers %}
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Rising Prices - Sold</h5>
+                {% if sold_movers.old_date and sold_movers.new_date %}
+                <small class="text-muted">{{ sold_movers.old_date }} to {{ sold_movers.new_date }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if sold_movers.risers %}
+                <div class="chart-container">
+                    <canvas id="soldRisersChart"></canvas>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>JK</th>
+                                <th>Old /m2</th>
+                                <th>New /m2</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in sold_movers.risers %}
+                            <tr>
+                                <td><a href="/analyze_jk/{{ r.residential_complex|urlencode }}">{{ r.residential_complex }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.old_price) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.new_price) }}{% endif %}</td>
+                                <td><span class="text-success">+{{ "%.1f"|format(r.pct_change) }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Not enough data for rising sold prices analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Falling Prices - Sold</h5>
+                {% if sold_movers.old_date and sold_movers.new_date %}
+                <small class="text-muted">{{ sold_movers.old_date }} to {{ sold_movers.new_date }}</small>
+                {% endif %}
+            </div>
+            <div class="card-body">
+                {% if sold_movers.fallers %}
+                <div class="chart-container">
+                    <canvas id="soldFallersChart"></canvas>
+                </div>
+                <div class="table-responsive mt-3">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>JK</th>
+                                <th>Old /m2</th>
+                                <th>New /m2</th>
+                                <th>Change</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for f in sold_movers.fallers %}
+                            <tr>
+                                <td><a href="/analyze_jk/{{ f.residential_complex|urlencode }}">{{ f.residential_complex }}</a></td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.old_price) }}{% endif %}</td>
+                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.new_price) }}{% endif %}</td>
+                                <td><span class="text-danger">{{ "%.1f"|format(f.pct_change) }}%</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">Not enough data for falling sold prices analysis.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Hot & Cold JKs This Week -->
+{% if hottest_jks %}
+<div class="row mb-4">
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Hottest JKs <small class="text-muted fw-normal" style="font-size: 0.7rem;">(demand score: sales speed, price momentum, listing velocity, DOM)</small></h5>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -158,7 +354,7 @@
                             <tr><th>#</th><th>Complex</th><th>Heat</th><th>Price Trend</th><th>Avg DOM</th></tr>
                         </thead>
                         <tbody>
-                            {% for jk in hot_jks[:5] %}
+                            {% for jk in hottest_jks %}
                             <tr>
                                 <td>{{ loop.index }}</td>
                                 <td><a href="/analyze_jk/{{ jk.jk_name|urlencode }}">{{ jk.jk_name }}</a></td>
@@ -170,6 +366,37 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Coldest JKs <small class="text-muted fw-normal" style="font-size: 0.7rem;">(lowest demand score)</small></h5>
+            </div>
+            <div class="card-body">
+                {% if coldest_jks %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr><th>#</th><th>Complex</th><th>Heat</th><th>Price Trend</th><th>Avg DOM</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for jk in coldest_jks %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td><a href="/analyze_jk/{{ jk.jk_name|urlencode }}">{{ jk.jk_name }}</a></td>
+                                <td><span class="badge" style="background: {% if jk.heat_score >= 0.7 %}#00d4aa{% elif jk.heat_score >= 0.4 %}#ffc107{% else %}#6c757d{% endif %};">{{ "%.2f"|format(jk.heat_score) }}</span></td>
+                                <td>{% if jk.signals.price_sqm_momentum_pct > 0 %}<span class="text-success">+{{ "%.1f"|format(jk.signals.price_sqm_momentum_pct) }}%</span>{% else %}<span class="text-danger">{{ "%.1f"|format(jk.signals.price_sqm_momentum_pct) }}%</span>{% endif %}</td>
+                                <td>{{ jk.signals.avg_days_on_market|int }}d</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted mb-0">Not enough JKs to show coldest rankings (need > 3).</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -218,176 +445,6 @@
         </div>
     </div>
 </div>
-
-<!-- Price Movers -->
-{% if price_movers.risers or price_movers.fallers %}
-<div class="row mb-4">
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Rising Prices</h5>
-                {% if price_movers.old_date and price_movers.new_date %}
-                <small class="text-muted">{{ price_movers.old_date }} to {{ price_movers.new_date }}</small>
-                {% endif %}
-            </div>
-            <div class="card-body">
-                {% if price_movers.risers %}
-                <div class="chart-container">
-                    <canvas id="risersChart"></canvas>
-                </div>
-                <div class="table-responsive mt-3">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>JK</th>
-                                <th>Old /m2</th>
-                                <th>New /m2</th>
-                                <th>Change</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for r in price_movers.risers %}
-                            <tr>
-                                <td><a href="/analyze_jk/{{ r.residential_complex|urlencode }}">{{ r.residential_complex }}</a></td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.old_price) }}{% endif %}</td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.new_price) }}{% endif %}</td>
-                                <td><span class="text-success">+{{ "%.1f"|format(r.pct_change) }}%</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">Not enough data for rising prices analysis.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Falling Prices</h5>
-                {% if price_movers.old_date and price_movers.new_date %}
-                <small class="text-muted">{{ price_movers.old_date }} to {{ price_movers.new_date }}</small>
-                {% endif %}
-            </div>
-            <div class="card-body">
-                {% if price_movers.fallers %}
-                <div class="chart-container">
-                    <canvas id="fallersChart"></canvas>
-                </div>
-                <div class="table-responsive mt-3">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>JK</th>
-                                <th>Old /m2</th>
-                                <th>New /m2</th>
-                                <th>Change</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for f in price_movers.fallers %}
-                            <tr>
-                                <td><a href="/analyze_jk/{{ f.residential_complex|urlencode }}">{{ f.residential_complex }}</a></td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.old_price) }}{% endif %}</td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.new_price) }}{% endif %}</td>
-                                <td><span class="text-danger">{{ "%.1f"|format(f.pct_change) }}%</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">Not enough data for falling prices analysis.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
-
-<!-- Sold Price Movers -->
-{% if sold_risers or sold_fallers %}
-<div class="row mb-4">
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Rising Prices - Sold</h5>
-            </div>
-            <div class="card-body">
-                {% if sold_risers %}
-                <div class="chart-container">
-                    <canvas id="soldRisersChart"></canvas>
-                </div>
-                <div class="table-responsive mt-3">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>JK</th>
-                                <th>Old /m2</th>
-                                <th>New /m2</th>
-                                <th>Change</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for r in sold_risers %}
-                            <tr>
-                                <td><a href="/analyze_jk/{{ r.residential_complex|urlencode }}">{{ r.residential_complex }}</a></td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.old_price) }}{% endif %}</td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(r.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(r.new_price) }}{% endif %}</td>
-                                <td><span class="text-success">+{{ "%.1f"|format(r.pct_change) }}%</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">Not enough data for rising sold prices analysis.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Falling Prices - Sold</h5>
-            </div>
-            <div class="card-body">
-                {% if sold_fallers %}
-                <div class="chart-container">
-                    <canvas id="soldFallersChart"></canvas>
-                </div>
-                <div class="table-responsive mt-3">
-                    <table class="table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>JK</th>
-                                <th>Old /m2</th>
-                                <th>New /m2</th>
-                                <th>Change</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for f in sold_fallers %}
-                            <tr>
-                                <td><a href="/analyze_jk/{{ f.residential_complex|urlencode }}">{{ f.residential_complex }}</a></td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.old_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.old_price) }}{% endif %}</td>
-                                <td>{% if show_eur %}€{{ "{:,.0f}".format(f.new_price / eur_rate) }}{% else %}₸{{ "{:,.0f}".format(f.new_price) }}{% endif %}</td>
-                                <td><span class="text-danger">{{ "%.1f"|format(f.pct_change) }}%</span></td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <p class="text-muted">Not enough data for falling sold prices analysis.</p>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-{% endif %}
 
 <!-- Best Rental Yields + Flats by Type -->
 <div class="row mb-4">
@@ -829,16 +886,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     {% endif %}
 
-    {% if sold_risers %}
+    {% if sold_movers.risers %}
     // Sold Rising Prices Chart
     const soldRisersCtx = document.getElementById('soldRisersChart').getContext('2d');
     new Chart(soldRisersCtx, {
         type: 'bar',
         data: {
-            labels: [{% for r in sold_risers %}'{{ r.residential_complex }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+            labels: [{% for r in sold_movers.risers %}'{{ r.residential_complex }}'{% if not loop.last %}, {% endif %}{% endfor %}],
             datasets: [{
                 label: '% Change',
-                data: [{% for r in sold_risers %}{{ "%.1f"|format(r.pct_change) }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                data: [{% for r in sold_movers.risers %}{{ "%.1f"|format(r.pct_change) }}{% if not loop.last %}, {% endif %}{% endfor %}],
                 backgroundColor: 'rgba(0, 212, 170, 0.7)',
                 borderColor: 'rgba(0, 212, 170, 1)',
                 borderWidth: 1
@@ -874,16 +931,16 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     {% endif %}
 
-    {% if sold_fallers %}
+    {% if sold_movers.fallers %}
     // Sold Falling Prices Chart
     const soldFallersCtx = document.getElementById('soldFallersChart').getContext('2d');
     new Chart(soldFallersCtx, {
         type: 'bar',
         data: {
-            labels: [{% for f in sold_fallers %}'{{ f.residential_complex }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+            labels: [{% for f in sold_movers.fallers %}'{{ f.residential_complex }}'{% if not loop.last %}, {% endif %}{% endfor %}],
             datasets: [{
                 label: '% Change',
-                data: [{% for f in sold_fallers %}{{ "%.1f"|format(f.pct_change|abs) }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                data: [{% for f in sold_movers.fallers %}{{ "%.1f"|format(f.pct_change|abs) }}{% if not loop.last %}, {% endif %}{% endfor %}],
                 backgroundColor: 'rgba(255, 99, 132, 0.7)',
                 borderColor: 'rgba(255, 99, 132, 1)',
                 borderWidth: 1

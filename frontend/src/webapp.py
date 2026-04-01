@@ -128,6 +128,10 @@ def index():
     }
     flat_types = flat_type_map.get(flat_type_param, ["Studio", "1BR", "2BR"])
 
+    # Price movers flat type filter (separate from opportunities)
+    price_ft_param = request.args.get("price_flat_type", "default")
+    price_flat_types = flat_type_map.get(price_ft_param, ["Studio", "1BR", "2BR"])
+
     # Seller type filter: owner, agent, or all (None)
     seller_type_param = request.args.get("seller_type", "owner")
     seller_type_filter = None if seller_type_param == "all" else seller_type_param
@@ -142,35 +146,22 @@ def index():
             seller_type=seller_type_filter,
             ignore_exclusion_days=IGNORE_EXCLUSION_DAYS,
         )
-        price_movers = db.get_price_movers(city=city, limit=5)
+        price_movers = db.get_price_movers(
+            city=city, limit=5, flat_types=price_flat_types
+        )
+        sold_movers = db.get_sold_price_movers(
+            city=city, limit=5, flat_types=price_flat_types
+        )
         rental_yields = db.get_best_rental_yields(city=city, limit=10)
         market_velocity = db.get_market_velocity(city=city)
         price_per_sqm = db.get_price_per_sqm_rankings(city=city, limit=15)
 
-    # Hot JKs and price trends
-    hot_jks_data = api_client.get_hot_jks(limit=10)
+    # Hot JKs
+    hot_jks_data = api_client.get_hot_jks(limit=50)
     hot_jks = hot_jks_data.get("rankings", [])
-    hot_jk_names = {jk["jk_name"] for jk in hot_jks}
-
-    price_trends_data = api_client.get_price_trends()
-    sold_risers = []
-    sold_fallers = []
-    for jk in price_trends_data.get("jks", []):
-        if jk.get("sold"):
-            entry = {
-                "residential_complex": jk["jk_name"],
-                "old_price": jk["sold"]["old_price_sqm"],
-                "new_price": jk["sold"]["new_price_sqm"],
-                "pct_change": jk["sold"]["change_pct"],
-            }
-            if jk["sold"]["change_pct"] > 0:
-                sold_risers.append(entry)
-            elif jk["sold"]["change_pct"] < 0:
-                sold_fallers.append(entry)
-    sold_risers.sort(key=lambda x: x["pct_change"], reverse=True)
-    sold_fallers.sort(key=lambda x: x["pct_change"])
-    sold_risers = sold_risers[:5]
-    sold_fallers = sold_fallers[:5]
+    hot_jk_names = {jk["jk_name"] for jk in hot_jks[:10]}
+    hottest_jks = hot_jks[:3]
+    coldest_jks = list(reversed(hot_jks[-3:])) if len(hot_jks) > 3 else []
 
     # Tag opportunities with hot status
     for opp in top_opportunities:
@@ -192,14 +183,16 @@ def index():
         limit=limit,
         city=city_param,
         flat_type=flat_type_param,
+        price_flat_type=price_ft_param,
         seller_type=seller_type_param,
         price_movers=price_movers,
+        sold_movers=sold_movers,
         rental_yields=rental_yields,
         market_velocity=market_velocity,
         price_per_sqm=price_per_sqm,
         hot_jks=hot_jks,
-        sold_risers=sold_risers,
-        sold_fallers=sold_fallers,
+        hottest_jks=hottest_jks,
+        coldest_jks=coldest_jks,
     )
 
 

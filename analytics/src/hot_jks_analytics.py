@@ -13,17 +13,26 @@ def _get_iso_week_string(dt: datetime) -> str:
     return f"{iso[0]}-W{iso[1]:02d}"
 
 
+def _get_latest_complete_date(db: OrthancDB) -> str:
+    """Get the most recent query_date before today (today may be incomplete)."""
+    cursor = db.conn.execute(
+        "SELECT MAX(query_date) FROM sales_flats WHERE query_date < date('now')"
+    )
+    row = cursor.fetchone()
+    return row[0] if row and row[0] else None
+
+
 def compute_heat_scores(db: OrthancDB) -> Tuple[str, List[Dict]]:
     db.connect()
 
-    # Get the latest query_date and a date ~28 days before
-    cursor = db.conn.execute("SELECT MAX(query_date) FROM sales_flats")
-    latest_date_str = cursor.fetchone()[0]
+    # Get the latest complete query_date (skip partial scrape runs)
+    latest_date_str = _get_latest_complete_date(db)
     if not latest_date_str:
         db.disconnect()
         return _get_iso_week_string(datetime.now()), []
 
     latest_date = datetime.strptime(latest_date_str, "%Y-%m-%d")
+    logger.info(f"Using query_date {latest_date_str} for heat score computation")
     old_date = latest_date - timedelta(days=28)
     old_date_str = old_date.strftime("%Y-%m-%d")
 
@@ -35,6 +44,7 @@ def compute_heat_scores(db: OrthancDB) -> Tuple[str, List[Dict]]:
         SELECT residential_complex, COUNT(DISTINCT flat_id) as cnt
         FROM sales_flats
         WHERE query_date = ? AND archived = 0
+          AND residential_complex IS NOT NULL
         GROUP BY residential_complex
         HAVING cnt >= 5
         """,
@@ -334,9 +344,16 @@ def compute_heat_scores(db: OrthancDB) -> Tuple[str, List[Dict]]:
 def compute_price_trends(db: OrthancDB) -> Tuple[str, str, List[Dict]]:
     db.connect()
 
-    # Get the three most recent distinct query_dates
+    # Start from the latest complete date, then get the 2 dates before it
+    latest_complete = _get_latest_complete_date(db)
+    if not latest_complete:
+        db.disconnect()
+        week = _get_iso_week_string(datetime.now())
+        return week, week, []
+
     cursor = db.conn.execute(
-        "SELECT DISTINCT query_date FROM sales_flats ORDER BY query_date DESC LIMIT 3"
+        "SELECT DISTINCT query_date FROM sales_flats WHERE query_date <= ? ORDER BY query_date DESC LIMIT 3",
+        (latest_complete,),
     )
     dates = [row[0] for row in cursor.fetchall()]
 
@@ -346,6 +363,7 @@ def compute_price_trends(db: OrthancDB) -> Tuple[str, str, List[Dict]]:
         return week, week, []
 
     new_date = dates[0]
+    logger.info(f"Using dates {dates} for price trends computation")
     old_date = dates[1]
     third_date = dates[2] if len(dates) >= 3 else None
 
