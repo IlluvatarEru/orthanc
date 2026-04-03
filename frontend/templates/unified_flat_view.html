@@ -476,7 +476,17 @@
                                 <strong>Area:</strong> {{ flat.area }} m²<br>
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
-                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}
+                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}<br>
+                                <strong>Seller:</strong>
+                                {% if flat.seller_type == "owner" %}
+                                    <span style="background-color: #2e7d32; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Owner</span>
+                                {% elif flat.seller_type == "realtor" %}
+                                    <span style="background-color: #f9a825; color: #000; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Realtor</span>
+                                {% elif flat.seller_type == "developer" %}
+                                    <span style="background-color: #1565c0; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Developer</span>
+                                {% else %}
+                                    <span style="background-color: #616161; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Unknown</span>
+                                {% endif %}
                             </p>
                             <div class="mt-2">
                                 {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
@@ -525,7 +535,17 @@
                                 <strong>Area:</strong> {{ flat.area }} m²<br>
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
-                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}
+                                <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}<br>
+                                <strong>Seller:</strong>
+                                {% if flat.seller_type == "owner" %}
+                                    <span style="background-color: #2e7d32; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Owner</span>
+                                {% elif flat.seller_type == "realtor" %}
+                                    <span style="background-color: #f9a825; color: #000; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Realtor</span>
+                                {% elif flat.seller_type == "developer" %}
+                                    <span style="background-color: #1565c0; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Developer</span>
+                                {% else %}
+                                    <span style="background-color: #616161; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Unknown</span>
+                                {% endif %}
                             </p>
                             <div class="mt-2">
                                 {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
@@ -574,7 +594,17 @@
                                 <strong>Area:</strong> {{ flat.area }} m²<br>
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
-                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}
+                                <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}<br>
+                                <strong>Seller:</strong>
+                                {% if flat.seller_type == "owner" %}
+                                    <span style="background-color: #2e7d32; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Owner</span>
+                                {% elif flat.seller_type == "realtor" %}
+                                    <span style="background-color: #f9a825; color: #000; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Realtor</span>
+                                {% elif flat.seller_type == "developer" %}
+                                    <span style="background-color: #1565c0; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Developer</span>
+                                {% else %}
+                                    <span style="background-color: #616161; color: #fff; padding: 1px 7px; border-radius: 4px; font-size: 0.85em;">Unknown</span>
+                                {% endif %}
                             </p>
                             <div class="mt-2">
                                 <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
