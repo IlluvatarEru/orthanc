@@ -477,7 +477,16 @@
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
                                 <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}<br>
-                                <strong>Seller:</strong> {{ flat.seller_type or 'Unknown' }}
+                                <strong>Seller:</strong>
+                                {% if flat.seller_type == "owner" %}
+                                    Owner
+                                {% elif flat.seller_type == "agent" %}
+                                    Realtor
+                                {% elif flat.seller_type == "complex" %}
+                                    Developer
+                                {% else %}
+                                    Unknown
+                                {% endif %}
                             </p>
                             <div class="mt-2">
                                 {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
@@ -527,7 +536,16 @@
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
                                 <strong>Complex:</strong> {{ flat.residential_complex or 'N/A' }}<br>
-                                <strong>Seller:</strong> {{ flat.seller_type or 'Unknown' }}
+                                <strong>Seller:</strong>
+                                {% if flat.seller_type == "owner" %}
+                                    Owner
+                                {% elif flat.seller_type == "agent" %}
+                                    Realtor
+                                {% elif flat.seller_type == "complex" %}
+                                    Developer
+                                {% else %}
+                                    Unknown
+                                {% endif %}
                             </p>
                             <div class="mt-2">
                                 {% set price_diff = ((flat.price - flat_data.price) / flat_data.price) * 100 %}
@@ -577,7 +595,16 @@
                                 <strong>Floor:</strong> {{ flat.floor or 'N/A' }}<br>
                                 <strong>Year:</strong> {{ flat.construction_year or 'N/A' }}<br>
                                 <strong>Complex:</strong> {% if flat.residential_complex %}<a href="https://dashboard.orthanc.capital/analyze_jk/{{ flat.residential_complex | urlencode }}" class="text-white">{{ flat.residential_complex }}</a>{% else %}N/A{% endif %}<br>
-                                <strong>Seller:</strong> {{ flat.seller_type or 'Unknown' }}
+                                <strong>Seller:</strong>
+                                {% if flat.seller_type == "owner" %}
+                                    Owner
+                                {% elif flat.seller_type == "agent" %}
+                                    Realtor
+                                {% elif flat.seller_type == "complex" %}
+                                    Developer
+                                {% else %}
+                                    Unknown
+                                {% endif %}
                             </p>
                             <div class="mt-2">
                                 <a href="https://krisha.kz/a/show/{{ flat.flat_id }}"
